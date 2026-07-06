@@ -1,64 +1,60 @@
-import { auth } from "../firebase";
-import { signOut } from "firebase/auth";
-import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Button,
-  Box,
-  Drawer,
-  List,
-  ListItemButton,
-  ListItemText,
-  Container,
-  Chip,
-} from "@mui/material";
+import { Box, Button, Card, CardActions, CardContent, Chip, Typography } from "@mui/material";
 import type { Perfil } from "../types";
 
-interface DashboardProps {
-  perfil: Perfil;
-}
+const metricas = [
+  { label: "👁 Espectadores", value: "—" },
+  { label: "📺 Vistas", value: "—" },
+  { label: "⏱ Tiempo emisión", value: "—" },
+  { label: "🔴 Estado", value: "Offline" },
+];
 
-const drawerWidth = 220;
-
-export default function Dashboard({ perfil }: DashboardProps) {
-  const handleLogout = async () => {
-    await signOut(auth);
-  };
+export default function Dashboard({ perfil }: { perfil: Perfil }) {
+  const nombreCliente = perfil.tenant?.nombre ?? perfil.tenant?.slug ?? "Cliente";
 
   return (
-    <Box sx={ { display: "flex" } }>
-      <AppBar position="fixed" sx={ { zIndex: (t) => t.zIndex.drawer + 1 } }>
-        <Toolbar sx={ { justifyContent: "space-between" } }>
-          <Typography variant="h6">Pinnacle Admin</Typography>
-          <Button color="inherit" onClick={handleLogout}>
-            Cerrar sesión
-          </Button>
-        </Toolbar>
-      </AppBar>
+    <Box>
+      <Typography variant="h4" gutterBottom>Hola, {nombreCliente} 👋</Typography>
+      <Typography color="text.secondary" sx={ { mb: 3 } }>
+        Este es el centro de control de tu plataforma.
+      </Typography>
 
-      <Drawer
-        variant="permanent"
-        sx={ { width: drawerWidth, "& .MuiDrawer-paper": { width: drawerWidth, boxSizing: "border-box" } } }
+      <Box
+        sx={ {
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, 1fr)" },
+          gap: 2,
+          mb: 3,
+        } }
       >
-        <Toolbar />
-        <List>
-          <ListItemButton><ListItemText primary="Clientes" /></ListItemButton>
-          <ListItemButton><ListItemText primary="Noticias" /></ListItemButton>
-          <ListItemButton><ListItemText primary="Turnos" /></ListItemButton>
-        </List>
-      </Drawer>
+        {metricas.map((m) => (
+          <Card key={m.label}>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">{m.label}</Typography>
+              <Typography variant="h5">{m.value}</Typography>
+            </CardContent>
+          </Card>
+        ))}
+      </Box>
 
-      <Box component="main" sx={ { flexGrow: 1, p: 3 } }>
-        <Toolbar />
-        <Container>
-          <Typography variant="h4" gutterBottom>Dashboard</Typography>
-          <Typography>Bienvenido, {perfil.email}</Typography>
-          <Box sx={ { mt: 2, display: "flex", gap: 1 } }>
-            <Chip label={`Rol: ${perfil.rol}`} color="primary" />
-            <Chip label={`Tenant: ${perfil.tenant?.nombre ?? "-"}`} />
-          </Box>
-        </Container>
+      <Box sx={ { display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 } }>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>🎨 Branding</Typography>
+            <Chip label="⚠️ Incompleto" color="warning" />
+          </CardContent>
+          <CardActions>
+            <Button size="small">Editar branding →</Button>
+          </CardActions>
+        </Card>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>📺 Streaming</Typography>
+            <Chip label="⚫ Sin configurar" />
+          </CardContent>
+          <CardActions>
+            <Button size="small">Configurar stream →</Button>
+          </CardActions>
+        </Card>
       </Box>
     </Box>
   );
