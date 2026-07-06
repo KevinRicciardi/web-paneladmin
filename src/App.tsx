@@ -68,8 +68,8 @@ function App() {
       <Routes>
         <Route element={<Layout perfil={perfil} />}>
           <Route path="/" element={<Dashboard perfil={perfil} />} />
-          <Route path="/branding" element={<Branding />} />
-          <Route path="/streaming" element={<Streaming />} />
+<Route path="/branding" element={<Branding perfil={perfil} />} />
+          <Route path="/streaming" element={<Streaming perfil={perfil} />} />
           <Route path="/programacion" element={<Programacion />} />
           <Route path="/noticias" element={<Noticias />} />
         </Route>

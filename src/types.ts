@@ -2,15 +2,17 @@ export interface Tenant {
   id: number;
   nombre: string;
   slug: string;
-  branding?: string;
-  activo?: boolean;
+  logoUrl?: string | null;
+  bannerUrl?: string | null;
+  colorPrimario?: string | null;
+  colorSecundario?: string | null;
+  streamUrl?: string | null;
 }
 
 export interface Perfil {
   id: number;
   email: string;
   rol: string;
-  firebaseUid: string;
   tenantId: number;
-  tenant?: Tenant;
+  tenant: Tenant;
 }
