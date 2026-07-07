@@ -7,6 +7,11 @@ export interface Tenant {
   colorPrimario?: string | null;
   colorSecundario?: string | null;
   streamUrl?: string | null;
+  tipoTransmision?: string;
+imagenPortada?: string;
+colorFondo?: string;
+colorCabecera?: string;
+colorTexto?: string;
 }
 
 export interface Perfil {
