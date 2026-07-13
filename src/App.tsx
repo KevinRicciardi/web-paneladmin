@@ -21,7 +21,8 @@ function App() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (currentUser) => {
+    let unsub = () => {};
+    const fetchPerfil = async (currentUser: any | null) => {
       if (!currentUser) {
         setPerfil(null);
         setLoading(false);
@@ -49,8 +50,34 @@ function App() {
       } finally {
         setLoading(false);
       }
-    });
-    return () => unsub();
+    };
+
+    unsub = onAuthStateChanged(auth, fetchPerfil);
+
+    const onTenantUpdated = async (ev: Event) => {
+      try {
+        const ce = ev as CustomEvent;
+        if (ce && ce.detail && typeof ce.detail === "object") {
+          // Aplicamos la actualización optimista y no forzamos un re-fetch inmediato,
+          // así la UI no se sobrescribe si el backend no persiste el cambio.
+          setPerfil((prev) => {
+            if (!prev) return prev;
+            return { ...prev, tenant: { ...prev.tenant, ...ce.detail } } as Perfil;
+          });
+          return;
+        }
+        const currentUser = auth.currentUser;
+        await fetchPerfil(currentUser);
+      } catch (e) {
+        console.error("Error re-fetch perfil:", e);
+      }
+    };
+    window.addEventListener("tenantUpdated", onTenantUpdated as EventListener);
+
+    return () => {
+      try { unsub(); } catch {}
+      window.removeEventListener("tenantUpdated", onTenantUpdated as EventListener);
+    };
   }, []);
 
   if (loading) {

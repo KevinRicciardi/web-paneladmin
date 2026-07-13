@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import {
   Alert, Box, Button, Card, CardContent, CircularProgress,
   IconButton, InputAdornment, TextField, Tooltip, Typography,
+  alpha,
 } from "@mui/material";
 import { auth } from "../firebase";
 import type { Perfil } from "../types";
@@ -49,6 +50,29 @@ function contraste(hex: string): string {
   return L > 0.6 ? "#000000" : "#FFFFFF";
 }
 
+function sinSetear(hex?: string): boolean {
+  const h = (hex || "").replace("#", "").trim().toUpperCase();
+  return !h || h === "000000" || h === "FF000000";
+}
+
+function oscurecer(hex: string, factor: number): string {
+  let h = hex.replace("#", "").trim();
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  if (h.length === 6) h = `FF${h}`;
+  if (h.length !== 8) return hex;
+
+  const value = parseInt(h, 16);
+  const r = (value >> 16) & 0xff;
+  const g = (value >> 8) & 0xff;
+  const b = value & 0xff;
+
+  const nr = Math.round(r * (1 - factor));
+  const ng = Math.round(g * (1 - factor));
+  const nb = Math.round(b * (1 - factor));
+
+  return `#${nr.toString(16).padStart(2, "0")}${ng.toString(16).padStart(2, "0")}${nb.toString(16).padStart(2, "0")}`;
+}
+
 async function subirACloudinary(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
@@ -71,7 +95,7 @@ function CardHeader({ icon, children }: { icon: string; children: React.ReactNod
         textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace",
       } }
     >
-      <span style={ { fontSize: 16 } }>{icon}</span>
+      <span className="material-symbols-outlined" style={ { fontSize: 16 } }>{icon}</span>
       {children}
     </Typography>
   );
@@ -106,8 +130,101 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
+  const TF: any = TextField;
+
   const onPrimario = contraste(colores.primario);
-  const onSecundario = contraste(colores.secundario);
+  const textoTenue = alpha(colores.texto, 0.55);
+  const textoSuave = alpha(colores.texto, 0.75);
+  const card = alpha(colores.texto, 0.05);
+  const borde = alpha(colores.texto, 0.12);
+
+  const fondo = sinSetear(colores.fondo) ? oscurecer(colores.primario, 0.86) : colores.fondo;
+  const cabecera = sinSetear(colores.cabecera) ? oscurecer(colores.primario, 0.92) : colores.cabecera;
+
+  const sectionLabel = (texto: string) => (
+    <Typography sx={ { fontSize: 12, letterSpacing: 1.5, fontWeight: 600, textTransform: "uppercase", color: textoTenue, mb: 1 } }>
+      {texto}
+    </Typography>
+  );
+
+  const sectionCard = {
+    p: 2, borderRadius: 2, bgcolor: card, border: `1px solid ${borde}`,
+  } as const;
+
+  const navItem = (texto: string, activo = false, onClick?: () => void) => (
+    <Box
+      onClick={onClick}
+      sx={ {
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        gap: 0.5, px: 1, py: 0.5, cursor: onClick ? "pointer" : "default",
+      } }
+    >
+      <Typography sx={ { color: activo ? colores.texto : textoSuave, fontWeight: activo ? 700 : 500 } }>{texto}</Typography>
+      {activo && <Box sx={ { width: 20, height: 2, borderRadius: 1, bgcolor: colores.primario } } />}
+    </Box>
+  );
+
+  const brandAvatar = (size: number) => (
+    <Box sx={ { width: size, height: size, borderRadius: "50%", bgcolor: card, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" } }>
+      {logoUrl ? (
+        <Box component="img" src={logoUrl} sx={ { width: "100%", height: "100%", objectFit: "cover" } } />
+      ) : (
+        <span className="material-symbols-outlined" style={ { color: textoTenue, fontSize: size * 0.5 } }>play_circle</span>
+      )}
+    </Box>
+  );
+
+  const userAvatar = (
+    <Box sx={ { width: 34, height: 34, borderRadius: "50%", bgcolor: card, display: "flex", alignItems: "center", justifyContent: "center" } }>
+      <span className="material-symbols-outlined" style={ { color: textoSuave, fontSize: 18 } }>person</span>
+    </Box>
+  );
+
+  const botonPrimario = (texto: string) => (
+    <Button fullWidth variant="contained" sx={ { backgroundColor: colores.primario, color: onPrimario, fontWeight: 700, textTransform: "none", borderRadius: 1, py: 1.75 } }>
+      {texto}
+    </Button>
+  );
+
+  const fecha = (dia: string, num: string, hoy: boolean) => (
+    <Box sx={ { width: 46, py: 1, bgcolor: hoy ? colores.primario : alpha(colores.texto, 0.06), borderRadius: 2, textAlign: "center" } }>
+      <Typography sx={ { color: hoy ? alpha(onPrimario, 0.7) : textoTenue, fontSize: 9, fontWeight: 700 } }>{dia}</Typography>
+      <Typography sx={ { color: hoy ? onPrimario : colores.texto, fontSize: 16, fontWeight: 700 } }>{num}</Typography>
+    </Box>
+  );
+
+  const agendaItem = (dia: string, num: string, hoy: boolean, titulo: string, sub: string) => (
+    <Box sx={ { pb: 1.75 } }>
+      <Box sx={ { display: "flex", gap: 1.5 } }>
+        {fecha(dia, num, hoy)}
+        <Box sx={ { flex: 1 } }>
+          <Typography sx={ { color: hoy ? colores.texto : textoSuave, fontWeight: 700 } }>{titulo}</Typography>
+          {!!sub && <Typography sx={ { color: textoTenue, fontSize: 12 } }>{sub}</Typography>}
+        </Box>
+      </Box>
+    </Box>
+  );
+
+  const noticiaItem = (tag: string, titulo: string) => (
+    <Box sx={ { pb: 1.75 } }>
+      <Box sx={ { display: "inline-flex", px: 1, py: 0.5, borderRadius: 0.75, bgcolor: alpha(colores.texto, 0.1) } }>
+        <Typography sx={ { fontSize: 10, fontWeight: 800, color: colores.texto } }>{tag.toUpperCase()}</Typography>
+      </Box>
+      <Typography sx={ { color: colores.texto, fontWeight: 700, mt: 1 } }>{titulo}</Typography>
+    </Box>
+  );
+
+  const mencionItem = (nombrePersona: string, textoItem: string) => (
+    <Box sx={ { pb: 1.5, display: "flex", gap: 2, alignItems: "flex-start" } }>
+      <Box sx={ { width: 28, height: 28, borderRadius: "50%", bgcolor: card, display: "flex", alignItems: "center", justifyContent: "center" } }>
+        <span className="material-symbols-outlined" style={ { color: textoTenue, fontSize: 16 } }>person</span>
+      </Box>
+      <Box>
+        <Typography sx={ { color: colores.texto, fontWeight: 700, fontSize: 13 } }>{nombrePersona}</Typography>
+        <Typography sx={ { color: textoTenue, fontSize: 12 } }>{textoItem}</Typography>
+      </Box>
+    </Box>
+  );
 
   const setColor = (key: keyof Colores, val: string) => {
     setColores((prev) => ({ ...prev, [key]: val }));
@@ -181,8 +298,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   // input color visible en línea (evita que el picker se abra "arriba")
   const colorInputSx = {
     width: 46, height: 40, minWidth: 46, p: 0.5, m: 0,
-    border: "1px solid", borderColor: "grey.300", borderRadius: 1,
-    bgcolor: "background.paper", cursor: "pointer",
+    border: "1px solid", borderColor: borde, borderRadius: 1,
+    bgcolor: alpha(colores.texto, 0.08), cursor: "pointer",
     "&::-webkit-color-swatch-wrapper": { padding: 0 },
     "&::-webkit-color-swatch": { border: "none", borderRadius: "4px" },
   } as const;
@@ -205,7 +322,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Nombre */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="🏷️">Nombre de la Marca</CardHeader>
+              <CardHeader icon="label">Nombre de la Marca</CardHeader>
               <TextField value={nombre} fullWidth placeholder="Ej: StreamManager"
                 onChange={(e) => { setNombre(e.target.value); setSuccess(false); }} />
             </CardContent>
@@ -214,7 +331,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Logo */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="🖼️">Logo de la Marca</CardHeader>
+              <CardHeader icon="image">Logo de la Marca</CardHeader>
               <input ref={logoInputRef} type="file" accept="image/png,image/svg+xml,image/jpeg" hidden
                 onChange={(e) => handleFileChange(e, "logo")} />
               <Box
@@ -222,19 +339,21 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 onDrop={(e) => handleDrop(e, "logo")}
                 onClick={() => !uploadingLogo && logoInputRef.current?.click()}
                 sx={ {
-                  border: "2px dashed", borderColor: logoUrl ? "primary.main" : "grey.300",
+                  border: "2px dashed", borderColor: logoUrl ? colores.primario : borde,
                   borderRadius: 2, p: 4, textAlign: "center", cursor: "pointer",
-                  bgcolor: logoUrl ? "primary.50" : "grey.50",
+                  bgcolor: logoUrl ? alpha(colores.primario, 0.12) : alpha(colores.texto, 0.03),
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                   gap: 1, transition: "all 0.2s",
-                  "&:hover": { bgcolor: "action.hover", borderColor: "primary.main" },
+                  "&:hover": { bgcolor: alpha(colores.texto, 0.05), borderColor: colores.primario },
                 } }
               >
                 {uploadingLogo ? <CircularProgress size={40} /> : logoUrl ? (
                   <Box component="img" src={logoUrl} sx={ { maxHeight: 110, maxWidth: "100%", objectFit: "contain", borderRadius: 1 } } />
                 ) : (
                   <>
-                    <Box sx={ { width: 64, height: 64, borderRadius: "50%", bgcolor: "grey.200", display: "flex", alignItems: "center", justifyContent: "center", mb: 1, fontSize: 30 } }>📤</Box>
+                    <Box sx={ { width: 64, height: 64, borderRadius: "50%", bgcolor: alpha(colores.texto, 0.04), display: "flex", alignItems: "center", justifyContent: "center", mb: 1, fontSize: 30 } }>
+                      <span className="material-symbols-outlined">file_upload</span>
+                    </Box>
                     <Typography variant="body1">Arrastrá y soltá tu logo aquí</Typography>
                     <Typography variant="body2" color="text.secondary">PNG, SVG o JPG (máx. 2MB)</Typography>
                     <Button variant="outlined" size="small" sx={ { mt: 1 } }
@@ -253,7 +372,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Temas predefinidos */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="✨">Temas Predefinidos</CardHeader>
+              <CardHeader icon="palette">Temas Predefinidos</CardHeader>
               <Box sx={ { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 1.5 } }>
                 {PRESETS.map((p) => {
                   const activo = presetActivo(p.colores);
@@ -261,15 +380,16 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     <Box key={p.nombre} onClick={() => aplicarPreset(p.colores)}
                       sx={ {
                         cursor: "pointer", border: "2px solid",
-                        borderColor: activo ? "primary.main" : "grey.200",
+                        borderColor: activo ? "primary.main" : alpha(colores.texto, 0.08),
                         borderRadius: 2, p: 1, display: "flex", flexDirection: "column", gap: 0.75,
                         transition: "all 0.15s",
-                        "&:hover": { borderColor: "primary.light", transform: "translateY(-2px)" },
+                        bgcolor: alpha(colores.texto, 0.02),
+                        "&:hover": { borderColor: colores.primario, transform: "translateY(-2px)" },
                       } }
                     >
                       <Box sx={ { display: "flex", gap: 0.5, height: 24 } }>
                         {[p.colores.primario, p.colores.secundario, p.colores.cabecera, p.colores.fondo].map((c, i) => (
-                          <Box key={i} sx={ { flex: 1, borderRadius: 0.5, bgcolor: c, border: "1px solid", borderColor: "grey.200" } } />
+                          <Box key={i} sx={ { flex: 1, borderRadius: 0.5, bgcolor: c, border: "1px solid", borderColor: borde } } />
                         ))}
                       </Box>
                       <Typography sx={ { fontSize: 11, fontWeight: 600, textAlign: "center" } }>{p.nombre}</Typography>
@@ -283,23 +403,23 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Personalizar colores */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="🎨">Personalizar Colores</CardHeader>
+              <CardHeader icon="palette">Personalizar Colores</CardHeader>
               {CAMPOS.map(({ key, label }) => (
                 <Box key={key} sx={ { mb: 2, "&:last-child": { mb: 0 } } }>
                   <Typography variant="body2" color="text.secondary" gutterBottom>{label}</Typography>
                   <Box sx={ { display: "flex", alignItems: "center", gap: 1.5 } }>
                     <Box component="input" type="color" value={colores[key]}
                       onChange={(e) => setColor(key, e.target.value)} sx={colorInputSx} />
-                    <TextField
+                    <TF
                       value={colores[key]} size="small" fullWidth
-                      onChange={(e) => setColor(key, e.target.value)}
-                      inputProps={ { maxLength: 7, style: { fontFamily: "monospace" } } }
+                      onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setColor(key, e.target.value)}
                       InputProps={ {
+                        inputProps: { maxLength: 7, style: { fontFamily: "monospace" } },
                         endAdornment: (
                           <InputAdornment position="end">
                             <Tooltip title={copiado === key ? "¡Copiado!" : "Copiar"}>
                               <IconButton size="small" onClick={() => copiar(colores[key], key)}>
-                                {copiado === key ? "✓" : "📋"}
+                                {copiado === key ? "✓" : <span className="material-symbols-outlined">content_copy</span>}
                               </IconButton>
                             </Tooltip>
                           </InputAdornment>
@@ -315,7 +435,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Banner */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="📐">Banner de Cabecera</CardHeader>
+              <CardHeader icon="photo_size_select_large">Banner de Cabecera</CardHeader>
               <input ref={bannerInputRef} type="file" accept="image/*" hidden
                 onChange={(e) => handleFileChange(e, "banner")} />
               <Box
@@ -323,11 +443,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 onDrop={(e) => handleDrop(e, "banner")}
                 onClick={() => !uploadingBanner && bannerInputRef.current?.click()}
                 sx={ {
-                  border: "2px dashed", borderColor: bannerUrl ? "primary.main" : "grey.300",
+                  border: "2px dashed", borderColor: bannerUrl ? "primary.main" : borde,
                   borderRadius: 2, cursor: "pointer", minHeight: 96, overflow: "hidden",
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                  gap: 1, bgcolor: bannerUrl ? "transparent" : "grey.50", transition: "all 0.2s",
-                  "&:hover": { borderColor: "primary.main" },
+                  gap: 1, bgcolor: bannerUrl ? "transparent" : alpha(colores.texto, 0.03), transition: "all 0.2s",
+                  "&:hover": { bgcolor: alpha(colores.texto, 0.05), borderColor: "primary.main" },
                 } }
               >
                 {uploadingBanner ? <CircularProgress size={28} sx={ { my: 2 } } /> : bannerUrl ? (
@@ -336,7 +456,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   <Box sx={ { py: 2, textAlign: "center" } }>
                     <Typography variant="body2" color="text.secondary" gutterBottom>Tamaño recomendado: 1920x320px</Typography>
                     <Button variant="outlined" size="small"
-                      onClick={(e) => { e.stopPropagation(); bannerInputRef.current?.click(); } }>⬆️ Seleccionar Imagen</Button>
+                      onClick={(e) => { e.stopPropagation(); bannerInputRef.current?.click(); } } startIcon={<span className="material-symbols-outlined">file_upload</span>}>
+                      Seleccionar Imagen
+                    </Button>
                   </Box>
                 )}
               </Box>
@@ -348,13 +470,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             </CardContent>
           </Card>
 
-          {success && <Alert severity="success">¡Configuración guardada! 🎉</Alert>}
+          {success && <Alert severity="success">¡Configuración guardada!</Alert>}
           {error && <Alert severity="error">{error}</Alert>}
 
           <Box sx={ { display: "flex", justifyContent: "flex-end", gap: 1.5, pt: 1, borderTop: "1px solid", borderColor: "divider" } }>
             <Button variant="outlined" onClick={handleDescartar} disabled={loading || uploadingLogo || uploadingBanner}>Descartar Cambios</Button>
             <Button variant="contained" onClick={handleGuardar} disabled={loading || uploadingLogo || uploadingBanner}
-              startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <span>💾</span>}>
+              startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <span className="material-symbols-outlined">save</span>}>
               {loading ? "Guardando..." : "Guardar Configuración"}
             </Button>
           </Box>
@@ -363,98 +485,129 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         {/* ── Columna derecha: Preview ── */}
         <Box sx={ { position: { md: "sticky" }, top: 24 } }>
           <Card variant="outlined" sx={ { overflow: "hidden" } }>
-            <Box sx={ { px: 2, py: 1.25, borderBottom: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: "grey.50" } }>
-              <Typography sx={ { display: "flex", alignItems: "center", gap: 1, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>
-                👁️ Vista Previa en Vivo
+            <Box sx={ { px: 2, py: 1.25, borderBottom: "1px solid", borderColor: borde, display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: alpha(colores.texto, 0.04) } }>
+              <Typography sx={ { display: "flex", alignItems: "center", gap: 1, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: "text.secondary", fontFamily: "JetBrains Mono, monospace" } }>
+                <span className="material-symbols-outlined" style={ { verticalAlign: 'middle', marginRight: 8 } }>visibility</span>
+                Vista Previa de Inicio
               </Typography>
-              <Box sx={ { display: "flex", gap: 0.75 } }>
-                {[0, 1, 2].map((i) => <Box key={i} sx={ { width: 10, height: 10, borderRadius: "50%", bgcolor: "grey.300" } } />)}
+              <Box sx={ { display: "flex", gap: 0.75, alignItems: 'center' } }>
+                {[0, 1, 2].map((i) => (
+                  <Box key={i} sx={ { width: 8, height: 8, borderRadius: "50%", bgcolor: alpha(colores.texto, 0.14), border: "1px solid", borderColor: borde, opacity: i === 0 ? 1 : 0.55 } } />
+                ))}
               </Box>
             </Box>
 
-            {/* App cliente simulada — usa los colores personalizados */}
-            <Box sx={ { bgcolor: colores.fondo, color: colores.texto } }>
-              {/* Header */}
-              <Box sx={ { display: "flex", alignItems: "center", justifyContent: "space-between", px: 2, py: 1.5, bgcolor: colores.cabecera, borderBottom: "1px solid rgba(128,128,128,0.25)" } }>
-                <Box sx={ { display: "flex", alignItems: "center", gap: 1 } }>
-                  {logoUrl
-                    ? <Box component="img" src={logoUrl} sx={ { width: 24, height: 24, objectFit: "contain" } } />
-                    : <Typography sx={ { fontSize: 18 } }>▶️</Typography>}
-                  <Typography sx={ { fontSize: 13, fontWeight: 800, letterSpacing: -0.5, textTransform: "uppercase", color: colores.texto } }>
-                    {nombre || "STREAMLY"}
-                  </Typography>
+            <Box sx={ { bgcolor: fondo, color: colores.texto } }>
+              <Box sx={ { bgcolor: cabecera, borderBottom: `1px solid ${borde}`, px: 2, py: 1.5, display: "flex", alignItems: "center", gap: 1 } }>
+                {logoUrl ? (
+                  <Box component="img" src={logoUrl} sx={ { width: 28, height: 28, borderRadius: 1, objectFit: "cover" } } />
+                ) : (
+                  <Box sx={ { width: 28, height: 28, borderRadius: 1, bgcolor: colores.primario, display: "flex", alignItems: "center", justifyContent: "center" } }>
+                    <span className="material-symbols-outlined" style={ { color: onPrimario, fontSize: 18 } }>play_arrow</span>
+                  </Box>
+                )}
+                <Typography sx={ { fontSize: 18, fontWeight: 700, letterSpacing: 1, color: colores.texto } } noWrap>
+                  {nombre}
+                </Typography>
+                <Box sx={ { flexGrow: 1 } } />
+                <Box sx={ { display: { xs: "none", md: "flex" }, alignItems: "center", gap: 2 } }>
+                  {navItem("Inicio", true)}
+                  {navItem("Noticias", false)}
+                  {navItem("Agenda", false)}
                 </Box>
-                <Box sx={ { display: "flex", alignItems: "center", gap: 1 } }>
-                  <Box sx={ { bgcolor: colores.primario, color: onPrimario, fontSize: 10, fontWeight: 700, textTransform: "uppercase", px: 1, py: 0.4 } }>Seguir</Box>
-                  <Box sx={ { width: 24, height: 24, borderRadius: "50%", border: "1px solid rgba(128,128,128,0.4)", bgcolor: "rgba(128,128,128,0.2)" } } />
+                <Box sx={ { display: "flex", alignItems: "center", gap: 1, ml: 2 } }>
+                  <span className="material-symbols-outlined" style={ { color: textoSuave, fontSize: 20 } }>search</span>
+                  {userAvatar}
                 </Box>
               </Box>
 
-              <Box sx={ { p: 2, display: "flex", flexDirection: "column", gap: 2.5 } }>
-                {/* EN VIVO AHORA */}
+              <Box sx={ { p: 2, display: "flex", flexDirection: "column", gap: 3 } }>
                 <Box>
-                  <Typography sx={ { fontSize: 10, fontWeight: 900, opacity: 0.5, textTransform: "uppercase", letterSpacing: 2, mb: 1, color: colores.texto } }>En Vivo Ahora</Typography>
-                  <Box sx={ {
-                    position: "relative", width: "100%", aspectRatio: "16 / 9",
-                    border: "1px solid rgba(128,128,128,0.25)",
-                    bgcolor: bannerUrl ? "transparent" : "rgba(128,128,128,0.15)",
-                    backgroundImage: bannerUrl ? "url(" + bannerUrl + ")" : "none",
-                    backgroundSize: "cover", backgroundPosition: "center",
-                    display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
-                  } }>
-                    <Box sx={ { position: "absolute", top: 8, left: 8, display: "flex", alignItems: "center", gap: 0.5, bgcolor: colores.primario, px: 0.75, py: 0.25 } }>
-                      <Box sx={ { width: 4, height: 4, borderRadius: "50%", bgcolor: onPrimario } } />
-                      <Typography sx={ { fontSize: 8, fontWeight: 900, color: onPrimario } }>EN VIVO</Typography>
+                  {sectionLabel("Stream")}
+                  <Box sx={ sectionCard }>
+                    <Box sx={ { width: "100%", aspectRatio: "16 / 9", bgcolor: bannerUrl ? "transparent" : alpha(colores.texto, 0.08), backgroundImage: bannerUrl ? `url(${bannerUrl})` : "none", backgroundSize: "cover", backgroundPosition: "center", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" } }>
+                      <Box sx={ { position: "absolute", top: 12, left: 12, display: "flex", alignItems: "center", gap: 0.5, bgcolor: colores.primario, px: 1, py: 0.4, borderRadius: 1 } }>
+                        <Box sx={ { width: 6, height: 6, borderRadius: "50%", bgcolor: onPrimario } } />
+                        <Typography sx={ { fontSize: 9, fontWeight: 900, color: onPrimario } }>EN VIVO</Typography>
+                      </Box>
+                      <Box sx={ { width: 80, height: 80, borderRadius: "50%", bgcolor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" } }>
+                        <Box sx={ { width: 40, height: 40, borderRadius: "50%", bgcolor: colores.primario, display: "flex", alignItems: "center", justifyContent: "center" } }>
+                          <span className="material-symbols-outlined" style={ { color: onPrimario, fontSize: 26 } }>play_arrow</span>
+                        </Box>
+                      </Box>
                     </Box>
-                    <Typography sx={ { fontSize: 40, opacity: 0.6 } }>▶️</Typography>
-                  </Box>
-                </Box>
-
-                {/* Panel canal */}
-                <Box sx={ { bgcolor: "rgba(128,128,128,0.12)", border: "1px solid rgba(128,128,128,0.22)", p: 2 } }>
-                  <Box sx={ { display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 } }>
-                    <Box sx={ { width: 36, height: 36, border: "1px solid rgba(128,128,128,0.3)", overflow: "hidden", flexShrink: 0, bgcolor: colores.primario, display: "flex", alignItems: "center", justifyContent: "center" } }>
-                      {logoUrl
-                        ? <Box component="img" src={logoUrl} sx={ { width: "100%", height: "100%", objectFit: "cover" } } />
-                        : <Typography sx={ { fontSize: 14 } }>🎬</Typography>}
-                    </Box>
-                    <Box sx={ { flexGrow: 1, minWidth: 0 } }>
-                      <Typography sx={ { fontSize: 13, fontWeight: 700, color: colores.texto } } noWrap>{nombre || "CyberStream Pro"}</Typography>
-                      <Typography sx={ { fontSize: 10, opacity: 0.5, color: colores.texto } }>45.2k Seguidores</Typography>
-                    </Box>
-                    <Box sx={ { bgcolor: colores.primario, color: onPrimario, fontSize: 10, fontWeight: 700, textTransform: "uppercase", px: 1, py: 0.4, flexShrink: 0 } }>Seguir</Box>
-                  </Box>
-                  <Typography sx={ { fontSize: 12, opacity: 0.7, lineHeight: 1.6, color: colores.texto } }>
-                    Transmitiendo lo último en tecnología de alta fidelidad y pruebas de rendimiento.
-                  </Typography>
-                </Box>
-
-                {/* Agenda */}
-                <Box sx={ { bgcolor: "rgba(128,128,128,0.12)", border: "1px solid rgba(128,128,128,0.22)", p: 2 } }>
-                  <Typography sx={ { fontSize: 10, fontWeight: 900, opacity: 0.5, textTransform: "uppercase", letterSpacing: 2, mb: 1.5, pb: 1, borderBottom: "1px solid rgba(128,128,128,0.22)", color: colores.texto } }>Agenda Semanal</Typography>
-                  <Box sx={ { display: "flex", alignItems: "center", gap: 1.5 } }>
-                    <Box sx={ { width: 40, height: 40, bgcolor: colores.secundario, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 } }>
-                      <Typography sx={ { fontSize: 8, fontWeight: 900, color: onSecundario } }>HOY</Typography>
-                      <Typography sx={ { fontSize: 14, fontWeight: 900, color: onSecundario } }>16</Typography>
-                    </Box>
-                    <Box>
-                      <Typography sx={ { fontSize: 12, fontWeight: 700, color: colores.texto } }>Review: RTX 5090</Typography>
-                      <Typography sx={ { fontSize: 10, opacity: 0.5, color: colores.texto } }>Análisis detallado en vivo.</Typography>
+                    <Box sx={ { pt: 2 } }>
+                      <Typography sx={ { fontSize: 20, fontWeight: 700, color: colores.texto } }>{nombre}</Typography>
                     </Box>
                   </Box>
                 </Box>
-              </Box>
 
-              {/* Bottom nav */}
-              <Box sx={ { display: "flex", justifyContent: "space-around", py: 1.5, bgcolor: colores.cabecera, borderTop: "1px solid rgba(128,128,128,0.25)" } }>
-                {["🏠", "📰", "📅", "👤"].map((icon, i) => (
-                  <Typography key={i} sx={ { fontSize: 18, opacity: i === 0 ? 1 : 0.35 } }>{icon}</Typography>
-                ))}
+                <Box>
+                  {sectionLabel("Publicidad")}
+                  <Box sx={ { borderRadius: 2, overflow: "hidden", border: `1px solid ${borde}` } }>
+                    {bannerUrl ? (
+                      <Box component="img" src={bannerUrl} sx={ { width: "100%", height: 90, objectFit: "cover" } } />
+                    ) : (
+                      <Box sx={ { width: "100%", height: 90, bgcolor: card, display: "flex", alignItems: "center", justifyContent: "center" } }>
+                        <Typography sx={ { color: textoSuave } }>Publicidad</Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+
+                <Box>
+                  {sectionLabel("Streams pasados")}
+                  <Box sx={ sectionCard }>
+                    <Box sx={ { display: "flex", gap: 1, alignItems: "center", mb: 1 } }>
+                      <Box sx={ { width: 54, height: 54, borderRadius: 2, bgcolor: alpha(colores.texto, 0.08), display: "flex", alignItems: "center", justifyContent: "center" } }>
+                        <span className="material-symbols-outlined" style={ { color: textoSuave, fontSize: 24 } }>play_arrow</span>
+                      </Box>
+                      <Typography sx={ { color: textoSuave } }>
+                        No hay streams anteriores disponibles.
+                      </Typography>
+                    </Box>
+                    {botonPrimario("Ver más")}
+                  </Box>
+                </Box>
+
+                <Box sx={ { display: "grid", gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" }, gap: 2 } }>
+                  <Box sx={ { display: "grid", gap: 2 } }>
+                    <Box sx={ sectionCard }>
+                      <Box sx={ { display: "flex", alignItems: "center", gap: 1.5, mb: 2 } }>
+                        {brandAvatar(44)}
+                        <Box sx={ { flex: 1, minWidth: 0 } }>
+                          <Typography sx={ { color: colores.texto, fontWeight: 700 } } noWrap>{nombre}</Typography>
+                        </Box>
+                        {botonPrimario("Seguir")}
+                      </Box>
+                    </Box>
+                    <Box sx={ sectionCard }>
+                      <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>
+                        Agenda semanal
+                      </Typography>
+                      {agendaItem('HOY', '--', true, 'Sin programación disponible', '')}
+                    </Box>
+                  </Box>
+
+                  <Box sx={ { display: "grid", gap: 2 } }>
+                    <Box sx={ sectionCard }>
+                      <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>
+                        Últimas noticias
+                      </Typography>
+                      {noticiaItem("Info", "No hay noticias publicadas.")}
+                    </Box>
+                    <Box sx={ sectionCard }>
+                      <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>
+                        Menciones recientes
+                      </Typography>
+                      {mencionItem("Sistema", "No hay menciones disponibles.")}
+                    </Box>
+                  </Box>
+                </Box>
               </Box>
             </Box>
           </Card>
         </Box>
-
       </Box>
     </Box>
   );

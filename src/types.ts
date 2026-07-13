@@ -7,6 +7,7 @@ export interface Tenant {
   colorPrimario?: string | null;
   colorSecundario?: string | null;
   streamUrl?: string | null;
+  streamActivo?: boolean;
   tipoTransmision?: string;
 imagenPortada?: string;
 colorFondo?: string;

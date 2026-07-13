@@ -10,11 +10,11 @@ import type { Perfil } from "../types";
 const drawerWidth = 240;
 
 const navItems = [
-  { to: "/", label: "📊 Dashboard" },
-  { to: "/branding", label: "🎨 Branding" },
-  { to: "/streaming", label: "📺 Streaming" },
-  { to: "/programacion", label: "🗓️ Programación" },
-  { to: "/noticias", label: "📰 Noticias" },
+  { to: "/", label: "Dashboard", icon: "dashboard" },
+  { to: "/branding", label: "Branding", icon: "palette" },
+  { to: "/streaming", label: "Streaming", icon: "sensors" },
+  { to: "/programacion", label: "Programación", icon: "calendar_month" },
+  { to: "/noticias", label: "Noticias", icon: "newspaper" },
 ];
 
 export default function Layout({ perfil }: { perfil: Perfil }) {
@@ -55,7 +55,10 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
               selected={location.pathname === item.to}
               onClick={() => navigate(item.to)}
             >
-              <ListItemText primary={item.label} />
+              <ListItemText primary={<span style={ { display: "flex", alignItems: "center", gap: 8 } }>
+                <span className="material-symbols-outlined">{(item as any).icon}</span>
+                {item.label}
+              </span>} />
             </ListItemButton>
           ))}
         </List>
