@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
-  Alert, Box, Button, Card, CardContent, CircularProgress,
-  IconButton, InputAdornment, TextField, Tooltip, Typography,
+  Alert, Box, Button, Card, CardContent, CircularProgress, Dialog, DialogActions, DialogContent,
+  DialogTitle, IconButton, InputAdornment, TextField, Tooltip, Typography,
   alpha,
 } from "@mui/material";
 import { auth } from "../firebase";
@@ -16,18 +16,20 @@ type Colores = {
   cabecera: string;
   texto: string;
   primario: string;
-  secundario: string;
+  botones: string;
+  cardFondo: string;
+  iconos: string;
 };
 
 // Temas predefinidos: cada uno define la paleta completa
 const PRESETS: { nombre: string; colores: Colores }[] = [
-  { nombre: "Azul",     colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", primario: "#3B82F6", secundario: "#94A3B8" } },
-  { nombre: "Verde",           colores: { fondo: "#07120C", cabecera: "#0C1F14", texto: "#FFFFFF", primario: "#22C55E", secundario: "#86EFAC" } },
-  { nombre: "Púrpura",         colores: { fondo: "#0F0A16", cabecera: "#1A0F26", texto: "#FFFFFF", primario: "#A855F7", secundario: "#D8B4FE" } },
-  { nombre: "Blanco y Negro",  colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", primario: "#FFFFFF", secundario: "#A3A3A3" } },
-  { nombre: "Negro y Dorado",  colores: { fondo: "#0A0A0A", cabecera: "#000000", texto: "#F5E6C8", primario: "#D4AF37", secundario: "#8B7500" } },
-  { nombre: "Rojo",            colores: { fondo: "#0A0A0A", cabecera: "#140000", texto: "#FFFFFF", primario: "#EF4444", secundario: "#FCA5A5" } },
-  { nombre: "Claro",           colores: { fondo: "#FFFFFF", cabecera: "#F3F4F6", texto: "#111827", primario: "#3B82F6", secundario: "#6B7280" } },
+  { nombre: "Azul",     colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", primario: "#3B82F6", botones: "#3B82F6", cardFondo: "#111111", iconos: "#94A3B8" } },
+  { nombre: "Verde",    colores: { fondo: "#07120C", cabecera: "#0C1F14", texto: "#FFFFFF", primario: "#22C55E", botones: "#22C55E", cardFondo: "#0F1F17", iconos: "#86EFAC" } },
+  { nombre: "Púrpura",  colores: { fondo: "#0F0A16", cabecera: "#1A0F26", texto: "#FFFFFF", primario: "#A855F7", botones: "#A855F7", cardFondo: "#1A1024", iconos: "#D8B4FE" } },
+  { nombre: "Blanco y Negro", colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", primario: "#FFFFFF", botones: "#FFFFFF", cardFondo: "#1A1A1A", iconos: "#A3A3A3" } },
+  { nombre: "Negro y Dorado", colores: { fondo: "#0A0A0A", cabecera: "#000000", texto: "#F5E6C8", primario: "#D4AF37", botones: "#D4AF37", cardFondo: "#1A1A14", iconos: "#8B7500" } },
+  { nombre: "Rojo",     colores: { fondo: "#0A0A0A", cabecera: "#140000", texto: "#FFFFFF", primario: "#EF4444", botones: "#EF4444", cardFondo: "#1A0F0F", iconos: "#FCA5A5" } },
+  { nombre: "Claro",    colores: { fondo: "#FFFFFF", cabecera: "#F3F4F6", texto: "#111827", primario: "#3B82F6", botones: "#3B82F6", cardFondo: "#F9FAFB", iconos: "#6B7280" } },
 ];
 
 const CAMPOS: { key: keyof Colores; label: string }[] = [
@@ -35,7 +37,9 @@ const CAMPOS: { key: keyof Colores; label: string }[] = [
   { key: "cabecera",   label: "Color de Cabecera" },
   { key: "texto",      label: "Color de Texto" },
   { key: "primario",   label: "Color Primario" },
-  { key: "secundario", label: "Color Secundario" },
+  { key: "botones",    label: "Color de Botones" },
+  { key: "cardFondo",  label: "Color de Fondo de Cards" },
+  { key: "iconos",     label: "Color de Iconos" },
 ];
 
 // Devuelve negro o blanco según qué contraste mejor con el color de fondo
@@ -112,7 +116,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       cabecera: t?.colorCabecera ?? "#000000",
       texto: t?.colorTexto ?? "#FFFFFF",
       primario: t?.colorPrimario ?? "#3B82F6",
-      secundario: t?.colorSecundario ?? "#94A3B8",
+      botones: (t as any)?.colorBotones ?? t?.colorPrimario ?? "#3B82F6",
+      cardFondo: (t as any)?.colorCardFondo ?? "#111111",
+      iconos: t?.colorSecundario ?? "#94A3B8",
     } as Colores,
   };
 
@@ -126,43 +132,47 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [copiado, setCopiado] = useState<string | null>(null);
+  const [ultimoGuardado, setUltimoGuardado] = useState(inicial);
+  const [showGuardarTema, setShowGuardarTema] = useState(false);
+  const [nombreNuevoTema, setNombreNuevoTema] = useState("");
+  const [temasPersonalizados, setTemasPersonalizados] = useState<{ nombre: string; colores: Colores }[]>([]);
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const TF: any = TextField;
 
+  useEffect(() => {
+    setUltimoGuardado(inicial);
+    // Cargar temas personalizados desde localStorage
+    const temasGuardados = localStorage.getItem("branding-temas-personalizados");
+    if (temasGuardados) {
+      try {
+        setTemasPersonalizados(JSON.parse(temasGuardados));
+      } catch (e) {
+        console.error("Error cargando temas personalizados", e);
+      }
+    }
+  }, [perfil]);
+
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
   const onPrimario = contraste(colores.primario);
+  const onCabecera = contraste(colores.cabecera);
   const textoTenue = alpha(colores.texto, 0.55);
   const textoSuave = alpha(colores.texto, 0.75);
   const card = alpha(colores.texto, 0.05);
   const borde = alpha(colores.texto, 0.12);
 
   const fondo = sinSetear(colores.fondo) ? oscurecer(colores.primario, 0.86) : colores.fondo;
-  const cabecera = sinSetear(colores.cabecera) ? oscurecer(colores.primario, 0.92) : colores.cabecera;
 
-  const sectionLabel = (texto: string) => (
-    <Typography sx={ { fontSize: 12, letterSpacing: 1.5, fontWeight: 600, textTransform: "uppercase", color: textoTenue, mb: 1 } }>
-      {texto}
-    </Typography>
-  );
-
-  const sectionCard = {
-    p: 2, borderRadius: 2, bgcolor: card, border: `1px solid ${borde}`,
-  } as const;
-
-  const navItem = (texto: string, activo = false, onClick?: () => void) => (
-    <Box
-      onClick={onClick}
-      sx={ {
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        gap: 0.5, px: 1, py: 0.5, cursor: onClick ? "pointer" : "default",
-      } }
-    >
-      <Typography sx={ { color: activo ? colores.texto : textoSuave, fontWeight: activo ? 700 : 500 } }>{texto}</Typography>
-      {activo && <Box sx={ { width: 20, height: 2, borderRadius: 1, bgcolor: colores.primario } } />}
-    </Box>
-  );
+  const streamActivo = perfil.tenant?.streamActivo ?? false;
+  const estadoStream = streamActivo ? "EN VIVO" : "OFFLINE";
 
   const brandAvatar = (size: number) => (
     <Box sx={ { width: size, height: size, borderRadius: "50%", bgcolor: card, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" } }>
@@ -174,17 +184,15 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     </Box>
   );
 
-  const userAvatar = (
-    <Box sx={ { width: 34, height: 34, borderRadius: "50%", bgcolor: card, display: "flex", alignItems: "center", justifyContent: "center" } }>
-      <span className="material-symbols-outlined" style={ { color: textoSuave, fontSize: 18 } }>person</span>
-    </Box>
-  );
+  const platformLabel = (url: string | null | undefined) => {
+    if (!url) return null;
+    if (url.includes("kick.com")) return "KICK";
+    if (url.includes("youtube.com") || url.includes("youtu.be")) return "YOUTUBE";
+    if (url.includes("twitch.tv")) return "TWITCH";
+    return "STREAM";
+  };
 
-  const botonPrimario = (texto: string) => (
-    <Button fullWidth variant="contained" sx={ { backgroundColor: colores.primario, color: onPrimario, fontWeight: 700, textTransform: "none", borderRadius: 1, py: 1.75 } }>
-      {texto}
-    </Button>
-  );
+  const previewPlatform = platformLabel(perfil.tenant?.streamUrl);
 
   const fecha = (dia: string, num: string, hoy: boolean) => (
     <Box sx={ { width: 46, py: 1, bgcolor: hoy ? colores.primario : alpha(colores.texto, 0.06), borderRadius: 2, textAlign: "center" } }>
@@ -201,27 +209,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           <Typography sx={ { color: hoy ? colores.texto : textoSuave, fontWeight: 700 } }>{titulo}</Typography>
           {!!sub && <Typography sx={ { color: textoTenue, fontSize: 12 } }>{sub}</Typography>}
         </Box>
-      </Box>
-    </Box>
-  );
-
-  const noticiaItem = (tag: string, titulo: string) => (
-    <Box sx={ { pb: 1.75 } }>
-      <Box sx={ { display: "inline-flex", px: 1, py: 0.5, borderRadius: 0.75, bgcolor: alpha(colores.texto, 0.1) } }>
-        <Typography sx={ { fontSize: 10, fontWeight: 800, color: colores.texto } }>{tag.toUpperCase()}</Typography>
-      </Box>
-      <Typography sx={ { color: colores.texto, fontWeight: 700, mt: 1 } }>{titulo}</Typography>
-    </Box>
-  );
-
-  const mencionItem = (nombrePersona: string, textoItem: string) => (
-    <Box sx={ { pb: 1.5, display: "flex", gap: 2, alignItems: "flex-start" } }>
-      <Box sx={ { width: 28, height: 28, borderRadius: "50%", bgcolor: card, display: "flex", alignItems: "center", justifyContent: "center" } }>
-        <span className="material-symbols-outlined" style={ { color: textoTenue, fontSize: 16 } }>person</span>
-      </Box>
-      <Box>
-        <Typography sx={ { color: colores.texto, fontWeight: 700, fontSize: 13 } }>{nombrePersona}</Typography>
-        <Typography sx={ { color: textoTenue, fontSize: 12 } }>{textoItem}</Typography>
       </Box>
     </Box>
   );
@@ -261,13 +248,27 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setTimeout(() => setCopiado(null), 1500);
   };
   const handleDescartar = () => {
-    setNombre(inicial.nombre);
-    setLogoUrl(inicial.logoUrl);
-    setBannerUrl(inicial.bannerUrl);
-    setColores(inicial.colores);
+    setNombre(ultimoGuardado.nombre);
+    setLogoUrl(ultimoGuardado.logoUrl);
+    setBannerUrl(ultimoGuardado.bannerUrl);
+    setColores(ultimoGuardado.colores);
     setSuccess(false);
     setError("");
   };
+  const handleGuardarTemaPersonalizado = () => {
+    if (!nombreNuevoTema.trim()) {
+      setError("El nombre del tema no puede estar vacío");
+      return;
+    }
+    const nuevoTema = { nombre: nombreNuevoTema.trim(), colores };
+    const temasActualizados = [...temasPersonalizados, nuevoTema];
+    setTemasPersonalizados(temasActualizados);
+    localStorage.setItem("branding-temas-personalizados", JSON.stringify(temasActualizados));
+    setSuccess(true);
+    setShowGuardarTema(false);
+    setNombreNuevoTema("");
+  };
+
   const handleGuardar = async () => {
     setLoading(true);
     setSuccess(false);
@@ -283,11 +284,14 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           colorCabecera: colores.cabecera,
           colorTexto: colores.texto,
           colorPrimario: colores.primario,
-          colorSecundario: colores.secundario,
+          colorBotones: colores.botones,
+          colorCardFondo: colores.cardFondo,
+          colorSecundario: colores.iconos,
         }),
       });
       if (!res.ok) throw new Error("Error");
       setSuccess(true);
+      setUltimoGuardado({ nombre, logoUrl, bannerUrl, colores });
     } catch {
       setError("No se pudo guardar. Intentá de nuevo.");
     } finally {
@@ -388,7 +392,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                       } }
                     >
                       <Box sx={ { display: "flex", gap: 0.5, height: 24 } }>
-                        {[p.colores.primario, p.colores.secundario, p.colores.cabecera, p.colores.fondo].map((c, i) => (
+                        {[p.colores.primario, p.colores.botones, p.colores.cardFondo, p.colores.iconos].map((c, i) => (
                           <Box key={i} sx={ { flex: 1, borderRadius: 0.5, bgcolor: c, border: "1px solid", borderColor: borde } } />
                         ))}
                       </Box>
@@ -399,6 +403,39 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               </Box>
             </CardContent>
           </Card>
+
+          {/* Temas personalizados */}
+          {temasPersonalizados.length > 0 && (
+            <Card variant="outlined">
+              <CardContent>
+                <CardHeader icon="favorite">Temas Personalizados</CardHeader>
+                <Box sx={ { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 1.5 } }>
+                  {temasPersonalizados.map((p) => {
+                    const activo = presetActivo(p.colores);
+                    return (
+                      <Box key={p.nombre} onClick={() => aplicarPreset(p.colores)}
+                        sx={ {
+                          cursor: "pointer", border: "2px solid",
+                          borderColor: activo ? "primary.main" : alpha(colores.texto, 0.08),
+                          borderRadius: 2, p: 1, display: "flex", flexDirection: "column", gap: 0.75,
+                          transition: "all 0.15s",
+                          bgcolor: alpha(colores.texto, 0.02),
+                          "&:hover": { borderColor: colores.primario, transform: "translateY(-2px)" },
+                        } }
+                      >
+                        <Box sx={ { display: "flex", gap: 0.5, height: 24 } }>
+                          {[p.colores.primario, p.colores.botones, p.colores.cardFondo, p.colores.iconos].map((c, i) => (
+                            <Box key={i} sx={ { flex: 1, borderRadius: 0.5, bgcolor: c, border: "1px solid", borderColor: borde } } />
+                          ))}
+                        </Box>
+                        <Typography sx={ { fontSize: 11, fontWeight: 600, textAlign: "center" } }>{p.nombre}</Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Personalizar colores */}
           <Card variant="outlined">
@@ -413,19 +450,21 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     <TF
                       value={colores[key]} size="small" fullWidth
                       onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setColor(key, e.target.value)}
-                      InputProps={ {
-                        inputProps: { maxLength: 7, style: { fontFamily: "monospace" } },
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <Tooltip title={copiado === key ? "¡Copiado!" : "Copiar"}>
-                              <IconButton size="small" onClick={() => copiar(colores[key], key)}>
-                                {copiado === key ? "✓" : <span className="material-symbols-outlined">content_copy</span>}
-                              </IconButton>
-                            </Tooltip>
-                          </InputAdornment>
-                        ),
-                      } }
-                    />
+                      slotProps={{
+      htmlInput: { maxLength: 7, style: { fontFamily: "monospace" } },
+    input: {
+     endAdornment: (
+      <InputAdornment position="end">
+        <Tooltip title={copiado === key ? "¡Copiado!" : "Copiar"}>
+          <IconButton size="small" onClick={() => copiar(colores[key], key)}>
+            {copiado === key ? "✓" : <span className="material-symbols-outlined">content_copy</span>}
+          </IconButton>
+        </Tooltip>
+      </InputAdornment>
+    ),
+  },   // ✅ cierra el objeto  input: { ... }
+}}     // ✅ cierra el objeto de slotProps + la expresión JSX
+/>
                   </Box>
                 </Box>
               ))}
@@ -475,6 +514,10 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
           <Box sx={ { display: "flex", justifyContent: "flex-end", gap: 1.5, pt: 1, borderTop: "1px solid", borderColor: "divider" } }>
             <Button variant="outlined" onClick={handleDescartar} disabled={loading || uploadingLogo || uploadingBanner}>Descartar Cambios</Button>
+            <Button variant="outlined" onClick={() => setShowGuardarTema(true)} disabled={loading || uploadingLogo || uploadingBanner}
+              startIcon={<span className="material-symbols-outlined">favorite</span>}>
+              Guardar como Tema
+            </Button>
             <Button variant="contained" onClick={handleGuardar} disabled={loading || uploadingLogo || uploadingBanner}
               startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <span className="material-symbols-outlined">save</span>}>
               {loading ? "Guardando..." : "Guardar Configuración"}
@@ -484,131 +527,99 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
         {/* ── Columna derecha: Preview ── */}
         <Box sx={ { position: { md: "sticky" }, top: 24 } }>
-          <Card variant="outlined" sx={ { overflow: "hidden" } }>
-            <Box sx={ { px: 2, py: 1.25, borderBottom: "1px solid", borderColor: borde, display: "flex", alignItems: "center", justifyContent: "space-between", bgcolor: alpha(colores.texto, 0.04) } }>
-              <Typography sx={ { display: "flex", alignItems: "center", gap: 1, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: "text.secondary", fontFamily: "JetBrains Mono, monospace" } }>
-                <span className="material-symbols-outlined" style={ { verticalAlign: 'middle', marginRight: 8 } }>visibility</span>
-                Vista Previa de Inicio
-              </Typography>
-              <Box sx={ { display: "flex", gap: 0.75, alignItems: 'center' } }>
-                {[0, 1, 2].map((i) => (
-                  <Box key={i} sx={ { width: 8, height: 8, borderRadius: "50%", bgcolor: alpha(colores.texto, 0.14), border: "1px solid", borderColor: borde, opacity: i === 0 ? 1 : 0.55 } } />
+          <Card variant="outlined" sx={ { overflow: "hidden", border: "none", boxShadow: "none", bgcolor: "transparent" } }>
+            <Box sx={ { bgcolor: fondo, color: colores.texto, borderRadius: 3, minWidth: 320, overflow: "hidden", display: "flex", flexDirection: "column" } }>
+              {/* Header con cabecera */}
+              <Box sx={ { bgcolor: colores.cabecera, p: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between" } }>
+                <Box sx={ { display: "flex", alignItems: "center", gap: 1 } }>
+                  <Box sx={ { width: 32, height: 32, borderRadius: "50%", overflow: "hidden", bgcolor: alpha(onCabecera, 0.2), display: "flex", alignItems: "center", justifyContent: "center" } }>
+                    {logoUrl ? (
+                      <Box component="img" src={logoUrl} sx={ { width: "100%", height: "100%", objectFit: "cover" } } />
+                    ) : (
+                      <span className="material-symbols-outlined" style={ { fontSize: 16, color: onCabecera } }>play_circle</span>
+                    )}
+                  </Box>
+                  <Typography sx={ { fontSize: 13, fontWeight: 800, letterSpacing: 1.5, color: onCabecera } }>{nombre || "OEDE"}</Typography>
+                </Box>
+                <span className="material-symbols-outlined" style={ { fontSize: 20, color: onCabecera } }>person</span>
+              </Box>
+              {/* Contenido principal */}
+              <Box sx={ { p: 2 } }>
+
+              <Box sx={ { borderRadius: 3, overflow: "hidden", position: "relative", minHeight: 220, bgcolor: colores.primario, backgroundSize: "cover", backgroundPosition: "center" } }>
+                <Box sx={ { position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,0.28)" } } />
+                <Box sx={ { position: "absolute", top: 12, left: 12, display: "inline-flex", alignItems: "center", gap: 0.75, bgcolor: colores.cabecera, px: 1.5, py: 0.75, borderRadius: 2 } }>
+                  <Box sx={ { width: 8, height: 8, borderRadius: "50%", bgcolor: streamActivo ? "#10B981" : alpha(colores.texto, 0.72) } } />
+                  <Typography sx={ { color: contraste(colores.cabecera), fontSize: 10, fontWeight: 800, letterSpacing: 1 } }>{estadoStream}</Typography>
+                </Box>
+                {previewPlatform && (
+                  <Box sx={ { position: "absolute", top: 12, right: 12, bgcolor: alpha(colores.texto, 0.16), color: colores.texto, px: 1.5, py: 0.75, borderRadius: 2, fontSize: 10, fontWeight: 700 } }>
+                    {previewPlatform}
+                  </Box>
+                )}
+                <Box sx={ { position: "absolute", bottom: 16, left: 16, right: 16, display: "flex", alignItems: "center", justifyContent: "space-between" } }>
+                  <Box>
+                    <Typography sx={ { color: colores.texto, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5 } }>Stream</Typography>
+                    <Typography sx={ { color: colores.texto, fontSize: 18, fontWeight: 900, mt: 0.5 } }>Tinubii is offline</Typography>
+                  </Box>
+                  <Box sx={ { width: 40, height: 40, borderRadius: "50%", bgcolor: alpha(colores.texto, 0.2), display: "flex", alignItems: "center", justifyContent: "center" } }>
+                    <span className="material-symbols-outlined" style={ { color: colores.texto, fontSize: 20 } }>play_arrow</span>
+                  </Box>
+                </Box>
+              </Box>
+
+              <Box sx={ { mt: 2, display: "grid", gap: 2 } }>
+                <Box sx={ { borderRadius: 3, bgcolor: colores.cardFondo, p: 2 } }>
+                  <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>Publicidad</Typography>
+                  {bannerUrl ? (
+                    <Box component="img" src={bannerUrl} sx={ { width: "100%", height: 96, borderRadius: 2, objectFit: "cover" } } />
+                  ) : (
+                    <Box sx={ { width: "100%", height: 96, borderRadius: 2, bgcolor: alpha(colores.texto, 0.04), display: "flex", alignItems: "center", justifyContent: "center" } }>
+                      <Typography sx={ { color: textoSuave } }>Publicidad</Typography>
+                    </Box>
+                  )}
+                </Box>
+
+                <Box sx={ { borderRadius: 3, bgcolor: colores.cardFondo, p: 2 } }>
+                  <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>Streams pasados</Typography>
+                  <Typography sx={ { color: textoSuave, fontSize: 13, mb: 2 } }>No hay streams anteriores disponibles.</Typography>
+                  <button style={ { width: "100%", backgroundColor: colores.botones, color: contraste(colores.botones), border: "none", borderRadius: "8px", padding: "12px 16px", fontWeight: 600, fontSize: 16, cursor: "pointer", transition: "all 0.2s" } } onMouseEnter={(e) => e.currentTarget.style.opacity = "0.8"} onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}>Ver más</button>
+                </Box>
+              </Box>
+              </Box>
+
+              {/* Footer con navegación */}
+              <Box sx={ { bgcolor: colores.cabecera, display: "flex", justifyContent: "space-around" } }>
+                {[{ icon: 'home', active: true }, { icon: 'grid_view', active: false }, { icon: 'person', active: false }].map((item) => (
+                  <Box key={item.icon} sx={ { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", py: 1.5 } }>
+                    <span className="material-symbols-outlined" style={ { color: item.active ? colores.primario : colores.iconos, fontSize: 22 } }>{item.icon}</span>
+                  </Box>
                 ))}
               </Box>
             </Box>
 
-            <Box sx={ { bgcolor: fondo, color: colores.texto } }>
-              <Box sx={ { bgcolor: cabecera, borderBottom: `1px solid ${borde}`, px: 2, py: 1.5, display: "flex", alignItems: "center", gap: 1 } }>
-                {logoUrl ? (
-                  <Box component="img" src={logoUrl} sx={ { width: 28, height: 28, borderRadius: 1, objectFit: "cover" } } />
-                ) : (
-                  <Box sx={ { width: 28, height: 28, borderRadius: 1, bgcolor: colores.primario, display: "flex", alignItems: "center", justifyContent: "center" } }>
-                    <span className="material-symbols-outlined" style={ { color: onPrimario, fontSize: 18 } }>play_arrow</span>
-                  </Box>
-                )}
-                <Typography sx={ { fontSize: 18, fontWeight: 700, letterSpacing: 1, color: colores.texto } } noWrap>
-                  {nombre}
-                </Typography>
-                <Box sx={ { flexGrow: 1 } } />
-                <Box sx={ { display: { xs: "none", md: "flex" }, alignItems: "center", gap: 2 } }>
-                  {navItem("Inicio", true)}
-                  {navItem("Noticias", false)}
-                  {navItem("Agenda", false)}
-                </Box>
-                <Box sx={ { display: "flex", alignItems: "center", gap: 1, ml: 2 } }>
-                  <span className="material-symbols-outlined" style={ { color: textoSuave, fontSize: 20 } }>search</span>
-                  {userAvatar}
-                </Box>
-              </Box>
-
-              <Box sx={ { p: 2, display: "flex", flexDirection: "column", gap: 3 } }>
-                <Box>
-                  {sectionLabel("Stream")}
-                  <Box sx={ sectionCard }>
-                    <Box sx={ { width: "100%", aspectRatio: "16 / 9", bgcolor: bannerUrl ? "transparent" : alpha(colores.texto, 0.08), backgroundImage: bannerUrl ? `url(${bannerUrl})` : "none", backgroundSize: "cover", backgroundPosition: "center", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" } }>
-                      <Box sx={ { position: "absolute", top: 12, left: 12, display: "flex", alignItems: "center", gap: 0.5, bgcolor: colores.primario, px: 1, py: 0.4, borderRadius: 1 } }>
-                        <Box sx={ { width: 6, height: 6, borderRadius: "50%", bgcolor: onPrimario } } />
-                        <Typography sx={ { fontSize: 9, fontWeight: 900, color: onPrimario } }>EN VIVO</Typography>
-                      </Box>
-                      <Box sx={ { width: 80, height: 80, borderRadius: "50%", bgcolor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" } }>
-                        <Box sx={ { width: 40, height: 40, borderRadius: "50%", bgcolor: colores.primario, display: "flex", alignItems: "center", justifyContent: "center" } }>
-                          <span className="material-symbols-outlined" style={ { color: onPrimario, fontSize: 26 } }>play_arrow</span>
-                        </Box>
-                      </Box>
-                    </Box>
-                    <Box sx={ { pt: 2 } }>
-                      <Typography sx={ { fontSize: 20, fontWeight: 700, color: colores.texto } }>{nombre}</Typography>
-                    </Box>
-                  </Box>
-                </Box>
-
-                <Box>
-                  {sectionLabel("Publicidad")}
-                  <Box sx={ { borderRadius: 2, overflow: "hidden", border: `1px solid ${borde}` } }>
-                    {bannerUrl ? (
-                      <Box component="img" src={bannerUrl} sx={ { width: "100%", height: 90, objectFit: "cover" } } />
-                    ) : (
-                      <Box sx={ { width: "100%", height: 90, bgcolor: card, display: "flex", alignItems: "center", justifyContent: "center" } }>
-                        <Typography sx={ { color: textoSuave } }>Publicidad</Typography>
-                      </Box>
-                    )}
-                  </Box>
-                </Box>
-
-                <Box>
-                  {sectionLabel("Streams pasados")}
-                  <Box sx={ sectionCard }>
-                    <Box sx={ { display: "flex", gap: 1, alignItems: "center", mb: 1 } }>
-                      <Box sx={ { width: 54, height: 54, borderRadius: 2, bgcolor: alpha(colores.texto, 0.08), display: "flex", alignItems: "center", justifyContent: "center" } }>
-                        <span className="material-symbols-outlined" style={ { color: textoSuave, fontSize: 24 } }>play_arrow</span>
-                      </Box>
-                      <Typography sx={ { color: textoSuave } }>
-                        No hay streams anteriores disponibles.
-                      </Typography>
-                    </Box>
-                    {botonPrimario("Ver más")}
-                  </Box>
-                </Box>
-
-                <Box sx={ { display: "grid", gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" }, gap: 2 } }>
-                  <Box sx={ { display: "grid", gap: 2 } }>
-                    <Box sx={ sectionCard }>
-                      <Box sx={ { display: "flex", alignItems: "center", gap: 1.5, mb: 2 } }>
-                        {brandAvatar(44)}
-                        <Box sx={ { flex: 1, minWidth: 0 } }>
-                          <Typography sx={ { color: colores.texto, fontWeight: 700 } } noWrap>{nombre}</Typography>
-                        </Box>
-                        {botonPrimario("Seguir")}
-                      </Box>
-                    </Box>
-                    <Box sx={ sectionCard }>
-                      <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>
-                        Agenda semanal
-                      </Typography>
-                      {agendaItem('HOY', '--', true, 'Sin programación disponible', '')}
-                    </Box>
-                  </Box>
-
-                  <Box sx={ { display: "grid", gap: 2 } }>
-                    <Box sx={ sectionCard }>
-                      <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>
-                        Últimas noticias
-                      </Typography>
-                      {noticiaItem("Info", "No hay noticias publicadas.")}
-                    </Box>
-                    <Box sx={ sectionCard }>
-                      <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>
-                        Menciones recientes
-                      </Typography>
-                      {mencionItem("Sistema", "No hay menciones disponibles.")}
-                    </Box>
-                  </Box>
-                </Box>
-              </Box>
-            </Box>
           </Card>
         </Box>
       </Box>
+
+      {/* Modal para guardar como tema personalizado */}
+      <Dialog open={showGuardarTema} onClose={() => setShowGuardarTema(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Guardar como nuevo tema</DialogTitle>
+        <DialogContent sx={ { pt: 2 } }>
+          <TextField
+            fullWidth
+            label="Nombre del tema"
+            value={nombreNuevoTema}
+            onChange={(e) => setNombreNuevoTema(e.target.value)}
+            placeholder="Ej: Mi tema azul"
+            onKeyPress={(e) => e.key === "Enter" && handleGuardarTemaPersonalizado()}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowGuardarTema(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleGuardarTemaPersonalizado}>Guardar tema</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
