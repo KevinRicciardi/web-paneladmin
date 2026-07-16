@@ -15,7 +15,9 @@ type Colores = {
   fondo: string;
   cabecera: string;
   texto: string;
+  textoCabecera: string;
   primario: string;
+  secundario: string;
   botones: string;
   cardFondo: string;
   iconos: string;
@@ -23,20 +25,22 @@ type Colores = {
 
 // Temas predefinidos: cada uno define la paleta completa
 const PRESETS: { nombre: string; colores: Colores }[] = [
-  { nombre: "Azul",     colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", primario: "#3B82F6", botones: "#3B82F6", cardFondo: "#111111", iconos: "#94A3B8" } },
-  { nombre: "Verde",    colores: { fondo: "#07120C", cabecera: "#0C1F14", texto: "#FFFFFF", primario: "#22C55E", botones: "#22C55E", cardFondo: "#0F1F17", iconos: "#86EFAC" } },
-  { nombre: "Púrpura",  colores: { fondo: "#0F0A16", cabecera: "#1A0F26", texto: "#FFFFFF", primario: "#A855F7", botones: "#A855F7", cardFondo: "#1A1024", iconos: "#D8B4FE" } },
-  { nombre: "Blanco y Negro", colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", primario: "#FFFFFF", botones: "#FFFFFF", cardFondo: "#1A1A1A", iconos: "#A3A3A3" } },
-  { nombre: "Negro y Dorado", colores: { fondo: "#0A0A0A", cabecera: "#000000", texto: "#F5E6C8", primario: "#D4AF37", botones: "#D4AF37", cardFondo: "#1A1A14", iconos: "#8B7500" } },
-  { nombre: "Rojo",     colores: { fondo: "#0A0A0A", cabecera: "#140000", texto: "#FFFFFF", primario: "#EF4444", botones: "#EF4444", cardFondo: "#1A0F0F", iconos: "#FCA5A5" } },
-  { nombre: "Claro",    colores: { fondo: "#FFFFFF", cabecera: "#F3F4F6", texto: "#111827", primario: "#3B82F6", botones: "#3B82F6", cardFondo: "#F9FAFB", iconos: "#6B7280" } },
+  { nombre: "Azul",     colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#3B82F6", secundario: "#F59E0B", botones: "#3B82F6", cardFondo: "#111111", iconos: "#94A3B8" } },
+  { nombre: "Verde",    colores: { fondo: "#07120C", cabecera: "#0C1F14", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#22C55E", secundario: "#D9F99D", botones: "#22C55E", cardFondo: "#0F1F17", iconos: "#86EFAC" } },
+  { nombre: "Púrpura",  colores: { fondo: "#0F0A16", cabecera: "#1A0F26", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#A855F7", secundario: "#FBC7FF", botones: "#A855F7", cardFondo: "#1A1024", iconos: "#D8B4FE" } },
+  { nombre: "Blanco y Negro", colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#FFFFFF", secundario: "#A3A3A3", botones: "#FFFFFF", cardFondo: "#1A1A1A", iconos: "#A3A3A3" } },
+  { nombre: "Negro y Dorado", colores: { fondo: "#0A0A0A", cabecera: "#000000", texto: "#F5E6C8", textoCabecera: "#F5E6C8", primario: "#D4AF37", secundario: "#FCD34D", botones: "#D4AF37", cardFondo: "#1A1A14", iconos: "#8B7500" } },
+  { nombre: "Rojo",     colores: { fondo: "#0A0A0A", cabecera: "#140000", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#EF4444", secundario: "#FECACA", botones: "#EF4444", cardFondo: "#1A0F0F", iconos: "#FCA5A5" } },
+  { nombre: "Claro",    colores: { fondo: "#FFFFFF", cabecera: "#F3F4F6", texto: "#111827", textoCabecera: "#111827", primario: "#3B82F6", secundario: "#60A5FA", botones: "#3B82F6", cardFondo: "#F9FAFB", iconos: "#6B7280" } },
 ];
 
 const CAMPOS: { key: keyof Colores; label: string }[] = [
   { key: "fondo",      label: "Color de Fondo" },
   { key: "cabecera",   label: "Color de Cabecera" },
-  { key: "texto",      label: "Color de Texto" },
+  { key: "texto",      label: "Color de Texto (general)" },
+  { key: "textoCabecera", label: "Color de Texto (cabecera)" },
   { key: "primario",   label: "Color Primario" },
+  { key: "secundario", label: "Color Secundario" },
   { key: "botones",    label: "Color de Botones" },
   { key: "cardFondo",  label: "Color de Fondo de Cards" },
   { key: "iconos",     label: "Color de Iconos" },
@@ -77,6 +81,26 @@ function oscurecer(hex: string, factor: number): string {
   return `#${nr.toString(16).padStart(2, "0")}${ng.toString(16).padStart(2, "0")}${nb.toString(16).padStart(2, "0")}`;
 }
 
+function normalizeHex(hex: string): string {
+  let h = (hex || "").replace(/[^0-9a-fA-F]/g, "").toLowerCase();
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  return h.padStart(6, "0");
+}
+
+function mismosColores(a: string, b: string): boolean {
+  return normalizeHex(a) === normalizeHex(b);
+}
+
+// Devuelve un color de texto 'seguro' sobre un fondo.
+// Si `text` coincide exactamente con `bg`, usamos `fallback` (si también coincide con bg, usamos contraste de bg).
+function safeTextColor(bg: string, text: string, fallback: string): string {
+  if (mismosColores(bg, text)) {
+    if (mismosColores(bg, fallback)) return contraste(bg);
+    return fallback;
+  }
+  return contraste(bg);
+}
+
 async function subirACloudinary(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
@@ -115,12 +139,30 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       fondo: t?.colorFondo ?? "#000000",
       cabecera: t?.colorCabecera ?? "#000000",
       texto: t?.colorTexto ?? "#FFFFFF",
+      textoCabecera: (t as any)?.colorTextoCabecera ?? t?.colorTexto ?? "#FFFFFF",
       primario: t?.colorPrimario ?? "#3B82F6",
+      secundario: t?.colorSecundario ?? "#F59E0B",
       botones: (t as any)?.colorBotones ?? t?.colorPrimario ?? "#3B82F6",
       cardFondo: (t as any)?.colorCardFondo ?? "#111111",
-      iconos: t?.colorSecundario ?? "#94A3B8",
+      iconos: t?.colorIconos ?? "#94A3B8",
     } as Colores,
   };
+
+    function ensureColores(input?: Partial<Colores>): Colores {
+      const base = inicial.colores;
+      if (!input) return { ...base };
+      return {
+        fondo: input.fondo ?? base.fondo,
+        cabecera: input.cabecera ?? base.cabecera,
+        texto: input.texto ?? base.texto,
+        textoCabecera: input.textoCabecera ?? base.textoCabecera,
+        primario: input.primario ?? base.primario,
+        secundario: input.secundario ?? base.secundario,
+        botones: input.botones ?? base.botones,
+        cardFondo: input.cardFondo ?? base.cardFondo,
+        iconos: input.iconos ?? base.iconos,
+      } as Colores;
+    }
 
   const [nombre, setNombre] = useState(inicial.nombre);
   const [logoUrl, setLogoUrl] = useState(inicial.logoUrl);
@@ -148,7 +190,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     const temasGuardados = localStorage.getItem("branding-temas-personalizados");
     if (temasGuardados) {
       try {
-        setTemasPersonalizados(JSON.parse(temasGuardados));
+        const parsed = JSON.parse(temasGuardados) as { nombre: string; colores: Partial<Colores> }[];
+        const normalized = parsed.map((t) => ({ nombre: t.nombre, colores: ensureColores(t.colores) }));
+        setTemasPersonalizados(normalized);
       } catch (e) {
         console.error("Error cargando temas personalizados", e);
       }
@@ -162,8 +206,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     }
   }, [success]);
 
-  const onPrimario = contraste(colores.primario);
-  const onCabecera = contraste(colores.cabecera);
+  const onPrimario = safeTextColor(colores.primario, colores.texto, colores.secundario);
+  const onCabecera = colores.textoCabecera;
   const textoTenue = alpha(colores.texto, 0.55);
   const textoSuave = alpha(colores.texto, 0.75);
   const card = alpha(colores.texto, 0.05);
@@ -217,7 +261,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setColores((prev) => ({ ...prev, [key]: val }));
     setSuccess(false);
   };
-  const aplicarPreset = (c: Colores) => { setColores(c); setSuccess(false); };
+  const aplicarPreset = (c: Partial<Colores>) => { setColores(ensureColores(c)); setSuccess(false); };
 
   const handleUpload = async (file: File, tipo: "logo" | "banner") => {
     tipo === "logo" ? setUploadingLogo(true) : setUploadingBanner(true);
@@ -260,7 +304,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       setError("El nombre del tema no puede estar vacío");
       return;
     }
-    const nuevoTema = { nombre: nombreNuevoTema.trim(), colores };
+    const nuevoTema = { nombre: nombreNuevoTema.trim(), colores: ensureColores(colores) };
     const temasActualizados = [...temasPersonalizados, nuevoTema];
     setTemasPersonalizados(temasActualizados);
     localStorage.setItem("branding-temas-personalizados", JSON.stringify(temasActualizados));
@@ -283,10 +327,12 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           colorFondo: colores.fondo,
           colorCabecera: colores.cabecera,
           colorTexto: colores.texto,
+          colorTextoCabecera: colores.textoCabecera,
           colorPrimario: colores.primario,
+          colorSecundario: colores.secundario,
           colorBotones: colores.botones,
           colorCardFondo: colores.cardFondo,
-          colorSecundario: colores.iconos,
+          colorIconos: colores.iconos,
         }),
       });
       if (!res.ok) throw new Error("Error");
@@ -549,8 +595,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               <Box sx={ { borderRadius: 3, overflow: "hidden", position: "relative", minHeight: 220, bgcolor: colores.primario, backgroundSize: "cover", backgroundPosition: "center" } }>
                 <Box sx={ { position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,0.28)" } } />
                 <Box sx={ { position: "absolute", top: 12, left: 12, display: "inline-flex", alignItems: "center", gap: 0.75, bgcolor: colores.cabecera, px: 1.5, py: 0.75, borderRadius: 2 } }>
-                  <Box sx={ { width: 8, height: 8, borderRadius: "50%", bgcolor: streamActivo ? "#10B981" : alpha(colores.texto, 0.72) } } />
-                  <Typography sx={ { color: contraste(colores.cabecera), fontSize: 10, fontWeight: 800, letterSpacing: 1 } }>{estadoStream}</Typography>
+                  <Box sx={ { width: 8, height: 8, borderRadius: "50%", bgcolor: streamActivo ? "#10B981" : alpha(colores.textoCabecera, 0.72) } } />
+                  <Typography sx={ { color: colores.textoCabecera, fontSize: 10, fontWeight: 800, letterSpacing: 1 } }>{estadoStream}</Typography>
                 </Box>
                 {previewPlatform && (
                   <Box sx={ { position: "absolute", top: 12, right: 12, bgcolor: alpha(colores.texto, 0.16), color: colores.texto, px: 1.5, py: 0.75, borderRadius: 2, fontSize: 10, fontWeight: 700 } }>
@@ -583,7 +629,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 <Box sx={ { borderRadius: 3, bgcolor: colores.cardFondo, p: 2 } }>
                   <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>Streams pasados</Typography>
                   <Typography sx={ { color: textoSuave, fontSize: 13, mb: 2 } }>No hay streams anteriores disponibles.</Typography>
-                  <button style={ { width: "100%", backgroundColor: colores.botones, color: contraste(colores.botones), border: "none", borderRadius: "8px", padding: "12px 16px", fontWeight: 600, fontSize: 16, cursor: "pointer", transition: "all 0.2s" } } onMouseEnter={(e) => e.currentTarget.style.opacity = "0.8"} onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}>Ver más</button>
+                  <button style={ { width: "100%", backgroundColor: colores.botones, color: safeTextColor(colores.botones, colores.texto, colores.secundario), border: "none", borderRadius: "8px", padding: "12px 16px", fontWeight: 600, fontSize: 16, cursor: "pointer", transition: "all 0.2s" } } onMouseEnter={(e) => e.currentTarget.style.opacity = "0.8"} onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}>Ver más</button>
                 </Box>
               </Box>
               </Box>

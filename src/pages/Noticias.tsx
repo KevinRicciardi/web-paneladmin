@@ -8,7 +8,6 @@ import {
   Chip,
   CircularProgress,
   Divider,
-  Drawer,
   IconButton,
   InputAdornment,
   Stack,
@@ -127,7 +126,6 @@ export default function Noticias() {
   const [selected, setSelected] = useState<News | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [search, setSearch] = useState("");
 
   const [loading, setLoading] = useState(true);
@@ -192,7 +190,6 @@ export default function Noticias() {
     setForm(EMPTY_FORM);
     setError("");
     setSuccess("");
-    setDrawerOpen(true);
   };
 
   const openEdit = (news: News) => {
@@ -204,12 +201,12 @@ export default function Noticias() {
     });
     setError("");
     setSuccess("");
-    setDrawerOpen(true);
   };
 
-  const closeDrawer = () => {
+  const closeEditor = () => {
     if (saving || uploading) return;
-    setDrawerOpen(false);
+    setSelected(null);
+    setForm(EMPTY_FORM);
   };
 
   const setField = (field: keyof FormState, value: string) => {
@@ -263,7 +260,6 @@ export default function Noticias() {
       setSuccess(
         status === "published" ? "Noticia publicada." : "Borrador guardado.",
       );
-      setDrawerOpen(false);
     } catch (err) {
       console.error(err);
       setError(
@@ -401,57 +397,6 @@ export default function Noticias() {
         </Button>
       </Box>
 
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" },
-          gap: 2,
-          mb: 3,
-        }}
-      >
-        <Card variant="outlined">
-          <CardContent>
-            <Typography
-              color="text.secondary"
-              sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }}
-            >
-              Total
-            </Typography>
-            <Typography sx={{ fontSize: 32, fontWeight: 900 }}>
-              {noticias.length}
-            </Typography>
-          </CardContent>
-        </Card>
-
-        <Card variant="outlined">
-          <CardContent>
-            <Typography
-              color="text.secondary"
-              sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }}
-            >
-              Publicadas
-            </Typography>
-            <Typography sx={{ fontSize: 32, fontWeight: 900 }}>
-              {publishedCount}
-            </Typography>
-          </CardContent>
-        </Card>
-
-        <Card variant="outlined">
-          <CardContent>
-            <Typography
-              color="text.secondary"
-              sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }}
-            >
-              Borradores
-            </Typography>
-            <Typography sx={{ fontSize: 32, fontWeight: 900 }}>
-              {draftCount}
-            </Typography>
-          </CardContent>
-        </Card>
-      </Box>
-
       {(error || success) && (
         <Stack spacing={1.5} sx={{ mb: 2 }}>
           {error && (
@@ -467,387 +412,371 @@ export default function Noticias() {
         </Stack>
       )}
 
-      <Card variant="outlined">
-        <CardContent sx={{ p: 0 }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 2,
-              p: 2.5,
-            }}
-          >
-            <Typography
-              variant="h6"
-              sx={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 1 }}
-            >
-              <span className="material-symbols-outlined">newspaper</span>
-              Noticias
-            </Typography>
-
-            <TextField
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar noticias..."
-              size="small"
-              sx={{ minWidth: { xs: 180, sm: 320 } }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <span className="material-symbols-outlined">search</span>
-                    </InputAdornment>
-                  ),
-                },
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", lg: "2.2fr 1fr" },
+          gap: 3,
+          mb: 3,
+        }}
+      >
+        <Card variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.03)", borderColor: "divider" }}>
+          <CardContent sx={{ p: 0 }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 2,
+                p: 2.5,
               }}
-            />
-          </Box>
-
-          <Divider />
-
-          {loading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
-              <CircularProgress />
-            </Box>
-          ) : filteredNews.length === 0 ? (
-            <Box sx={{ textAlign: "center", py: 8, px: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>
-                {search
-                  ? "No encontramos noticias"
-                  : "Todavía no hay noticias cargadas"}
+            >
+              <Typography
+                variant="h6"
+                sx={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 1 }}
+              >
+                <span className="material-symbols-outlined">newspaper</span>
+                Noticias
               </Typography>
-              <Typography color="text.secondary" sx={{ mb: 3 }}>
-                Creá el primer anuncio para que luego aparezca publicado en la
-                app.
-              </Typography>
-              <Button variant="contained" onClick={openCreate}>
-                Crear noticia
-              </Button>
+
+              <TextField
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar noticias..."
+                size="small"
+                sx={{ minWidth: { xs: 160, sm: 280, md: 340 } }}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <span className="material-symbols-outlined">search</span>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
             </Box>
-          ) : (
-            <Stack spacing={0}>
-              {filteredNews.map((news) => (
-                <Box
-                  key={news.id}
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "96px 1fr",
-                      md: "128px 1fr auto",
-                    },
-                    gap: 2,
-                    p: 2,
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                    "&:last-child": { borderBottom: 0 },
-                    "&:hover": { bgcolor: "rgba(255,255,255,0.03)" },
-                  }}
-                >
-                  <Box
+
+            <Divider />
+
+            {loading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
+                <CircularProgress />
+              </Box>
+            ) : filteredNews.length === 0 ? (
+              <Box sx={{ textAlign: "center", py: 8, px: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>
+                  {search
+                    ? "No encontramos noticias"
+                    : "Todavía no hay noticias cargadas"}
+                </Typography>
+                <Typography color="text.secondary" sx={{ mb: 3 }}>
+                  Creá el primer anuncio para que luego aparezca publicado en la
+                  app.
+                </Typography>
+                <Button variant="contained" onClick={openCreate}>
+                  Crear noticia
+                </Button>
+              </Box>
+            ) : (
+              <Stack spacing={2} sx={{ p: 2.5 }}>
+                {filteredNews.map((news) => (
+                  <Card
+                    key={news.id}
+                    variant="outlined"
                     sx={{
-                      height: 86,
-                      borderRadius: 1.5,
-                      bgcolor: "rgba(255,255,255,0.06)",
+                      bgcolor: "rgba(255,255,255,0.02)",
+                      borderColor: "divider",
+                      transition: "background-color 150ms ease",
+                      "&:hover": {
+                        bgcolor: "rgba(255,255,255,0.05)",
+                      },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: { xs: "96px 1fr", sm: "120px 1fr auto" },
+                        gap: 2,
+                        p: 2,
+                        alignItems: "start",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          height: 100,
+                          borderRadius: 2,
+                          bgcolor: "rgba(255,255,255,0.06)",
+                          overflow: "hidden",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {news.coverImageUrl ? (
+                          <Box
+                            component="img"
+                            src={news.coverImageUrl}
+                            alt=""
+                            sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                        ) : (
+                          <span
+                            className="material-symbols-outlined"
+                            style={{ opacity: 0.45 }}
+                          >
+                            image
+                          </span>
+                        )}
+                      </Box>
+
+                      <Box sx={{ minWidth: 0 }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                            mb: 0.75,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Chip
+                            size="small"
+                            label={statusLabel(news.status)}
+                            color={statusColor(news.status)}
+                            sx={{ textTransform: "uppercase", fontWeight: 700 }}
+                          />
+                          <Typography color="text.secondary" variant="caption">
+                            {news.status === "published"
+                              ? timeAgo(news.publishedAt)
+                              : `editado ${timeAgo(news.updatedAt)}`}
+                          </Typography>
+                        </Box>
+
+                        <Typography sx={{ fontSize: 18, fontWeight: 900, mb: 0.75 }}>
+                          {news.title}
+                        </Typography>
+
+                        <Typography
+                          color="text.secondary"
+                          sx={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {excerptFrom(news)}
+                        </Typography>
+                      </Box>
+
+                      <Stack direction={{ xs: "row", sm: "column" }} spacing={1}>
+                        <Button variant="outlined" size="small" onClick={() => openEdit(news)}>
+                          Editar
+                        </Button>
+
+                        {news.status === "published" ? (
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            color="warning"
+                            onClick={() => unpublishExisting(news)}
+                            disabled={saving}
+                          >
+                            Borrador
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={() => publishExisting(news)}
+                            disabled={saving}
+                          >
+                            Publicar
+                          </Button>
+                        )}
+
+                        <Button
+                          variant="text"
+                          size="small"
+                          color="error"
+                          onClick={() => removeExisting(news)}
+                          disabled={saving}
+                        >
+                          Eliminar
+                        </Button>
+                      </Stack>
+                    </Box>
+                  </Card>
+                ))}
+              </Stack>
+            )}
+          </CardContent>
+        </Card>
+
+        <Box sx={{ position: { lg: "sticky" }, top: 24 }}>
+          <Card variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.03)", borderColor: "divider" }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
+                <Box>
+                  <Typography variant="h5" sx={{ fontWeight: 900 }}>
+                    Redactor
+                  </Typography>
+                  <Typography color="text.secondary" variant="body2">
+                    {selected
+                      ? "Editá la noticia seleccionada."
+                      : "Creá una nueva noticia para tu tenant."}
+                  </Typography>
+                </Box>
+                <IconButton onClick={closeEditor} disabled={saving || uploading} size="small">
+                  <span className="material-symbols-outlined">close</span>
+                </IconButton>
+              </Box>
+
+              <Stack spacing={2.5}>
+                <TextField
+                  label="Título"
+                  placeholder="Ingrese el título del artículo"
+                  value={form.title}
+                  onChange={(event) => setField("title", event.target.value)}
+                  fullWidth
+                />
+
+                <Box>
+                  <Typography
+                    sx={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: 1,
+                      mb: 1,
+                    }}
+                  >
+                    Imagen de portada
+                  </Typography>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
+
+                  <Box
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    sx={{
+                      minHeight: 150,
+                      border: "1.5px dashed",
+                      borderColor: form.coverImageUrl ? "primary.main" : "divider",
+                      borderRadius: 2,
+                      bgcolor: "rgba(255,255,255,0.03)",
+                      cursor: "pointer",
                       overflow: "hidden",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
+                      textAlign: "center",
+                      p: form.coverImageUrl ? 0 : 3,
+                      "&:hover": {
+                        bgcolor: "rgba(255,255,255,0.05)",
+                        borderColor: "primary.main",
+                      },
                     }}
                   >
-                    {news.coverImageUrl ? (
+                    {uploading ? (
+                      <CircularProgress />
+                    ) : form.coverImageUrl ? (
                       <Box
                         component="img"
-                        src={news.coverImageUrl}
-                        alt=""
-                        sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        src={form.coverImageUrl}
+                        alt="Portada"
+                        sx={{ width: "100%", height: 180, objectFit: "cover" }}
                       />
                     ) : (
-                      <span
-                        className="material-symbols-outlined"
-                        style={{ opacity: 0.45 }}
-                      >
-                        image
-                      </span>
+                      <Box>
+                        <Box
+                          sx={{
+                            width: 54,
+                            height: 54,
+                            borderRadius: 2,
+                            bgcolor: "rgba(255,255,255,0.08)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            mb: 1,
+                          }}
+                        >
+                          <span className="material-symbols-outlined">
+                            cloud_upload
+                          </span>
+                        </Box>
+
+                        <Typography sx={{ fontWeight: 800 }}>
+                          Clic para subir o arrastrar y soltar
+                        </Typography>
+                        <Typography color="text.secondary" variant="body2">
+                          SVG, PNG, JPG o GIF
+                        </Typography>
+                      </Box>
                     )}
                   </Box>
 
-                  <Box sx={{ minWidth: 0 }}>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 1,
-                        mb: 0.75,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <Chip
-                        size="small"
-                        label={statusLabel(news.status)}
-                        color={statusColor(news.status)}
-                      />
-                      <Typography color="text.secondary" variant="caption">
-                        {news.status === "published"
-                          ? timeAgo(news.publishedAt)
-                          : `editado ${timeAgo(news.updatedAt)}`}
-                      </Typography>
-                    </Box>
-
-                    <Typography sx={{ fontSize: 18, fontWeight: 900, mb: 0.5 }}>
-                      {news.title}
-                    </Typography>
-
-                    <Typography
-                      color="text.secondary"
-                      sx={{
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {excerptFrom(news)}
-                    </Typography>
-                  </Box>
-
-                  <Stack
-                    direction={{ xs: "row", md: "column" }}
-                    spacing={1}
-                    sx={{
-                      gridColumn: { xs: "1 / -1", md: "auto" },
-                      minWidth: 140,
-                    }}
-                  >
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => openEdit(news)}
-                    >
-                      Editar
-                    </Button>
-
-                    {news.status === "published" ? (
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        color="warning"
-                        onClick={() => unpublishExisting(news)}
-                        disabled={saving}
-                      >
-                        Borrador
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={() => publishExisting(news)}
-                        disabled={saving}
-                      >
-                        Publicar
-                      </Button>
-                    )}
-
-                    <Button
-                      variant="text"
-                      size="small"
-                      color="error"
-                      onClick={() => removeExisting(news)}
-                      disabled={saving}
-                    >
-                      Eliminar
-                    </Button>
-                  </Stack>
+                  <TextField
+                    value={form.coverImageUrl}
+                    onChange={(event) => setField("coverImageUrl", event.target.value)}
+                    placeholder="O pegá una URL de imagen"
+                    size="small"
+                    fullWidth
+                    sx={{ mt: 1.5 }}
+                  />
                 </Box>
-              ))}
-            </Stack>
-          )}
-        </CardContent>
-      </Card>
 
-     <Drawer
-  anchor="right"
-  open={drawerOpen}
-  onClose={closeDrawer}
-  sx={{
-    zIndex: (theme) => theme.zIndex.drawer + 3,
-  }}
-  slotProps={{
-    paper: {
-      sx: {
-        width: { xs: "100%", sm: 460 },
-        p: 3,
-      },
-    },
-  }}
->
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            mb: 2,
-          }}
-        >
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 900 }}>
-              Redactor
-            </Typography>
-            <Typography color="text.secondary" variant="body2">
-              {selected
-                ? "Editá la noticia seleccionada."
-                : "Creá una nueva noticia para tu tenant."}
-            </Typography>
-          </Box>
-
-          <IconButton onClick={closeDrawer} disabled={saving || uploading}>
-            <span className="material-symbols-outlined">close</span>
-          </IconButton>
-        </Box>
-
-        <Divider sx={{ mb: 3 }} />
-
-        <Stack spacing={2.5}>
-          <TextField
-            label="Título"
-            placeholder="Ingrese el título del artículo"
-            value={form.title}
-            onChange={(event) => setField("title", event.target.value)}
-            fullWidth
-          />
-
-          <Box>
-            <Typography
-              sx={{
-                fontSize: 12,
-                fontWeight: 800,
-                textTransform: "uppercase",
-                letterSpacing: 1,
-                mb: 1,
-              }}
-            >
-              Imagen de portada
-            </Typography>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              hidden
-              accept="image/*"
-              onChange={handleFileChange}
-            />
-
-            <Box
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              sx={{
-                minHeight: 150,
-                border: "1.5px dashed",
-                borderColor: form.coverImageUrl ? "primary.main" : "divider",
-                borderRadius: 1.5,
-                bgcolor: "rgba(255,255,255,0.03)",
-                cursor: "pointer",
-                overflow: "hidden",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                textAlign: "center",
-                p: form.coverImageUrl ? 0 : 3,
-                "&:hover": {
-                  bgcolor: "rgba(255,255,255,0.05)",
-                  borderColor: "primary.main",
-                },
-              }}
-            >
-              {uploading ? (
-                <CircularProgress />
-              ) : form.coverImageUrl ? (
-                <Box
-                  component="img"
-                  src={form.coverImageUrl}
-                  alt="Portada"
-                  sx={{ width: "100%", height: 180, objectFit: "cover" }}
+                <TextField
+                  label="Contenido"
+                  placeholder="Escribe el contenido de la noticia aquí..."
+                  value={form.content}
+                  onChange={(event) => setField("content", event.target.value)}
+                  minRows={10}
+                  multiline
+                  fullWidth
                 />
-              ) : (
-                <Box>
-                  <Box
-                    sx={{
-                      width: 54,
-                      height: 54,
-                      borderRadius: 2,
-                      bgcolor: "rgba(255,255,255,0.08)",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      mb: 1,
-                    }}
+
+                {selected && (
+                  <Alert severity={selected.status === "published" ? "success" : "info"}>
+                    Estado actual: {statusLabel(selected.status)} ·{" "}
+                    {formatDate(selected.publishedAt)}
+                  </Alert>
+                )}
+
+                <Divider />
+
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    disabled={saving || uploading}
+                    onClick={() => save("draft")}
                   >
-                    <span className="material-symbols-outlined">
-                      cloud_upload
-                    </span>
-                  </Box>
+                    {saving ? "Guardando..." : "Guardar borrador"}
+                  </Button>
 
-                  <Typography sx={{ fontWeight: 800 }}>
-                    Clic para subir o arrastrar y soltar
-                  </Typography>
-                  <Typography color="text.secondary" variant="body2">
-                    SVG, PNG, JPG o GIF
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-
-            <TextField
-              value={form.coverImageUrl}
-              onChange={(event) => setField("coverImageUrl", event.target.value)}
-              placeholder="O pegá una URL de imagen"
-              size="small"
-              fullWidth
-              sx={{ mt: 1.5 }}
-            />
-          </Box>
-
-          <TextField
-            label="Contenido"
-            placeholder="Escribe el contenido de la noticia aquí..."
-            value={form.content}
-            onChange={(event) => setField("content", event.target.value)}
-            minRows={10}
-            multiline
-            fullWidth
-          />
-
-          {selected && (
-            <Alert severity={selected.status === "published" ? "success" : "info"}>
-              Estado actual: {statusLabel(selected.status)} ·{" "}
-              {formatDate(selected.publishedAt)}
-            </Alert>
-          )}
-
-          <Divider />
-
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <Button
-              variant="outlined"
-              fullWidth
-              disabled={saving || uploading}
-              onClick={() => save("draft")}
-            >
-              {saving ? "Guardando..." : "Guardar borrador"}
-            </Button>
-
-            <Button
-              variant="contained"
-              fullWidth
-              disabled={saving || uploading}
-              onClick={() => save("published")}
-            >
-              {saving ? "Publicando..." : "Publicar ahora"}
-            </Button>
-          </Stack>
-        </Stack>
-      </Drawer>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    disabled={saving || uploading}
+                    onClick={() => save("published")}
+                  >
+                    {saving ? "Publicando..." : "Publicar ahora"}
+                  </Button>
+                </Stack>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Box>
+      </Box>
     </Box>
   );
 }
