@@ -13,6 +13,7 @@ export interface Tenant {
   colorFondo?: string;
   colorCabecera?: string;
   colorTexto?: string;
+  colorTextoCabecera?: string | null;
   colorBotones?: string | null;
   colorCardFondo?: string | null;
   colorIconos?: string | null;

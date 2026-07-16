@@ -7,6 +7,8 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Branding from "./pages/Branding";
+import Configuracion from "./pages/Configuracion";
+import Soporte from "./pages/Soporte";
 import Streaming from "./pages/Streaming";
 import Programacion from "./pages/Programacion";
 import Noticias from "./pages/Noticias";
@@ -99,6 +101,8 @@ function App() {
           <Route path="/streaming" element={<Streaming perfil={perfil} />} />
           <Route path="/programacion" element={<Programacion />} />
           <Route path="/noticias" element={<Noticias />} />
+          <Route path="/configuracion" element={<Configuracion perfil={perfil} />} />
+          <Route path="/soporte" element={<Soporte perfil={perfil} />} />
         </Route>
       </Routes>
     </BrowserRouter>
