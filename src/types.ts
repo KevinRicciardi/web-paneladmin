@@ -25,3 +25,27 @@ export interface Perfil {
   tenantId: number;
   tenant: Tenant;
 }
+
+export type NewsStatus = "draft" | "published";
+
+export interface News {
+  id: number;
+  tenantId: number;
+  title: string;
+  excerpt?: string | null;
+  coverImageUrl?: string | null;
+  content: string;
+  contentFormat: string;
+  status: NewsStatus;
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewsPayload {
+  title: string;
+  coverImageUrl?: string;
+  content: string;
+  contentFormat: "markdown";
+  status: NewsStatus;
+}
