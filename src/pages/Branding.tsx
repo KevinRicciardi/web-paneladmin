@@ -208,8 +208,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
   const onPrimario = safeTextColor(colores.primario, colores.texto, colores.textoCabecera || colores.secundario);
   const headerTextColor = colores.textoCabecera?.trim() ? colores.textoCabecera : colores.texto;
-  const onCabecera = safeTextColor(colores.cabecera, headerTextColor, colores.texto);
-  const statusTextColor = safeTextColor(colores.cabecera, colores.textoCabecera || colores.texto, colores.texto);
+  // Usamos el color exactamente como lo configura el tenant, sin aplicar lógica de contraste
+  const onCabecera = headerTextColor;
+  const statusTextColor = headerTextColor;
   const textoTenue = alpha(colores.texto, 0.55);
   const textoSuave = alpha(colores.texto, 0.75);
   const card = alpha(colores.texto, 0.05);
@@ -627,11 +628,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 )}
                 <Box sx={ { position: "absolute", bottom: 16, left: 16, right: 16, display: "flex", alignItems: "center", justifyContent: "space-between" } }>
                   <Box>
-                    <Typography sx={ { color: onPrimario, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5 } }>Stream</Typography>
-                    <Typography sx={ { color: onPrimario, fontSize: 18, fontWeight: 900, mt: 0.5 } }>Tinubii is offline</Typography>
+                    <Typography sx={ { color: colores.texto, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5 } }>Stream</Typography>
+                    <Typography sx={ { color: colores.texto, fontSize: 18, fontWeight: 900, mt: 0.5 } }>Tinubii is offline</Typography>
                   </Box>
                   <Box sx={ { width: 40, height: 40, borderRadius: "50%", bgcolor: alpha(colores.texto, 0.2), display: "flex", alignItems: "center", justifyContent: "center" } }>
-                    <span className="material-symbols-outlined" style={ { color: onPrimario, fontSize: 20 } }>play_arrow</span>
+                    <span className="material-symbols-outlined" style={ { color: colores.texto, fontSize: 20 } }>play_arrow</span>
                   </Box>
                 </Box>
               </Box>
