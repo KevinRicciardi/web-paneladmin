@@ -206,8 +206,10 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     }
   }, [success]);
 
-  const onPrimario = safeTextColor(colores.primario, colores.texto, colores.secundario);
-  const onCabecera = colores.textoCabecera;
+  const onPrimario = safeTextColor(colores.primario, colores.texto, colores.textoCabecera || colores.secundario);
+  const headerTextColor = colores.textoCabecera?.trim() ? colores.textoCabecera : colores.texto;
+  const onCabecera = safeTextColor(colores.cabecera, headerTextColor, colores.texto);
+  const statusTextColor = safeTextColor(colores.cabecera, colores.textoCabecera || colores.texto, colores.texto);
   const textoTenue = alpha(colores.texto, 0.55);
   const textoSuave = alpha(colores.texto, 0.75);
   const card = alpha(colores.texto, 0.05);
@@ -338,6 +340,26 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       if (!res.ok) throw new Error("Error");
       setSuccess(true);
       setUltimoGuardado({ nombre, logoUrl, bannerUrl, colores });
+      try {
+        window.dispatchEvent(new CustomEvent("tenantUpdated", {
+          detail: {
+            nombre,
+            logoUrl,
+            bannerUrl,
+            colorFondo: colores.fondo,
+            colorCabecera: colores.cabecera,
+            colorTexto: colores.texto,
+            colorTextoCabecera: colores.textoCabecera,
+            colorPrimario: colores.primario,
+            colorSecundario: colores.secundario,
+            colorBotones: colores.botones,
+            colorCardFondo: colores.cardFondo,
+            colorIconos: colores.iconos,
+          },
+        }));
+      } catch {
+        // Ignoramos si el evento no se puede despachar
+      }
     } catch {
       setError("No se pudo guardar. Intentá de nuevo.");
     } finally {
@@ -595,8 +617,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               <Box sx={ { borderRadius: 3, overflow: "hidden", position: "relative", minHeight: 220, bgcolor: colores.primario, backgroundSize: "cover", backgroundPosition: "center" } }>
                 <Box sx={ { position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,0.28)" } } />
                 <Box sx={ { position: "absolute", top: 12, left: 12, display: "inline-flex", alignItems: "center", gap: 0.75, bgcolor: colores.cabecera, px: 1.5, py: 0.75, borderRadius: 2 } }>
-                  <Box sx={ { width: 8, height: 8, borderRadius: "50%", bgcolor: streamActivo ? "#10B981" : alpha(colores.textoCabecera, 0.72) } } />
-                  <Typography sx={ { color: colores.textoCabecera, fontSize: 10, fontWeight: 800, letterSpacing: 1 } }>{estadoStream}</Typography>
+                  <Box sx={ { width: 8, height: 8, borderRadius: "50%", bgcolor: streamActivo ? "#10B981" : alpha(colores.textoCabecera ?? colores.texto, 0.72) } } />
+                  <Typography sx={ { color: statusTextColor, fontSize: 10, fontWeight: 800, letterSpacing: 1 } }>{estadoStream}</Typography>
                 </Box>
                 {previewPlatform && (
                   <Box sx={ { position: "absolute", top: 12, right: 12, bgcolor: alpha(colores.texto, 0.16), color: colores.texto, px: 1.5, py: 0.75, borderRadius: 2, fontSize: 10, fontWeight: 700 } }>
@@ -605,11 +627,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 )}
                 <Box sx={ { position: "absolute", bottom: 16, left: 16, right: 16, display: "flex", alignItems: "center", justifyContent: "space-between" } }>
                   <Box>
-                    <Typography sx={ { color: colores.texto, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5 } }>Stream</Typography>
-                    <Typography sx={ { color: colores.texto, fontSize: 18, fontWeight: 900, mt: 0.5 } }>Tinubii is offline</Typography>
+                    <Typography sx={ { color: onPrimario, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5 } }>Stream</Typography>
+                    <Typography sx={ { color: onPrimario, fontSize: 18, fontWeight: 900, mt: 0.5 } }>Tinubii is offline</Typography>
                   </Box>
                   <Box sx={ { width: 40, height: 40, borderRadius: "50%", bgcolor: alpha(colores.texto, 0.2), display: "flex", alignItems: "center", justifyContent: "center" } }>
-                    <span className="material-symbols-outlined" style={ { color: colores.texto, fontSize: 20 } }>play_arrow</span>
+                    <span className="material-symbols-outlined" style={ { color: onPrimario, fontSize: 20 } }>play_arrow</span>
                   </Box>
                 </Box>
               </Box>
