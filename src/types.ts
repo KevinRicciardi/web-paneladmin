@@ -4,19 +4,21 @@ export interface Tenant {
   slug: string;
   logoUrl?: string | null;
   bannerUrl?: string | null;
-  colorPrimario?: string | null;
-  colorSecundario?: string | null;
   streamUrl?: string | null;
   streamActivo?: boolean;
   tipoTransmision?: string;
   imagenPortada?: string;
+
+  colorPrimario?: string | null;
+  colorSecundario?: string | null;
   colorFondo?: string;
   colorCabecera?: string;
   colorTexto?: string;
-  colorTextoCabecera?: string | null;
-  colorBotones?: string | null;
-  colorCardFondo?: string | null;
-  colorIconos?: string | null;
+
+  colorTextoCabecera?: string | null; // extra
+  colorBotones?: string | null; // extra
+  colorCardFondo?: string | null; // extra
+  colorIconos?: string | null; // extra
 }
 
 export interface Perfil {
@@ -49,4 +51,32 @@ export interface NewsPayload {
   content: string;
   contentFormat: "markdown";
   status: NewsStatus;
+}
+
+export type DiasSemana = "LUN_VIE" | "SABADOS" | "DOMINGOS" | "TODOS";
+
+export interface Programa {
+  id: number;
+  tenantId: number;
+  titulo: string;
+  descripcion?: string | null;
+  imagenUrl?: string | null;
+  dias: DiasSemana;
+  horaInicio: string;
+  horaFin: string;
+  orden: number;
+  activo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProgramaPayload {
+  titulo: string;
+  descripcion?: string;
+  imagenUrl?: string;
+  dias: DiasSemana;
+  horaInicio: string;
+  horaFin: string;
+  orden?: number;
+  activo?: boolean;
 }

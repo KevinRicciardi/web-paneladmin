@@ -14,8 +14,6 @@ import {
 import { auth } from "../firebase";
 import type { Perfil } from "../types";
 
-const TF: any = TextField;
-
 const API_URL = "http://localhost:3000";
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
@@ -231,14 +229,16 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 } }>
               URL del Servidor
             </Typography>
-            <TF
+            <TextField
               placeholder="rtmp://a.rtmp.youtube.com/live2"
               value={streamUrl}
               onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { setStreamUrl(e.target.value); setSuccess(false); }}
               fullWidth
               size="small"
-              InputProps={ { inputProps: { style: { fontFamily: "monospace", fontSize: 13 } } } }
-              sx={ { mb: 3 } }
+              sx={{
+                mb: 3,
+                '& .MuiInputBase-input': { fontFamily: 'monospace', fontSize: 13 },
+              }}
             />
 
             {/* Tipo de transmisión */}
