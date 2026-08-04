@@ -71,9 +71,17 @@ function CardHeader({ icon, children }: { icon: string; children: React.ReactNod
   );
 }
 
+function getStoredValue(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export default function Streaming({ perfil }: { perfil: Perfil }) {
   const t = perfil.tenant;
-  const [streamUrl, setStreamUrl] = useState(t?.streamUrl ?? "");
+  const [streamUrl, setStreamUrl] = useState<string>(() => t?.streamUrl ?? getStoredValue("streamUrl"));
   const [streamActivo, setStreamActivo] = useState<boolean>(() => {
     try {
       if (typeof t?.streamActivo === "boolean") return t!.streamActivo!;
@@ -83,8 +91,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       return false;
     }
   });
-  const [tipoTransmision, setTipoTransmision] = useState<string>(t?.tipoTransmision ?? "video");
-  const [imagenPortada, setImagenPortada] = useState(t?.imagenPortada ?? "");
+  const [tipoTransmision, setTipoTransmision] = useState<string>(() => {
+    const valor = t?.tipoTransmision ?? getStoredValue("tipoTransmision");
+    return valor || "video";
+  });
+  const [imagenPortada, setImagenPortada] = useState<string>(() => t?.imagenPortada ?? getStoredValue("imagenPortada"));
   const [uploadingPortada, setUploadingPortada] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -95,6 +106,31 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const esPodcast = tipoTransmision === "audio";
   const embedUrl = streamUrl ? getEmbedUrl(streamUrl) : null;
   const plataforma = streamUrl ? detectarPlataforma(streamUrl) : null;
+
+  useEffect(() => {
+    if (t?.streamUrl) {
+      setStreamUrl(t.streamUrl);
+    } else {
+      const storedUrl = getStoredValue("streamUrl");
+      if (storedUrl) setStreamUrl(storedUrl);
+    }
+
+    if (t?.tipoTransmision) {
+      setTipoTransmision(t.tipoTransmision);
+    } else {
+      const storedTipo = getStoredValue("tipoTransmision");
+      if (storedTipo) setTipoTransmision(storedTipo);
+      else setTipoTransmision("video");
+    }
+
+    if (t?.imagenPortada) {
+      setImagenPortada(t.imagenPortada);
+    } else {
+      const storedImagen = getStoredValue("imagenPortada");
+      if (storedImagen) setImagenPortada(storedImagen);
+      else setImagenPortada("");
+    }
+  }, [t?.streamUrl, t?.tipoTransmision, t?.imagenPortada]);
 
   // Estado visual del switch: únicamente depende de `streamActivo`.
   const estado = streamActivo
@@ -140,7 +176,26 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         body: JSON.stringify({ streamUrl, tipoTransmision, imagenPortada, streamActivo }),
       });
       if (!res.ok) throw new Error("Error al guardar");
+
+      let payload = { streamUrl, tipoTransmision, imagenPortada, streamActivo };
+      try {
+        const data = await res.json();
+        if (data && typeof data === "object") {
+          payload = { ...payload, ...data };
+        }
+      } catch {}
+
+      try {
+        localStorage.setItem("streamUrl", streamUrl);
+        localStorage.setItem("tipoTransmision", tipoTransmision);
+        localStorage.setItem("imagenPortada", imagenPortada);
+      } catch {}
       setSuccess(true);
+      try {
+        window.dispatchEvent(new CustomEvent("tenantUpdated", {
+          detail: payload,
+        }));
+      } catch {}
     } catch {
       setError("No se pudo guardar. Revisá la URL e intentá de nuevo.");
     } finally {
