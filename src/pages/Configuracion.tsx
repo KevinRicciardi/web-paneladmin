@@ -1,8 +1,23 @@
+import { useState } from "react";
 import { Box, Button, Card, CardContent, Divider, Stack, TextField, Typography } from "@mui/material";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase";
 import type { Perfil } from "../types";
 
 export default function Configuracion({ perfil }: { perfil: Perfil }) {
   const tenant = perfil.tenant;
+  const [cerrando, setCerrando] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      setCerrando(true);
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    } finally {
+      setCerrando(false);
+    }
+  };
 
   return (
     <Box>
@@ -58,7 +73,21 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
 
       <Divider sx={{ my: 3 }} />
 
-      <Typography variant="body2" color="text.secondary">
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Sesión
+          </Typography>
+          <Typography color="text.secondary" sx={{ mb: 2 }}>
+            Cierra tu sesión actual del panel de administración.
+          </Typography>
+          <Button variant="outlined" color="error" onClick={handleLogout} disabled={cerrando}>
+            {cerrando ? "Cerrando sesión..." : "Cerrar sesión"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
         Esta sección es ideal para centralizar configuraciones generales de la marca y el stream en un solo lugar.
       </Typography>
     </Box>
