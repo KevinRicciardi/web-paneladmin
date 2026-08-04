@@ -53,7 +53,7 @@ export interface NewsPayload {
   status: NewsStatus;
 }
 
-export type DiasSemana = "LUN_VIE" | "SABADOS" | "DOMINGOS" | "TODOS" | "PERSONALIZADO";
+export type DiasSemana = "LUN_VIE" | "SABADOS" | "DOMINGOS" | "TODOS" | "PERSONALIZADO" | "FECHA_ESPECIFICA";
 
 export interface Programa {
   id: number;
