@@ -1,6 +1,10 @@
 import { Box, Button, Card, CardContent, Chip, Typography } from "@mui/material";
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import type { Perfil } from "../types";
+import { listarMiProgramacion } from "../services/schedule.service";
+import { listarMisNoticias } from "../services/news.service";
+import type { Programa, News } from "../types";
 
 function SectionHeader({ icon, children }: { icon: string; children: React.ReactNode }) {
   return (
@@ -24,6 +28,38 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
     { label: "Tiempo en Aire", value: "—", icon: "timer" },
     { label: "Estado del Stream", value: estadoStreamLabel, icon: "rss_feed" },
   ];
+
+  const [programas, setProgramas] = useState<Programa[] | null>(null);
+  const [noticias, setNoticias] = useState<News[] | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    try {
+      const cachedProg = sessionStorage.getItem("programacion_cache");
+      if (cachedProg) setProgramas(JSON.parse(cachedProg));
+    } catch {}
+
+    try {
+      const cachedNews = sessionStorage.getItem("noticias_cache");
+      if (cachedNews) setNoticias(JSON.parse(cachedNews));
+    } catch {}
+
+    void (async () => {
+      try {
+        const [progs, newsList] = await Promise.all([listarMiProgramacion(), listarMisNoticias()]);
+        if (!active) return;
+        setProgramas(progs);
+        setNoticias(newsList);
+        try { sessionStorage.setItem("programacion_cache", JSON.stringify(progs)); } catch {}
+        try { sessionStorage.setItem("noticias_cache", JSON.stringify(newsList)); } catch {}
+      } catch (e) {
+        // Silencioso: no bloquear dashboard si falla
+      }
+    })();
+
+    return () => { active = false; };
+  }, []);
 
   return (
     <Box>
@@ -136,18 +172,27 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
         <CardContent>
           <Box sx={ { display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 } }>
             <SectionHeader icon="calendar_month">Programación</SectionHeader>
-            <Button size="small" variant="outlined" sx={ { fontWeight: 700, letterSpacing: 0.5 } }>+ Agregar</Button>
+            <Button component={Link} to="/programacion" size="small" variant="outlined" sx={ { fontWeight: 700, letterSpacing: 0.5 } }>+ Agregar</Button>
           </Box>
-          <Box sx={ { display: "grid", gridTemplateColumns: "1fr 1fr 2fr auto", gap: 2, px: 1, py: 1, borderBottom: "1px solid", borderColor: "divider" } }>
-            {["Día", "Horario", "Programa", "Acciones"].map((h) => (
-              <Typography key={h} sx={ { fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary" } }>
-                {h}
+          <Box sx={ { display: "grid", gridTemplateColumns: "1fr", gap: 1, px: 1, py: 1, borderBottom: "1px solid", borderColor: "divider" } }>
+            {programas && programas.length > 0 ? (
+              programas.slice(0, 3).map((p: Programa) => (
+                <Box key={p.id} sx={ { display: "flex", alignItems: "center", justifyContent: "space-between", py: 1 } }>
+                  <Typography sx={ { fontSize: 14, fontWeight: 700 } }>{p.titulo}</Typography>
+                  <Typography color="text.secondary">{p.horaInicio} — {p.horaFin}</Typography>
+                </Box>
+              ))
+            ) : (
+              <Typography color="text.secondary" variant="body2" sx={ { textAlign: "center", py: 4 } }>
+                Todavía no hay programas cargados.
               </Typography>
-            ))}
+            )}
           </Box>
-          <Typography color="text.secondary" variant="body2" sx={ { textAlign: "center", py: 4 } }>
-            Todavía no hay programas cargados.
-          </Typography>
+          {programas && programas.length > 3 && (
+            <Box sx={ { display: "flex", justifyContent: "flex-end", mt: 1 } }>
+              <Button component={Link} to="/programacion" size="small">Ver todo</Button>
+            </Box>
+          )}
         </CardContent>
       </Card>
 
@@ -156,11 +201,27 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
         <CardContent>
           <Box sx={ { display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 } }>
             <SectionHeader icon="newspaper">Últimas Noticias</SectionHeader>
-            <Button size="small" variant="outlined" sx={ { fontWeight: 700, letterSpacing: 0.5 } }>+ Nueva</Button>
+            <Button component={Link} to="/noticias" size="small" variant="outlined" sx={ { fontWeight: 700, letterSpacing: 0.5 } }>+ Nueva</Button>
           </Box>
-          <Typography color="text.secondary" variant="body2" sx={ { textAlign: "center", py: 4 } }>
-            Todavía no hay noticias publicadas.
-          </Typography>
+          <Box sx={ { display: "grid", gap: 1 } }>
+            {noticias && noticias.length > 0 ? (
+              noticias.slice(0, 3).map((n: News) => (
+                <Box key={n.id} sx={ { display: "flex", alignItems: "center", justifyContent: "space-between", py: 1 } }>
+                  <Typography sx={ { fontSize: 14, fontWeight: 700 } }>{n.title}</Typography>
+                  <Typography color="text.secondary">{n.status === 'published' ? "Publicado" : "Borrador"}</Typography>
+                </Box>
+              ))
+            ) : (
+              <Typography color="text.secondary" variant="body2" sx={ { textAlign: "center", py: 4 } }>
+                Todavía no hay noticias publicadas.
+              </Typography>
+            )}
+          </Box>
+          {noticias && noticias.length > 3 && (
+            <Box sx={ { display: "flex", justifyContent: "flex-end", mt: 1 } }>
+              <Button component={Link} to="/noticias" size="small">Ver todo</Button>
+            </Box>
+          )}
         </CardContent>
       </Card>
     </Box>

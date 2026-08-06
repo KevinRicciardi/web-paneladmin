@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useState, useMemo, type ChangeEvent } from "react";
 import {
   Alert,
   Box,
@@ -164,6 +164,10 @@ function etiquetaDiaPrograma(programa: Programa) {
     }
 
     return formatearFechaParaMostrar(programa.fechaInicio) || etiquetaDias(programa.dias, programa.diasPersonalizados);
+  }
+
+  if (programa.dias === "FECHA_ESPECIFICA") {
+    return "Fecha específica";
   }
 
   return etiquetaDias(programa.dias, programa.diasPersonalizados);
@@ -352,7 +356,10 @@ export default function Programacion() {
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
   const [imagenPreview, setImagenPreview] = useState<string | null>(null);
+  const [fechaModalPrograma, setFechaModalPrograma] = useState<Programa | null>(null);
   const [modoFecha, setModoFecha] = useState<"NINGUNO" | "ESPECIFICA" | "RANGO">("NINGUNO");
+  const [programaAEliminar, setProgramaAEliminar] = useState<Programa | null>(null);
+  const [eliminando, setEliminando] = useState(false);
 
   const abrirSelectorFecha = (tipo: "inicio" | "fin", elemento?: HTMLElement | null) => {
     const valor = tipo === "inicio" ? fechaInicio : fechaFin;
@@ -395,22 +402,20 @@ export default function Programacion() {
     cerrarSelectorFecha();
   };
 
-  const cargar = async () => {
-    try {
-      setCargando(true);
-      setError(null);
-      setProgramas(await listarMiProgramacion());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cargar");
-    } finally {
-      setCargando(false);
-    }
-  };
+  // Nota: la carga inicial se maneja en el useEffect (carga desde cache + fetch en background).
 
   useEffect(() => {
     let active = true;
 
-    const cargarProgramacion = async () => {
+    // Mostrar cache inmediata si existe, luego cargar en background
+    try {
+      const cached = sessionStorage.getItem("programacion_cache");
+      if (cached) {
+        setProgramas(JSON.parse(cached));
+      }
+    } catch {}
+
+    void (async () => {
       try {
         setCargando(true);
         setError(null);
@@ -419,15 +424,16 @@ export default function Programacion() {
         if (!active) return;
 
         setProgramas(data);
+        try {
+          sessionStorage.setItem("programacion_cache", JSON.stringify(data));
+        } catch {}
       } catch (e) {
         if (!active) return;
         setError(e instanceof Error ? e.message : "Error al cargar");
       } finally {
         if (active) setCargando(false);
       }
-    };
-
-    void cargarProgramacion();
+    })();
     return () => {
       active = false;
     };
@@ -446,25 +452,42 @@ export default function Programacion() {
   };
 
   const abrirEdicion = (p: Programa) => {
+    const fechaInicioDate = parsearFechaInput(p.fechaInicio ?? "");
+    const fechaFinDate = parsearFechaInput(p.fechaFin ?? "");
+
+    const fechaInicioNormalizada = fechaInicioDate ? formatearFechaInput(fechaInicioDate) : "";
+    const fechaFinNormalizada = fechaFinDate ? formatearFechaInput(fechaFinDate) : "";
+
+    const esFechaEspecifica = p.fechaInicio != null && p.fechaInicio !== "";
+    const diasParaForm = esFechaEspecifica ? "FECHA_ESPECIFICA" : p.dias;
+
+    console.log("abrirEdicion", {
+      id: p.id,
+      diasOriginal: p.dias,
+      fechaInicio: p.fechaInicio,
+      fechaFin: p.fechaFin,
+      esFechaEspecifica,
+      diasParaForm,
+    });
+
     setEditandoId(p.id);
     setForm({
       titulo: p.titulo,
       descripcion: p.descripcion ?? "",
       imagenUrl: p.imagenUrl ?? "",
-      dias: p.dias,
+      dias: diasParaForm,
       horaInicio: p.horaInicio,
       horaFin: p.horaFin,
       orden: p.orden,
       activo: p.activo,
     });
-    const esFechaEspecifica = Boolean(p.fechaInicio);
-    setDiasSeleccionados(obtenerSeleccionDesdeDias(p.dias, p.diasPersonalizados));
-    setModoDias(esFechaEspecifica ? "FECHA_ESPECIFICA" : p.dias);
-    setFechaInicio(p.fechaInicio ?? "");
-    setFechaFin(p.fechaFin ?? "");
+    setDiasSeleccionados(esFechaEspecifica ? [] : obtenerSeleccionDesdeDias(p.dias, p.diasPersonalizados));
+    setModoDias(diasParaForm);
+    setFechaInicio(fechaInicioNormalizada);
+    setFechaFin(fechaFinNormalizada);
     setImagenPreview(p.imagenUrl ?? null);
     // Determinar modoFecha según los valores guardados
-    if (p.fechaInicio) {
+    if (esFechaEspecifica) {
       if (p.fechaFin && p.fechaFin !== p.fechaInicio) {
         setModoFecha("RANGO");
       } else {
@@ -543,6 +566,8 @@ export default function Programacion() {
   };
 
   const guardar = async () => {
+    if (guardando) return;
+
     try {
       setGuardando(true);
       setError(null);
@@ -568,22 +593,53 @@ export default function Programacion() {
       const fechaFinPayload = modoFecha === "RANGO" && finGuardado && finGuardado !== inicioGuardado ? finGuardado : undefined;
       const fechaInicioPayload = inicioGuardado || undefined;
 
-      const payload: ProgramaPayload = {
-        ...form,
-        dias: modoDias === "FECHA_ESPECIFICA" ? "LUN_VIE" : modoDias === "PERSONALIZADO" ? obtenerDiasDesdeSeleccion(diasSeleccionados) : modoDias,
-        diasPersonalizados: modoDias === "PERSONALIZADO" ? diasSeleccionados : undefined,
+      const diasPayload =
+        modoDias === "PERSONALIZADO"
+          ? obtenerDiasDesdeSeleccion(diasSeleccionados)
+          : modoDias === "FECHA_ESPECIFICA"
+          ? "LUN_VIE"
+          : modoDias;
+
+      const payloadParaGuardar: ProgramaPayload = {
+        titulo: form.titulo,
+        descripcion: form.descripcion,
+        imagenUrl: form.imagenUrl || undefined,
+        horaInicio: form.horaInicio,
+        horaFin: form.horaFin,
+        orden: form.orden,
+        activo: form.activo,
+        dias: diasPayload,
+        diasPersonalizados:
+          modoDias === "PERSONALIZADO" ? diasSeleccionados : undefined,
         fechaInicio: fechaInicioPayload,
         fechaFin: fechaFinPayload,
-        imagenUrl: form.imagenUrl || undefined,
       };
 
+      console.log("guardar payload final", {
+        modoDias,
+        modoFecha,
+        fechaInicioPayload,
+        fechaFinPayload,
+        diasSeleccionados,
+        payloadParaGuardar,
+      });
+
       if (editandoId === null) {
-        await crearPrograma(payload);
+        const creado = await crearPrograma(payloadParaGuardar);
+        const nuevos = [creado, ...programas];
+        setProgramas(nuevos);
+        try {
+          sessionStorage.setItem("programacion_cache", JSON.stringify(nuevos));
+        } catch {}
       } else {
-        await actualizarPrograma(editandoId, payload);
+        const actualizado = await actualizarPrograma(editandoId, payloadParaGuardar);
+        const nuevos = programas.map((p) => (p.id === actualizado.id ? actualizado : p));
+        setProgramas(nuevos);
+        try {
+          sessionStorage.setItem("programacion_cache", JSON.stringify(nuevos));
+        } catch {}
       }
 
-      await cargar();
       setAbierto(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar");
@@ -592,14 +648,28 @@ export default function Programacion() {
     }
   };
 
-  const borrar = async (p: Programa) => {
-    if (!confirm(`¿Eliminar "${p.titulo}"?`)) return;
+  const borrar = (p: Programa) => {
+    setProgramaAEliminar(p);
+  };
+
+  const confirmarEliminar = async () => {
+    if (!programaAEliminar) return;
+    if (eliminando) return;
 
     try {
-      await eliminarPrograma(p.id);
-      await cargar();
+      setEliminando(true);
+      await eliminarPrograma(programaAEliminar.id);
+      setProgramas((actual) => actual.filter((p) => p.id !== programaAEliminar.id));
+      try {
+        const nuevos = programas.filter((p) => p.id !== programaAEliminar.id);
+        sessionStorage.setItem("programacion_cache", JSON.stringify(nuevos));
+      } catch {}
+      setProgramaAEliminar(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al eliminar");
+      setProgramaAEliminar(null);
+    } finally {
+      setEliminando(false);
     }
   };
 
@@ -635,16 +705,18 @@ export default function Programacion() {
   };
 
   const fechaReferencia = modoFecha === "NINGUNO" ? null : (fechaInicio || fechaFin || null);
-  const horariosOcupados = programas
-    .filter((programa) => programa.id !== editandoId)
-    .filter((programa) => {
-      if (modoFecha !== "NINGUNO") {
-        return aplicaProgramaADia(programa, fechaReferencia);
-      }
+  const horariosOcupados = useMemo<Programa[]>(() => {
+    return programas
+      .filter((programa) => programa.id !== editandoId)
+      .filter((programa) => {
+        if (modoFecha !== "NINGUNO") {
+          return aplicaProgramaADia(programa, fechaReferencia);
+        }
 
-      const codigos = obtenerCodigosDiasParaPrograma(programa);
-      return codigos.some((c) => diasSeleccionados.includes(c));
-    });
+        const codigos = obtenerCodigosDiasParaPrograma(programa);
+        return codigos.some((c) => diasSeleccionados.includes(c));
+      });
+  }, [programas, editandoId, modoFecha, fechaReferencia, diasSeleccionados]);
 
   const conflictoHoraInicio = form.horaInicio
     ? horariosOcupados.find((programa) => esHorarioOcupado(programa, form.horaInicio))
@@ -705,21 +777,26 @@ export default function Programacion() {
                         <Box
                           sx={{ width: 48, height: 48, borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider", flexShrink: 0 }}
                         >
-                          <Box component="img" src={p.imagenUrl} alt={p.titulo} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <Box component="img" src={p.imagenUrl} alt={p.titulo} loading="lazy" decoding="async" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         </Box>
                       )}
-                      <Box>
+                      <Box
+                        onClick={() => (p.fechaInicio || p.dias === "FECHA_ESPECIFICA") && setFechaModalPrograma(p)}
+                        sx={{ cursor: p.fechaInicio || p.dias === "FECHA_ESPECIFICA" ? "pointer" : "default" }}
+                        role={p.fechaInicio || p.dias === "FECHA_ESPECIFICA" ? "button" : undefined}
+                        tabIndex={p.fechaInicio || p.dias === "FECHA_ESPECIFICA" ? 0 : undefined}
+                        onKeyDown={(e) => {
+                          if ((e.key === "Enter" || e.key === " ") && (p.fechaInicio || p.dias === "FECHA_ESPECIFICA")) {
+                            setFechaModalPrograma(p);
+                          }
+                        }}
+                      >
                         <Typography sx={{ fontWeight: 600, fontStyle: p.activo ? "normal" : "italic" }}>
                           {p.titulo}
                         </Typography>
                         {p.descripcion && (
                           <Typography variant="caption" color="text.secondary">
                             {p.descripcion}
-                          </Typography>
-                        )}
-                        {p.fechaInicio && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                            {formatearRangoFechas(p.fechaInicio, p.fechaFin)}
                           </Typography>
                         )}
                       </Box>
@@ -1137,6 +1214,43 @@ export default function Programacion() {
           </Button>
         </DialogActions>
       </Dialog>
+        <Dialog open={Boolean(fechaModalPrograma)} onClose={() => setFechaModalPrograma(null)}>
+          <DialogTitle sx={{ bgcolor: '#000', color: '#fff' }}>{fechaModalPrograma?.titulo}</DialogTitle>
+          <DialogContent sx={{ bgcolor: '#000', color: '#fff' }}>
+            {fechaModalPrograma?.imagenUrl && (
+              <Box sx={{ mb: 1 }}>
+                <Box component="img" src={fechaModalPrograma.imagenUrl} alt={fechaModalPrograma.titulo} sx={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 1 }} />
+              </Box>
+            )}
+            <Typography sx={{ mb: 1 }}>
+              {fechaModalPrograma?.fechaInicio
+                ? formatearRangoFechas(fechaModalPrograma.fechaInicio, fechaModalPrograma.fechaFin)
+                : etiquetaDias(fechaModalPrograma?.dias ?? 'LUN_VIE', fechaModalPrograma?.diasPersonalizados)}
+            </Typography>
+            {fechaModalPrograma?.descripcion && (
+              <Typography variant="body2" color="text.secondary">
+                {fechaModalPrograma.descripcion}
+              </Typography>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ bgcolor: '#000' }}>
+            <Button onClick={() => setFechaModalPrograma(null)}>Cerrar</Button>
+          </DialogActions>
+        </Dialog>
+        <Dialog open={Boolean(programaAEliminar)} onClose={() => setProgramaAEliminar(null)}>
+          <DialogTitle>Confirmar eliminación</DialogTitle>
+          <DialogContent>
+            <Typography>
+              ¿Eliminar "{programaAEliminar?.titulo}"? Esta acción no se puede deshacer.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setProgramaAEliminar(null)} disabled={eliminando}>Cancelar</Button>
+            <Button color="error" variant="contained" onClick={confirmarEliminar} disabled={eliminando}>
+              {eliminando ? <CircularProgress size={18} color="inherit" /> : "Eliminar"}
+            </Button>
+          </DialogActions>
+        </Dialog>
     </Box>
   );
 }
