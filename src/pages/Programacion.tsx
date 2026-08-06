@@ -128,51 +128,6 @@ function obtenerSeleccionDesdeDias(dias: DiasSemana, personalizados?: string[] |
   }
 }
 
-function obtenerDiasParaFechaEspecifica(fechaInicio: string, fechaFin?: string) {
-  const inicio = parsearFechaInput(fechaInicio);
-  const fin = fechaFin ? parsearFechaInput(fechaFin) : inicio;
-
-  if (!inicio) {
-    return { dias: "LUN_VIE" as DiasSemana, personalizados: [] };
-  }
-
-  const diasSet = new Set<string>();
-  const final = fin ?? inicio;
-  let actual = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
-
-  while (actual <= final) {
-    const codigo = obtenerCodigoDia(actual);
-    if (codigo) diasSet.add(codigo);
-    actual.setDate(actual.getDate() + 1);
-  }
-
-  const personalizados = Array.from(diasSet);
-  const laborales = ["LUN", "MAR", "MIE", "JUE", "VIE"];
-  const tieneLaborales = personalizados.some((dia) => laborales.includes(dia));
-  const tieneSab = personalizados.includes("SAB");
-  const tieneDom = personalizados.includes("DOM");
-
-  let dias: DiasSemana = "LUN_VIE";
-
-  if (personalizados.length === 1 && tieneSab) {
-    dias = "SABADOS";
-  } else if (personalizados.length === 1 && tieneDom) {
-    dias = "DOMINGOS";
-  } else if (!tieneSab && !tieneDom) {
-    dias = "LUN_VIE";
-  } else if (!tieneLaborales && tieneSab && !tieneDom) {
-    dias = "SABADOS";
-  } else if (!tieneLaborales && !tieneSab && tieneDom) {
-    dias = "DOMINGOS";
-  } else if (diasSet.size === DIAS_SEMANA.length) {
-    dias = "TODOS";
-  } else {
-    dias = "PERSONALIZADO";
-  }
-
-  return { dias, personalizados };
-}
-
 function formatearRangoFechas(fechaInicio?: string | null, fechaFin?: string | null) {
   if (!fechaInicio) {
     return "Sin fechas";
@@ -202,27 +157,24 @@ function formatearFechaParaMostrar(fecha?: string | null) {
   });
 }
 
-function nombreDiaParaFecha(fecha?: string | null) {
-  const fechaParseada = fecha ? parsearFechaInput(fecha) : null;
-  if (!fechaParseada) {
-    return "";
-  }
-
-  return fechaParseada.toLocaleDateString("es-ES", { weekday: "short" });
-}
-
 function etiquetaDiaPrograma(programa: Programa) {
   if (programa.fechaInicio) {
     if (programa.fechaFin && programa.fechaFin !== programa.fechaInicio) {
       return `${formatearFechaParaMostrar(programa.fechaInicio)} → ${formatearFechaParaMostrar(programa.fechaFin)}`;
     }
 
-    const fechaMostrada = formatearFechaParaMostrar(programa.fechaInicio);
-    const diaMostrado = nombreDiaParaFecha(programa.fechaInicio);
-    return diaMostrado ? `${diaMostrado} • ${fechaMostrada}` : fechaMostrada;
+    return formatearFechaParaMostrar(programa.fechaInicio) || etiquetaDias(programa.dias, programa.diasPersonalizados);
   }
 
   return etiquetaDias(programa.dias, programa.diasPersonalizados);
+}
+
+function descripcionPrograma(programa: Programa) {
+  const diasTexto = programa.fechaInicio
+    ? formatearRangoFechas(programa.fechaInicio, programa.fechaFin)
+    : etiquetaDias(programa.dias, programa.diasPersonalizados);
+
+  return `${programa.titulo} — ${diasTexto}`;
 }
 
 function formatearFechaInput(fecha: Date) {
@@ -298,20 +250,24 @@ function aplicaProgramaADia(programa: Programa, fechaReferencia: string | null |
     return false;
   }
 
-  if (programa.fechaInicio && programa.fechaFin) {
+  if (programa.fechaInicio) {
     const inicio = parsearFechaInput(programa.fechaInicio);
-    const fin = parsearFechaInput(programa.fechaFin);
     const referencia = parsearFechaInput(fechaReferencia ?? "");
 
-    if (inicio && fin && referencia) {
-      if (referencia < inicio || referencia > fin) {
-        return false;
-      }
+    if (!inicio || !referencia) {
+      return false;
     }
-  }
 
-  if (programa.fechaInicio && programa.fechaFin && programa.fechaInicio === programa.fechaFin) {
-    return programa.fechaInicio === fechaReferencia;
+    if (!programa.fechaFin) {
+      return programa.fechaInicio === fechaReferencia;
+    }
+
+    const fin = parsearFechaInput(programa.fechaFin);
+    if (!fin) {
+      return programa.fechaInicio === fechaReferencia;
+    }
+
+    return referencia >= inicio && referencia <= fin;
   }
 
   const personalizados = programa.diasPersonalizados ?? [];
@@ -501,7 +457,7 @@ export default function Programacion() {
       orden: p.orden,
       activo: p.activo,
     });
-    const esFechaEspecifica = Boolean(p.fechaInicio && (!p.diasPersonalizados || p.diasPersonalizados.length === 0));
+    const esFechaEspecifica = Boolean(p.fechaInicio);
     setDiasSeleccionados(obtenerSeleccionDesdeDias(p.dias, p.diasPersonalizados));
     setModoDias(esFechaEspecifica ? "FECHA_ESPECIFICA" : p.dias);
     setFechaInicio(p.fechaInicio ?? "");
@@ -555,12 +511,17 @@ export default function Programacion() {
       setModoFecha("NINGUNO");
       setFechaInicio("");
       setFechaFin("");
-    } else {
+    } else if (nuevoModo === "FECHA_ESPECIFICA") {
       setDiasSeleccionados([]);
       setModoFecha("ESPECIFICA");
       if (!fechaInicio) {
         setFechaInicio(formatearFechaInput(new Date()));
       }
+    } else {
+      setDiasSeleccionados([]);
+      setModoFecha("NINGUNO");
+      setFechaInicio("");
+      setFechaFin("");
     }
   };
 
@@ -594,14 +555,23 @@ export default function Programacion() {
         finGuardado = fechaInicio;
       }
 
+      if (modoDias === "FECHA_ESPECIFICA" && !fechaInicio) {
+        setError("Selecciona una fecha de inicio");
+        return;
+      }
+
+      if (modoDias === "FECHA_ESPECIFICA" && modoFecha === "RANGO" && !fechaFin) {
+        setError("Selecciona una fecha de fin");
+        return;
+      }
+
       const fechaFinPayload = modoFecha === "RANGO" && finGuardado && finGuardado !== inicioGuardado ? finGuardado : undefined;
       const fechaInicioPayload = inicioGuardado || undefined;
 
-      const fechaEspecifica = modoDias === "FECHA_ESPECIFICA" ? obtenerDiasParaFechaEspecifica(fechaInicioPayload ?? "", fechaFinPayload) : null;
       const payload: ProgramaPayload = {
         ...form,
-        dias: fechaEspecifica ? fechaEspecifica.dias : modoDias === "PERSONALIZADO" ? obtenerDiasDesdeSeleccion(diasSeleccionados) : modoDias,
-        diasPersonalizados: fechaEspecifica ? fechaEspecifica.personalizados : modoDias === "PERSONALIZADO" ? diasSeleccionados : [],
+        dias: modoDias === "FECHA_ESPECIFICA" ? "LUN_VIE" : modoDias === "PERSONALIZADO" ? obtenerDiasDesdeSeleccion(diasSeleccionados) : modoDias,
+        diasPersonalizados: modoDias === "PERSONALIZADO" ? diasSeleccionados : undefined,
         fechaInicio: fechaInicioPayload,
         fechaFin: fechaFinPayload,
         imagenUrl: form.imagenUrl || undefined,
@@ -665,14 +635,23 @@ export default function Programacion() {
   };
 
   const fechaReferencia = modoFecha === "NINGUNO" ? null : (fechaInicio || fechaFin || null);
-  const horariosOcupados = programas.filter((programa) => {
-    if (modoFecha !== "NINGUNO") {
-      return aplicaProgramaADia(programa, fechaReferencia);
-    }
+  const horariosOcupados = programas
+    .filter((programa) => programa.id !== editandoId)
+    .filter((programa) => {
+      if (modoFecha !== "NINGUNO") {
+        return aplicaProgramaADia(programa, fechaReferencia);
+      }
 
-    const codigos = obtenerCodigosDiasParaPrograma(programa);
-    return codigos.some((c) => diasSeleccionados.includes(c));
-  });
+      const codigos = obtenerCodigosDiasParaPrograma(programa);
+      return codigos.some((c) => diasSeleccionados.includes(c));
+    });
+
+  const conflictoHoraInicio = form.horaInicio
+    ? horariosOcupados.find((programa) => esHorarioOcupado(programa, form.horaInicio))
+    : undefined;
+  const conflictoHoraFin = form.horaFin
+    ? horariosOcupados.find((programa) => esHorarioOcupado(programa, form.horaFin))
+    : undefined;
 
   const calendarioDisabled = modoFecha === "NINGUNO";
 
@@ -1072,12 +1051,13 @@ export default function Programacion() {
                   }}
                 >
                   {OPCIONES_HORAS.map((hora) => {
-                    const ocupado = horariosOcupados.some((programa) => esHorarioOcupado(programa, hora));
+                    const conflicto = horariosOcupados.find((programa) => esHorarioOcupado(programa, hora));
+                    const ocupado = Boolean(conflicto);
 
                     return (
                       <MenuItem key={hora} value={hora} sx={{ color: ocupado ? "#ff6b6b" : "inherit" }}>
                         {hora}
-                        {ocupado ? " • Ocupado" : ""}
+                        {ocupado ? ` • Ocupado por ${conflicto?.titulo} (${descripcionPrograma(conflicto!)})` : ""}
                       </MenuItem>
                     );
                   })}
@@ -1106,18 +1086,34 @@ export default function Programacion() {
                   }}
                 >
                   {OPCIONES_HORAS.map((hora) => {
-                    const ocupado = horariosOcupados.some((programa) => esHorarioOcupado(programa, hora));
+                    const conflicto = horariosOcupados.find((programa) => esHorarioOcupado(programa, hora));
+                    const ocupado = Boolean(conflicto);
 
                     return (
                       <MenuItem key={hora} value={hora} sx={{ color: ocupado ? "#ff6b6b" : "inherit" }}>
                         {hora}
-                        {ocupado ? " • Ocupado" : ""}
+                        {ocupado ? ` • Ocupado por ${conflicto?.titulo} (${descripcionPrograma(conflicto!)})` : ""}
                       </MenuItem>
                     );
                   })}
                 </Select>
               </FormControl>
             </Stack>
+            {(conflictoHoraInicio || conflictoHoraFin) && (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                {conflictoHoraInicio && (
+                  <span>
+                    Horario de inicio ocupado por "{conflictoHoraInicio.titulo}" ({descripcionPrograma(conflictoHoraInicio)}).
+                  </span>
+                )}
+                {conflictoHoraFin && (
+                  <span>
+                    {conflictoHoraInicio ? " " : ""}
+                    Horario de fin ocupado por "{conflictoHoraFin.titulo}" ({descripcionPrograma(conflictoHoraFin)}).
+                  </span>
+                )}
+              </Alert>
+            )}
             <TextField
               label="Orden"
               type="number"
