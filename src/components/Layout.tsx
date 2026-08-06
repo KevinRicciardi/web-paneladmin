@@ -1,20 +1,5 @@
-﻿import {
-  Avatar,
-  Box,
-  Divider,
-  Drawer,
-  IconButton,
-  InputAdornment,
-  List,
-  ListItemButton,
-  ListItemText,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
+﻿import { Box, Divider, Drawer, List, ListItemButton, ListItemText, Stack, Typography } from "@mui/material";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { signOut } from "firebase/auth";
-import { auth } from "../firebase";
 import type { Perfil } from "../types";
 
 const drawerWidth = 280;
@@ -35,7 +20,6 @@ const footerItems = [
 export default function Layout({ perfil }: { perfil: Perfil }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const nombreCliente = perfil.tenant?.nombre ?? perfil.tenant?.slug ?? "Cliente";
   const brandName = perfil.tenant?.nombre || "StreamManager";
 
   return (
@@ -69,9 +53,14 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
                 mb: 2,
                 border: "1px solid",
                 borderColor: "divider",
+                overflow: "hidden",
               }}
             >
-              <span className="material-symbols-outlined">dashboard</span>
+              {perfil.tenant?.logoUrl ? (
+                <Box component="img" src={perfil.tenant.logoUrl} alt={brandName} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <span className="material-symbols-outlined">dashboard</span>
+              )}
             </Box>
             <Typography variant="h6" sx={{ fontWeight: 900, mb: 0.5 }}>
               {brandName}

@@ -8,6 +8,10 @@ import {
   Chip,
   CircularProgress,
   Divider,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   InputAdornment,
   Stack,
@@ -131,6 +135,8 @@ export default function Noticias() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [noticiaAEliminar, setNoticiaAEliminar] = useState<News | null>(null);
+  const [eliminando, setEliminando] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -149,11 +155,7 @@ export default function Noticias() {
     });
   }, [noticias, search]);
 
-  const publishedCount = noticias.filter(
-    (item) => item.status === "published",
-  ).length;
-
-  const draftCount = noticias.filter((item) => item.status === "draft").length;
+  
 
   const loadNoticias = async () => {
     setLoading(true);
@@ -162,6 +164,7 @@ export default function Noticias() {
     try {
       const data = await listarMisNoticias();
       setNoticias(data);
+      try { sessionStorage.setItem("noticias_cache", JSON.stringify(data)); } catch {}
     } catch (err) {
       console.error(err);
       setError(
@@ -177,6 +180,10 @@ export default function Noticias() {
   useEffect(() => {
     loadNoticias();
   }, []);
+
+  useEffect(() => {
+    try { sessionStorage.setItem("noticias_cache", JSON.stringify(noticias)); } catch {}
+  }, [noticias]);
 
   useEffect(() => {
     if (!success) return;
@@ -250,10 +257,11 @@ export default function Noticias() {
 
       setNoticias((prev) => {
         const exists = prev.some((item) => item.id === saved.id);
-
-        return exists
+        const nuevos = exists
           ? prev.map((item) => (item.id === saved.id ? saved : item))
           : [saved, ...prev];
+        try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
+        return nuevos;
       });
 
       setSelected(saved);
@@ -277,9 +285,11 @@ export default function Noticias() {
     try {
       const updated = await publicarNoticia(news.id);
 
-      setNoticias((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item)),
-      );
+      setNoticias((prev) => {
+        const nuevos = prev.map((item) => (item.id === updated.id ? updated : item));
+        try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
+        return nuevos;
+      });
 
       setSuccess("Noticia publicada.");
     } catch (err) {
@@ -299,9 +309,11 @@ export default function Noticias() {
     try {
       const updated = await despublicarNoticia(news.id);
 
-      setNoticias((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item)),
-      );
+      setNoticias((prev) => {
+        const nuevos = prev.map((item) => (item.id === updated.id ? updated : item));
+        try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
+        return nuevos;
+      });
 
       setSuccess("La noticia volvió a borrador.");
     } catch (err) {
@@ -314,28 +326,34 @@ export default function Noticias() {
     }
   };
 
-  const removeExisting = async (news: News) => {
-    const ok = window.confirm(
-      `¿Eliminar "${news.title}"? Esta acción no se puede deshacer.`,
-    );
+  const removeExisting = (news: News) => {
+    setNoticiaAEliminar(news);
+  };
 
-    if (!ok) return;
+  const confirmarEliminar = async () => {
+    if (!noticiaAEliminar) return;
+    if (eliminando) return;
 
+    setEliminando(true);
     setSaving(true);
     setError("");
 
     try {
-      await eliminarNoticia(news.id);
+      await eliminarNoticia(noticiaAEliminar.id);
 
-      setNoticias((prev) => prev.filter((item) => item.id !== news.id));
+      setNoticias((prev) => {
+        const nuevos = prev.filter((item) => item.id !== noticiaAEliminar.id);
+        try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
+        return nuevos;
+      });
       setSuccess("Noticia eliminada.");
+      setNoticiaAEliminar(null);
     } catch (err) {
       console.error(err);
-      setError(
-        err instanceof Error ? err.message : "No se pudo eliminar la noticia",
-      );
+      setError(err instanceof Error ? err.message : "No se pudo eliminar la noticia");
     } finally {
       setSaving(false);
+      setEliminando(false);
     }
   };
 
@@ -777,6 +795,16 @@ export default function Noticias() {
           </Card>
         </Box>
       </Box>
+      <Dialog open={Boolean(noticiaAEliminar)} onClose={() => setNoticiaAEliminar(null)}>
+        <DialogTitle>Confirmar eliminación</DialogTitle>
+        <DialogContent>
+          <Typography>¿Eliminar "{noticiaAEliminar?.title}"? Esta acción no se puede deshacer.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNoticiaAEliminar(null)} disabled={eliminando}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={confirmarEliminar} disabled={eliminando}>{eliminando ? <CircularProgress size={18} color="inherit" /> : "Eliminar"}</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
