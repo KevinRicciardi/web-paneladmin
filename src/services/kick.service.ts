@@ -146,6 +146,64 @@ export async function getKickStreamData(channelName: string): Promise<KickStream
   }
 }
 
+export async function getKickAudioUrl(channelName: string): Promise<string | null> {
+  if (!channelName) return null;
+
+  try {
+    const kickUrl = `https://kick.com/api/v1/channels/${channelName}`;
+    let response: Response;
+
+    try {
+      response = await fetch(kickUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+      });
+    } catch {
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(kickUrl)}`;
+      response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+    }
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json() as any;
+    const livestream = data?.livestream;
+
+    const candidates = [
+      livestream?.playback_url,
+      livestream?.hls_url,
+      livestream?.source?.url,
+      livestream?.source?.playback_url,
+      livestream?.source?.stream_url,
+      data?.playback_url,
+      data?.playbackUrl,
+      data?.stream_url,
+    ];
+
+    const audioUrl = candidates.find(
+      (value) => typeof value === 'string' && value.length > 0,
+    ) as string | undefined;
+
+    if (audioUrl) {
+      return audioUrl;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error fetching Kick audio URL:', error);
+    return null;
+  }
+}
+
 /**
  * Formatea la duración en segundos a formato HH:MM:SS (como muestra Kick)
  */
