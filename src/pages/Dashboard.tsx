@@ -74,18 +74,36 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
     // Polling de Kick cada 1 segundo si hay canal
     const fetchKickData = async () => {
       console.log("fetchKickData called. channelName:", channelName);
-      
+
       if (!channelName) {
         console.warn("No channelName available, skipping Kick fetch");
         return;
       }
-      
+
       try {
         setLoadingKick(true);
         console.log("Fetching Kick data for channel:", channelName);
         const data = await getKickStreamData(channelName);
         console.log("Got Kick data:", data);
-        if (active) setKickData(data);
+        if (!active) return;
+
+        setKickData(data);
+
+        if (!data?.isLive) {
+          console.log("Stream offline, stopping Kick polling");
+          if (kickInterval) {
+            clearInterval(kickInterval);
+            kickInterval = null;
+          }
+          return;
+        }
+
+        if (!kickInterval) {
+          console.log("Stream live, starting Kick polling for channel:", channelName);
+          kickInterval = setInterval(() => {
+            void fetchKickData();
+          }, 1000);
+        }
       } catch (e) {
         console.error("Error fetching Kick data:", e);
       } finally {
@@ -95,16 +113,6 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
 
     // Fetch inicial inmediato
     void fetchKickData();
-
-    // Polling cada 1 segundo para actualizar en tiempo real
-    if (channelName) {
-      console.log("Starting Kick polling for channel:", channelName);
-      kickInterval = setInterval(() => {
-        void fetchKickData();
-      }, 1000);
-    } else {
-      console.warn("No channelName provided, Kick polling not started");
-    }
 
     return () => {
       console.log("Dashboard useEffect cleanup");

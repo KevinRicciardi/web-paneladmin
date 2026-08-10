@@ -7,12 +7,12 @@ import {
   CardContent,
   Chip,
   CircularProgress,
-  Switch,
   TextField,
   Typography,
 } from "@mui/material";
 import { auth } from "../firebase";
 import type { Perfil } from "../types";
+import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";
 
 const API_URL = "http://localhost:3000";
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
@@ -56,6 +56,28 @@ function detectarPlataforma(url: string): string {
   return "Desconocida";
 }
 
+function getAudioUrl(url: string): string | null {
+  const normalized = url.trim();
+  if (!normalized) return null;
+
+  const lower = normalized.toLowerCase();
+  const audioExtensions = [".mp3", ".aac", ".m4a", ".ogg", ".wav", ".flac", ".opus", ".m3u8"];
+  if (audioExtensions.some((ext) => lower.endsWith(ext))) {
+    return normalized;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.hostname.includes("kick.com") || parsed.hostname.includes("youtube.com") || parsed.hostname.includes("youtu.be")) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return normalized;
+}
+
 function CardHeader({ icon, children }: { icon: string; children: React.ReactNode }) {
   return (
     <Typography
@@ -82,15 +104,8 @@ function getStoredValue(key: string): string {
 export default function Streaming({ perfil }: { perfil: Perfil }) {
   const t = perfil.tenant;
   const [streamUrl, setStreamUrl] = useState<string>(() => t?.streamUrl ?? getStoredValue("streamUrl"));
-  const [streamActivo, setStreamActivo] = useState<boolean>(() => {
-    try {
-      if (typeof t?.streamActivo === "boolean") return t!.streamActivo!;
-      const stored = localStorage.getItem("streamActivo");
-      return stored === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [kickData, setKickData] = useState<KickStreamData | null>(null);
+  const [kickAudioUrl, setKickAudioUrl] = useState<string | null>(null);
   const [tipoTransmision, setTipoTransmision] = useState<string>(() => {
     const valor = t?.tipoTransmision ?? getStoredValue("tipoTransmision");
     return valor || "video";
@@ -100,12 +115,16 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
-  const [toggling, setToggling] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioLoadError, setAudioLoadError] = useState("");
   const portadaInputRef = useRef<HTMLInputElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const esPodcast = tipoTransmision === "audio";
   const embedUrl = streamUrl ? getEmbedUrl(streamUrl) : null;
+  const audioUrl = kickAudioUrl || (streamUrl ? getAudioUrl(streamUrl) : null);
   const plataforma = streamUrl ? detectarPlataforma(streamUrl) : null;
+  const channelName = streamUrl ? extractKickChannelName(streamUrl) : null;
 
   useEffect(() => {
     if (t?.streamUrl) {
@@ -132,8 +151,84 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     }
   }, [t?.streamUrl, t?.tipoTransmision, t?.imagenPortada]);
 
-  // Estado visual del switch: únicamente depende de `streamActivo`.
-  const estado = streamActivo
+  useEffect(() => {
+    let active = true;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const refreshKickData = async () => {
+      if (!channelName) return;
+
+      try {
+        const data = await getKickStreamData(channelName);
+        if (!active) return;
+        setKickData(data);
+
+        if (data?.isLive && !intervalId) {
+          intervalId = setInterval(refreshKickData, 1000);
+        }
+
+        if (!data?.isLive && intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      } catch (error) {
+        console.error("Error fetching Kick stream data:", error);
+      }
+    };
+
+    void refreshKickData();
+
+    return () => {
+      active = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [channelName]);
+
+  useEffect(() => {
+    const fetchKickAudio = async () => {
+      if (!channelName || !esPodcast) {
+        setKickAudioUrl(null);
+        return;
+      }
+
+      try {
+        const audioUrl = await getKickAudioUrl(channelName);
+        setKickAudioUrl(audioUrl);
+      } catch (error) {
+        console.error("Error fetching Kick audio url:", error);
+        setKickAudioUrl(null);
+      }
+    };
+
+    void fetchKickAudio();
+  }, [channelName, esPodcast]);
+
+  const handleTogglePlay = () => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    const playPromise = audioRef.current.play();
+    if (playPromise instanceof Promise) {
+      playPromise
+        .then(() => setIsPlaying(true))
+        .catch((error) => {
+          console.error("Error reproduciendo audio:", error);
+          setAudioLoadError("No se pudo reproducir el audio en este navegador.");
+          setIsPlaying(false);
+        });
+    }
+  };
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+  };
+
+  const estado = kickData?.isLive
     ? { label: "Conectado", conectado: true }
     : { label: "Desconectado", conectado: false };
 
@@ -173,11 +268,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ streamUrl, tipoTransmision, imagenPortada, streamActivo }),
+        body: JSON.stringify({ streamUrl, tipoTransmision, imagenPortada }),
       });
       if (!res.ok) throw new Error("Error al guardar");
 
-      let payload = { streamUrl, tipoTransmision, imagenPortada, streamActivo };
+      let payload = { streamUrl, tipoTransmision, imagenPortada };
       try {
         const data = await res.json();
         if (data && typeof data === "object") {
@@ -203,45 +298,13 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     }
   };
 
-  const handleToggleActivo = async (ev: React.ChangeEvent<HTMLInputElement>) => {
-    const nuevo = ev.target.checked;
-    setToggling(true);
-    setError("");
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ streamActivo: nuevo }),
-      });
-      if (!res.ok) throw new Error("Error al cambiar estado");
-      setStreamActivo(nuevo);
-      try { localStorage.setItem("streamActivo", nuevo ? "true" : "false"); } catch {}
-      setSuccess(true);
-      // Avisamos a la app principal para que re-fetchee el perfil y propague el cambio
-      try { window.dispatchEvent(new CustomEvent("tenantUpdated", { detail: { streamActivo: nuevo } })); } catch {}
-    } catch {
-      setError("No se pudo cambiar el estado del stream.");
-    } finally {
-      setToggling(false);
-    }
-  };
-
-  // Mantener un fallback local para mantener el estado del switch si el backend no persiste.
-  // Escribimos localStorage siempre que cambie streamActivo.
-  useEffect(() => {
-    try { localStorage.setItem("streamActivo", streamActivo ? "true" : "false"); } catch {}
-  }, [streamActivo]);
 
   return (
     <Box>
       {/* Encabezado */}
       <Box sx={ { display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2, mb: 4 } }>
         <Box>
-          <Typography variant="h4" gutterBottom>Configuración</Typography>
+          <Typography variant="h4" gutterBottom>Streaming</Typography>
           <Typography color="text.secondary" sx={ { maxWidth: 560 } }>
             Gestioná puntos finales, URLs de ingesta y monitoreá la salud de la señal en vivo.
           </Typography>
@@ -251,7 +314,6 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>
               Estado de Señal
             </Typography>
-            <Switch checked={streamActivo} size="small" disabled={toggling} onChange={handleToggleActivo} />
             <Chip
               label={estado.label.toUpperCase()}
               size="small"
@@ -392,26 +454,125 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
           </Box>
           <CardContent>
             {esPodcast ? (
-              <Box
-                sx={ {
-                  position: "relative", width: "100%", aspectRatio: "16 / 9",
-                  borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider",
-                  bgcolor: "action.hover",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                } }
-              >
-                {imagenPortada
-                  ? <Box component="img" src={imagenPortada} sx={ { width: "100%", height: "100%", objectFit: "cover" } } />
-                  : <Typography sx={ { fontSize: 32, opacity: 0.4 } }>
-                      <span className="material-symbols-outlined">mic</span>
-                    </Typography>}
-                <Chip
-                  label="PODCAST EN VIVO"
-                  size="small"
-                  color="error"
-                  sx={ { position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 700 } }
-                />
-              </Box>
+              audioUrl ? (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box
+                    sx={{
+                      position: "relative",
+                      width: "100%",
+                      aspectRatio: "16 / 9",
+                      borderRadius: 1,
+                      overflow: "hidden",
+                      border: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: "action.hover",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onClick={handleTogglePlay}
+                  >
+                    {imagenPortada ? (
+                      <Box
+                        component="img"
+                        src={imagenPortada}
+                        alt="Portada del podcast"
+                        sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <Box
+                        sx={{
+                          width: "100%",
+                          height: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          bgcolor: "action.hover",
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 48, opacity: 0.15 }}>
+                          <span className="material-symbols-outlined">podcasts</span>
+                        </Typography>
+                      </Box>
+                    )}
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.5))",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 66,
+                          height: 66,
+                          borderRadius: "50%",
+                          bgcolor: "rgba(0,0,0,0.7)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "white",
+                          fontSize: 32,
+                        }}
+                      >
+                        <span className="material-symbols-outlined">
+                          {isPlaying ? "pause" : "play_arrow"}
+                        </span>
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  <audio
+                    ref={audioRef}
+                    src={audioUrl}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onEnded={handleAudioEnded}
+                    onError={() => setAudioLoadError("No se pudo cargar el audio.")}
+                    style={{ display: "none" }}
+                  />
+
+                  <Box>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 0.5 }}>
+                      {isPlaying ? "Reproduciendo" : "Tocá la portada para reproducir"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Reproduciendo audio directo desde la URL.
+                    </Typography>
+                    {audioLoadError && (
+                      <Typography variant="caption" color="error" sx={{ display: "block" }}>
+                        {audioLoadError}
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              ) : (
+                <Box
+                  sx={ {
+                    position: "relative", width: "100%", aspectRatio: "16 / 9",
+                    borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider",
+                    bgcolor: "action.hover",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    p: 2,
+                  } }
+                >
+                  <Box sx={{ textAlign: "center" }}>
+                    <Typography sx={ { fontSize: 32, opacity: 0.4 } }>
+                      <span className="material-symbols-outlined">volume_off</span>
+                    </Typography>
+                    <Typography sx={ { fontSize: 14, fontWeight: 700, mb: 1 } }>
+                      Audio directo no disponible
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Para reproducir solo audio necesitás una URL de archivo o stream de audio directo (mp3/aac/m4a/ogg/m3u8).
+                    </Typography>
+                  </Box>
+                </Box>
+              )
             ) : embedUrl ? (
               <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
                 <Box
