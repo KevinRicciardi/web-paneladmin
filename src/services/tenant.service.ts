@@ -38,6 +38,7 @@ export interface BrandingPayload {
   nombre?: string;
   logoUrl?: string;
   bannerUrl?: string;
+  fontFamily?: string;
   streamUrl?: string;
   tipoTransmision?: string;
   imagenPortada?: string;

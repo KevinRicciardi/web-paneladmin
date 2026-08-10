@@ -1,4 +1,4 @@
-﻿import { Box, Divider, Drawer, List, ListItemButton, ListItemText, Stack, Typography } from "@mui/material";
+﻿import { Box, Divider, Drawer, List, ListItemButton, ListItemText, Typography } from "@mui/material";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { Perfil } from "../types";
 
@@ -91,10 +91,10 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
                 >
                   <ListItemText
                     primary={
-                      <Stack direction="row" alignItems="center" spacing={1}>
+                      <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1 }}>
                         <span className="material-symbols-outlined">{item.icon}</span>
                         <Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>
-                      </Stack>
+                      </Box>
                     }
                   />
                 </ListItemButton>
@@ -126,10 +126,10 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
                 >
                   <ListItemText
                     primary={
-                      <Stack direction="row" alignItems="center" spacing={1}>
+                      <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1 }}>
                         <span className="material-symbols-outlined">{item.icon}</span>
                         <Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>
-                      </Stack>
+                      </Box>
                     }
                   />
                 </ListItemButton>

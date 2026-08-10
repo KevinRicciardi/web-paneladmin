@@ -1,4 +1,4 @@
-import { Box, Button, Card, CardContent, Chip, Typography, CircularProgress, Collapse, IconButton } from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, Typography, CircularProgress, IconButton } from "@mui/material";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type { Perfil } from "../types";
@@ -38,7 +38,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
     console.log("Dashboard useEffect started. streamUrl:", streamUrl, "channelName:", channelName);
 
     try {
-      const cachedProg = sessionStorage.getItem("programacion_cache");
+       const cachedProg = sessionStorage.getItem("programacion_cache");
       if (cachedProg) setProgramas(JSON.parse(cachedProg));
     } catch (e) {
       // Silencioso

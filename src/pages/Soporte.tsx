@@ -2,7 +2,7 @@ import { Box, Button, Card, CardContent, Link, Stack, Typography } from "@mui/ma
 import { Link as RouterLink } from "react-router-dom";
 import type { Perfil } from "../types";
 
-export default function Soporte({ perfil }: { perfil: Perfil }) {
+export default function Soporte({ perfil: _perfil }: { perfil: Perfil }) {
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
