@@ -1,10 +1,12 @@
-import { Box, Button, Card, CardContent, Chip, Typography } from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, Typography, CircularProgress, Collapse, IconButton } from "@mui/material";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type { Perfil } from "../types";
 import { listarMiProgramacion } from "../services/schedule.service";
 import { listarMisNoticias } from "../services/news.service";
 import type { Programa, News } from "../types";
+import { getKickStreamData, extractKickChannelName, formatDuration, formatViewers } from "../services/kick.service";
+import type { KickStreamData } from "../services/kick.service";
 
 function SectionHeader({ icon, children }: { icon: string; children: React.ReactNode }) {
   return (
@@ -20,30 +22,36 @@ function SectionHeader({ icon, children }: { icon: string; children: React.React
 
 export default function Dashboard({ perfil }: { perfil: Perfil }) {
   const nombreCliente = perfil.tenant?.nombre ?? perfil.tenant?.slug ?? "Cliente";
-  const streamActivo = perfil.tenant?.streamActivo ?? false;
-  const estadoStreamLabel = streamActivo ? "Conectado" : "Desconectado";
-  const metricas = [
-    { label: "Viewers en Línea", value: "—", icon: "visibility" },
-    { label: "Vistas Totales", value: "—", icon: "bar_chart" },
-    { label: "Tiempo en Aire", value: "—", icon: "timer" },
-    { label: "Estado del Stream", value: estadoStreamLabel, icon: "rss_feed" },
-  ];
+  const streamUrl = perfil.tenant?.streamUrl ?? "";
+  const channelName = extractKickChannelName(streamUrl);
 
   const [programas, setProgramas] = useState<Programa[] | null>(null);
   const [noticias, setNoticias] = useState<News[] | null>(null);
+  const [kickData, setKickData] = useState<KickStreamData | null>(null);
+  const [loadingKick, setLoadingKick] = useState(false);
+  const [expandTitle, setExpandTitle] = useState(false);
 
   useEffect(() => {
     let active = true;
+    let kickInterval: ReturnType<typeof setInterval> | null = null;
+
+    console.log("Dashboard useEffect started. streamUrl:", streamUrl, "channelName:", channelName);
 
     try {
       const cachedProg = sessionStorage.getItem("programacion_cache");
       if (cachedProg) setProgramas(JSON.parse(cachedProg));
-    } catch {}
+    } catch (e) {
+      // Silencioso
+      console.debug("Cache read error:", e);
+    }
 
     try {
       const cachedNews = sessionStorage.getItem("noticias_cache");
       if (cachedNews) setNoticias(JSON.parse(cachedNews));
-    } catch {}
+    } catch (e) {
+      // Silencioso
+      console.debug("Cache read error:", e);
+    }
 
     void (async () => {
       try {
@@ -51,15 +59,59 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
         if (!active) return;
         setProgramas(progs);
         setNoticias(newsList);
-        try { sessionStorage.setItem("programacion_cache", JSON.stringify(progs)); } catch {}
-        try { sessionStorage.setItem("noticias_cache", JSON.stringify(newsList)); } catch {}
+        try { sessionStorage.setItem("programacion_cache", JSON.stringify(progs)); } catch (e) { 
+          console.debug("Cache write error:", e);
+        }
+        try { sessionStorage.setItem("noticias_cache", JSON.stringify(newsList)); } catch (e) { 
+          console.debug("Cache write error:", e);
+        }
       } catch (e) {
         // Silencioso: no bloquear dashboard si falla
+        console.debug("Load error:", e);
       }
     })();
 
-    return () => { active = false; };
-  }, []);
+    // Polling de Kick cada 1 segundo si hay canal
+    const fetchKickData = async () => {
+      console.log("fetchKickData called. channelName:", channelName);
+      
+      if (!channelName) {
+        console.warn("No channelName available, skipping Kick fetch");
+        return;
+      }
+      
+      try {
+        setLoadingKick(true);
+        console.log("Fetching Kick data for channel:", channelName);
+        const data = await getKickStreamData(channelName);
+        console.log("Got Kick data:", data);
+        if (active) setKickData(data);
+      } catch (e) {
+        console.error("Error fetching Kick data:", e);
+      } finally {
+        if (active) setLoadingKick(false);
+      }
+    };
+
+    // Fetch inicial inmediato
+    void fetchKickData();
+
+    // Polling cada 1 segundo para actualizar en tiempo real
+    if (channelName) {
+      console.log("Starting Kick polling for channel:", channelName);
+      kickInterval = setInterval(() => {
+        void fetchKickData();
+      }, 1000);
+    } else {
+      console.warn("No channelName provided, Kick polling not started");
+    }
+
+    return () => {
+      console.log("Dashboard useEffect cleanup");
+      active = false;
+      if (kickInterval) clearInterval(kickInterval);
+    };
+  }, [channelName]);
 
   return (
     <Box>
@@ -78,25 +130,46 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
         </CardContent>
       </Card>
 
-      {/* Métricas - siguiendo diseño visual */}
+      {/* Métricas - desde Kick en tiempo real */}
       <Box sx={ { display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" }, gap: 2, mb: 3 } }>
-        {/* Viewers */}
+        {/* Viewers en Línea */}
         <Card variant="outlined">
           <CardContent>
             <Box sx={ { display: "flex", justifyContent: "space-between", mb: 1 } }>
-              <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>{metricas[0].label}</Typography>
+              <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>Viewers en Línea</Typography>
             </Box>
-            <Typography sx={ { fontSize: 36, fontWeight: 800 } }>{metricas[0].value}</Typography>
+            <Box sx={ { display: "flex", alignItems: "flex-end", gap: 1 } }>
+              <Typography sx={ { fontSize: 36, fontWeight: 800 } }>{kickData ? formatViewers(kickData.viewerCount) : "—"}</Typography>
+              {loadingKick && <CircularProgress size={20} />}
+            </Box>
           </CardContent>
         </Card>
 
-        {/* Vistas Totales */}
+        {/* Título / Info del Stream */}
         <Card variant="outlined">
           <CardContent>
             <Box sx={ { display: "flex", justifyContent: "space-between", mb: 1 } }>
-              <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>{metricas[1].label}</Typography>
+              <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>Transmisión Actual</Typography>
             </Box>
-            <Typography sx={ { fontSize: 36, fontWeight: 800 } }>{metricas[1].value}</Typography>
+            <Box sx={ { display: "flex", alignItems: "flex-start", gap: 1 } }>
+              <Box sx={ { flex: 1 } }>
+                <Typography sx={ { fontSize: 14, fontWeight: 700, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: expandTitle ? undefined : 2, WebkitBoxOrient: "vertical", overflow: expandTitle ? "visible" : "hidden" } }>
+                  {kickData?.isLive && kickData.title ? kickData.title : "Sin transmisión"}
+                </Typography>
+              </Box>
+              {kickData?.isLive && kickData.title && kickData.title.length > 60 && (
+                <IconButton 
+                  size="small" 
+                  onClick={() => setExpandTitle(!expandTitle)}
+                  sx={ { flexShrink: 0, pt: 0 } }
+                >
+                  <span className="material-symbols-outlined" style={ { fontSize: 18 } }>
+                    {expandTitle ? "expand_less" : "expand_more"}
+                  </span>
+                </IconButton>
+              )}
+            </Box>
+            <Typography variant="caption" color="text.secondary">desde Kick</Typography>
           </CardContent>
         </Card>
 
@@ -104,22 +177,22 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
         <Card variant="outlined">
           <CardContent>
             <Box sx={ { display: "flex", justifyContent: "space-between", mb: 1 } }>
-              <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>{metricas[2].label}</Typography>
+              <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>Tiempo en Aire</Typography>
             </Box>
-            <Typography sx={ { fontSize: 36, fontWeight: 800 } }>{metricas[2].value}</Typography>
+            <Typography sx={ { fontSize: 36, fontWeight: 800 } }>{kickData?.isLive ? formatDuration(kickData.duration) : "—"}</Typography>
           </CardContent>
         </Card>
 
         {/* Estado del Stream */}
-        <Card variant="outlined" sx={ { borderColor: streamActivo ? "error.main" : undefined, boxShadow: streamActivo ? "0 0 15px rgba(239,68,68,0.08)" : undefined } }>
+        <Card variant="outlined" sx={ { borderColor: kickData?.isLive ? "error.main" : undefined, boxShadow: kickData?.isLive ? "0 0 15px rgba(239,68,68,0.08)" : undefined } }>
           <CardContent>
             <Box sx={ { display: "flex", justifyContent: "space-between", mb: 2 } }>
               <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>Estado del Stream</Typography>
             </Box>
             <Box sx={ { display: "flex", alignItems: "center", justifyContent: "center" } }>
-              {streamActivo ? (
+              {kickData?.isLive ? (
                 <Box sx={ { display: "inline-flex", alignItems: "center", gap: 1.5, px: 3, py: 1.5, bgcolor: "error.main", color: "error.contrastText", borderRadius: 3 } }>
-                  <Box sx={ { width: 8, height: 8, borderRadius: "50%", bgcolor: "#fff", boxShadow: "0 0 8px rgba(255,255,255,0.15)" } } />
+                  <Box className="pulse-dot" sx={ { width: 8, height: 8, borderRadius: "50%", bgcolor: "#fff", boxShadow: "0 0 8px rgba(255,255,255,0.15)" } } />
                   <Typography sx={ { fontSize: 18, fontWeight: 800, letterSpacing: 1 } }>EN VIVO</Typography>
                 </Box>
               ) : (
@@ -128,6 +201,11 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
                 </Box>
               )}
             </Box>
+            {!channelName && (
+              <Typography variant="caption" color="text.secondary" sx={ { display: "block", mt: 1, textAlign: "center" } }>
+                Sin URL de Kick configurada
+              </Typography>
+            )}
           </CardContent>
         </Card>
       </Box>
@@ -151,7 +229,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
           <CardContent>
             <Box sx={ { display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 } }>
               <SectionHeader icon="sensors">Streaming</SectionHeader>
-              <Chip label={streamActivo ? "En Vivo" : "Offline"} size="small" color={streamActivo ? "error" : "default"} sx={ { fontWeight: 700 } } />
+              <Chip label={kickData?.isLive ? "En Vivo" : "Offline"} size="small" color={kickData?.isLive ? "error" : "default"} sx={ { fontWeight: 700 } } />
             </Box>
             <Typography color="text.secondary" variant="body2" sx={ { mb: 2 } }>
               Configurá la URL de tu canal para empezar a transmitir.
