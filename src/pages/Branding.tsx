@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import {
   Alert, Box, Button, Card, CardContent, CircularProgress, Dialog, DialogActions, DialogContent,
-  DialogTitle, IconButton, InputAdornment, TextField, Tooltip, Typography,
+  DialogTitle, IconButton, InputAdornment, TextField, Tooltip, Typography, Select, MenuItem,
   alpha,
 } from "@mui/material";
 import { auth } from "../firebase";
@@ -10,6 +10,20 @@ import type { Perfil } from "../types";
 const API_URL = "http://localhost:3000";
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
+
+// Fuentes disponibles
+const FUENTES_DISPONIBLES = [
+  { valor: "system-ui", etiqueta: "Sistema (defecto)" },
+  { valor: "Roboto", etiqueta: "Roboto" },
+  { valor: "Montserrat", etiqueta: "Montserrat" },
+  { valor: "Playfair Display", etiqueta: "Playfair Display" },
+  { valor: "Inter", etiqueta: "Inter" },
+  { valor: "Poppins", etiqueta: "Poppins" },
+  { valor: "Raleway", etiqueta: "Raleway" },
+  { valor: "Lato", etiqueta: "Lato" },
+  { valor: "Open Sans", etiqueta: "Open Sans" },
+  { valor: "Oswald", etiqueta: "Oswald" },
+];
 
 type Colores = {
   fondo: string;
@@ -135,6 +149,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     nombre: t?.nombre ?? "",
     logoUrl: t?.logoUrl ?? "",
     bannerUrl: t?.bannerUrl ?? "",
+    fontFamily: t?.fontFamily ?? "system-ui",
     colores: {
       fondo: t?.colorFondo ?? "#000000",
       cabecera: t?.colorCabecera ?? "#000000",
@@ -166,8 +181,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
   const [nombre, setNombre] = useState(inicial.nombre);
   const [logoUrl, setLogoUrl] = useState(inicial.logoUrl);
-  const [bannerUrl, setBannerUrl] = useState(inicial.bannerUrl);
-  const [colores, setColores] = useState<Colores>(inicial.colores);
+  const [bannerUrl, setBannerUrl] = useState(inicial.bannerUrl);  const [fontFamily, setFontFamily] = useState(inicial.fontFamily);  const [colores, setColores] = useState<Colores>(inicial.colores);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -206,14 +220,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     }
   }, [success]);
 
-  const onPrimario = safeTextColor(colores.primario, colores.texto, colores.textoCabecera || colores.secundario);
+  // onPrimario calculado si se necesita contraste sobre color primario
   const headerTextColor = colores.textoCabecera?.trim() ? colores.textoCabecera : colores.texto;
   // Usamos el color exactamente como lo configura el tenant, sin aplicar lógica de contraste
   const onCabecera = headerTextColor;
   const statusTextColor = headerTextColor;
   const textoTenue = alpha(colores.texto, 0.55);
   const textoSuave = alpha(colores.texto, 0.75);
-  const card = alpha(colores.texto, 0.05);
   const borde = alpha(colores.texto, 0.12);
 
   const fondo = sinSetear(colores.fondo) ? oscurecer(colores.primario, 0.86) : colores.fondo;
@@ -221,15 +234,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const streamActivo = perfil.tenant?.streamActivo ?? false;
   const estadoStream = streamActivo ? "EN VIVO" : "OFFLINE";
 
-  const brandAvatar = (size: number) => (
-    <Box sx={ { width: size, height: size, borderRadius: "50%", bgcolor: card, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" } }>
-      {logoUrl ? (
-        <Box component="img" src={logoUrl} sx={ { width: "100%", height: "100%", objectFit: "cover" } } />
-      ) : (
-        <span className="material-symbols-outlined" style={ { color: textoTenue, fontSize: size * 0.5 } }>play_circle</span>
-      )}
-    </Box>
-  );
+  // Avatar de marca (función disponible pero no usada en esta versión)
 
   const platformLabel = (url: string | null | undefined) => {
     if (!url) return null;
@@ -241,24 +246,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
   const previewPlatform = platformLabel(perfil.tenant?.streamUrl);
 
-  const fecha = (dia: string, num: string, hoy: boolean) => (
-    <Box sx={ { width: 46, py: 1, bgcolor: hoy ? colores.primario : alpha(colores.texto, 0.06), borderRadius: 2, textAlign: "center" } }>
-      <Typography sx={ { color: hoy ? alpha(onPrimario, 0.7) : textoTenue, fontSize: 9, fontWeight: 700 } }>{dia}</Typography>
-      <Typography sx={ { color: hoy ? onPrimario : colores.texto, fontSize: 16, fontWeight: 700 } }>{num}</Typography>
-    </Box>
-  );
-
-  const agendaItem = (dia: string, num: string, hoy: boolean, titulo: string, sub: string) => (
-    <Box sx={ { pb: 1.75 } }>
-      <Box sx={ { display: "flex", gap: 1.5 } }>
-        {fecha(dia, num, hoy)}
-        <Box sx={ { flex: 1 } }>
-          <Typography sx={ { color: hoy ? colores.texto : textoSuave, fontWeight: 700 } }>{titulo}</Typography>
-          {!!sub && <Typography sx={ { color: textoTenue, fontSize: 12 } }>{sub}</Typography>}
-        </Box>
-      </Box>
-    </Box>
-  );
+  // (Funciones auxiliares de preview eliminadas porque no se usan actualmente)
 
   const setColor = (key: keyof Colores, val: string) => {
     setColores((prev) => ({ ...prev, [key]: val }));
@@ -298,6 +286,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setNombre(ultimoGuardado.nombre);
     setLogoUrl(ultimoGuardado.logoUrl);
     setBannerUrl(ultimoGuardado.bannerUrl);
+    setFontFamily(ultimoGuardado.fontFamily);
     setColores(ultimoGuardado.colores);
     setSuccess(false);
     setError("");
@@ -326,7 +315,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          nombre, logoUrl, bannerUrl,
+          nombre, logoUrl, bannerUrl, fontFamily,
           colorFondo: colores.fondo,
           colorCabecera: colores.cabecera,
           colorTexto: colores.texto,
@@ -340,13 +329,14 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       });
       if (!res.ok) throw new Error("Error");
       setSuccess(true);
-      setUltimoGuardado({ nombre, logoUrl, bannerUrl, colores });
+      setUltimoGuardado({ nombre, logoUrl, bannerUrl, fontFamily, colores });
       try {
         window.dispatchEvent(new CustomEvent("tenantUpdated", {
           detail: {
             nombre,
             logoUrl,
             bannerUrl,
+            fontFamily,
             colorFondo: colores.fondo,
             colorCabecera: colores.cabecera,
             colorTexto: colores.texto,
@@ -439,6 +429,28 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   <Button size="small" color="error" onClick={() => { setLogoUrl(""); setSuccess(false); }}>Quitar logo</Button>
                 </Box>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Fuente */}
+          <Card variant="outlined">
+            <CardContent>
+              <CardHeader icon="font_download">Tipografía</CardHeader>
+              <Select
+                fullWidth
+                value={fontFamily}
+                onChange={(e) => { setFontFamily(e.target.value); setSuccess(false); }}
+                sx={ { fontFamily: fontFamily } }
+              >
+                {FUENTES_DISPONIBLES.map((f) => (
+                  <MenuItem key={f.valor} value={f.valor} sx={ { fontFamily: f.valor } }>
+                    {f.etiqueta}
+                  </MenuItem>
+                ))}
+              </Select>
+              <Typography variant="caption" color="text.secondary" sx={ { display: "block", mt: 1 } }>
+                Esta fuente se aplicará a toda la interfaz del usuario.
+              </Typography>
             </CardContent>
           </Card>
 
@@ -597,7 +609,25 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         {/* ── Columna derecha: Preview ── */}
         <Box sx={ { position: { md: "sticky" }, top: 24 } }>
           <Card variant="outlined" sx={ { overflow: "hidden", border: "none", boxShadow: "none", bgcolor: "transparent" } }>
-            <Box sx={ { bgcolor: fondo, color: colores.texto, borderRadius: 3, minWidth: 320, overflow: "hidden", display: "flex", flexDirection: "column" } }>
+            <Box
+              sx={ {
+                bgcolor: fondo,
+                color: colores.texto,
+                borderRadius: 3,
+                minWidth: 320,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+                fontFamily: (fontFamily === 'system-ui' ? "system-ui, 'Segoe UI', Roboto, sans-serif" : `${fontFamily}, system-ui, 'Segoe UI', Roboto, sans-serif`),
+                '& *': {
+                  fontFamily: (fontFamily === 'system-ui' ? "system-ui, 'Segoe UI', Roboto, sans-serif" : `${fontFamily}, system-ui, 'Segoe UI', Roboto, sans-serif`),
+                },
+                '& .material-symbols-outlined': {
+                  fontFamily: 'Material Symbols Outlined',
+                  fontFeatureSettings: "'liga' 1",
+                },
+              } }
+            >
               {/* Header con cabecera */}
               <Box sx={ { bgcolor: colores.cabecera, p: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between" } }>
                 <Box sx={ { display: "flex", alignItems: "center", gap: 1 } }>

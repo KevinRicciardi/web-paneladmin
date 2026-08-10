@@ -19,6 +19,8 @@ export interface Tenant {
   colorBotones?: string | null; // extra
   colorCardFondo?: string | null; // extra
   colorIconos?: string | null; // extra
+
+  fontFamily?: string | null; // Fuente personalizada (ej: "Roboto", "Montserrat", etc.)
 }
 
 export interface Perfil {

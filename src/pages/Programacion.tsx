@@ -330,12 +330,25 @@ function obtenerCodigosDiasParaPrograma(programa: Programa) {
   }
 }
 
+function seSolapanHorarios(inicioA: string, finA: string, inicioB: string, finB: string) {
+  const inicioAMinutos = convertirHoraAMinutos(inicioA);
+  const finAMinutos = convertirHoraAMinutos(finA);
+  const inicioBMinutos = convertirHoraAMinutos(inicioB);
+  const finBMinutos = convertirHoraAMinutos(finB);
+
+  return inicioAMinutos < finBMinutos && inicioBMinutos < finAMinutos;
+}
+
 function esHorarioOcupado(programa: Programa, horario: string) {
   const horarioInicio = convertirHoraAMinutos(programa.horaInicio);
   const horarioFin = convertirHoraAMinutos(programa.horaFin);
   const horarioSeleccionado = convertirHoraAMinutos(horario);
 
   return horarioSeleccionado >= horarioInicio && horarioSeleccionado < horarioFin;
+}
+
+function esRangoHorarioOcupado(programa: Programa, horaInicio: string, horaFin: string) {
+  return seSolapanHorarios(programa.horaInicio, programa.horaFin, horaInicio, horaFin);
 }
 
 export default function Programacion() {
@@ -724,6 +737,12 @@ export default function Programacion() {
   const conflictoHoraFin = form.horaFin
     ? horariosOcupados.find((programa) => esHorarioOcupado(programa, form.horaFin))
     : undefined;
+  const conflictoHorarioRango =
+    form.horaInicio && form.horaFin && form.horaInicio < form.horaFin
+      ? horariosOcupados.find((programa) =>
+          esRangoHorarioOcupado(programa, form.horaInicio, form.horaFin),
+        )
+      : undefined;
 
   const calendarioDisabled = modoFecha === "NINGUNO";
 
@@ -1176,18 +1195,26 @@ export default function Programacion() {
                 </Select>
               </FormControl>
             </Stack>
-            {(conflictoHoraInicio || conflictoHoraFin) && (
+            {(conflictoHorarioRango || conflictoHoraInicio || conflictoHoraFin) && (
               <Alert severity="warning" sx={{ mt: 1 }}>
-                {conflictoHoraInicio && (
+                {conflictoHorarioRango ? (
                   <span>
-                    Horario de inicio ocupado por "{conflictoHoraInicio.titulo}" ({descripcionPrograma(conflictoHoraInicio)}).
+                    El rango {form.horaInicio} — {form.horaFin} se superpone con "{conflictoHorarioRango.titulo}" ({descripcionPrograma(conflictoHorarioRango)}).
                   </span>
-                )}
-                {conflictoHoraFin && (
-                  <span>
-                    {conflictoHoraInicio ? " " : ""}
-                    Horario de fin ocupado por "{conflictoHoraFin.titulo}" ({descripcionPrograma(conflictoHoraFin)}).
-                  </span>
+                ) : (
+                  <>
+                    {conflictoHoraInicio && (
+                      <span>
+                        Horario de inicio ocupado por "{conflictoHoraInicio.titulo}" ({descripcionPrograma(conflictoHoraInicio)}).
+                      </span>
+                    )}
+                    {conflictoHoraFin && (
+                      <span>
+                        {conflictoHoraInicio ? " " : ""}
+                        Horario de fin ocupado por "{conflictoHoraFin.titulo}" ({descripcionPrograma(conflictoHoraFin)}).
+                      </span>
+                    )}
+                  </>
                 )}
               </Alert>
             )}
@@ -1209,7 +1236,7 @@ export default function Programacion() {
         </DialogContent>
         <DialogActions sx={{ bgcolor: "#000000", color: "#ffffff" }}>
           <Button onClick={() => setAbierto(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={guardar} disabled={guardando}>
+          <Button variant="contained" onClick={guardar} disabled={guardando || Boolean(conflictoHorarioRango)}>
             {guardando ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>
