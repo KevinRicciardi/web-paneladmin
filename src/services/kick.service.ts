@@ -11,6 +11,8 @@ export interface KickStreamData {
   thumbnail: string;
 }
 
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+
 /**
  * Obtiene el nombre del canal desde una URL de Kick
  */
@@ -44,10 +46,8 @@ export async function getKickStreamData(channelName: string): Promise<KickStream
 
   try {
     const kickUrl = `https://kick.com/api/v1/channels/${channelName}`;
-    console.log("Fetching from Kick URL:", kickUrl);
-    
-    // Intentar fetch directo primero
     let response: Response;
+
     try {
       response = await fetch(kickUrl, {
         method: 'GET',
@@ -55,17 +55,11 @@ export async function getKickStreamData(channelName: string): Promise<KickStream
           'Accept': 'application/json',
         },
         mode: 'cors',
+        referrer: `https://kick.com/${channelName}`,
       });
-    } catch (corsError) {
-      // Si falla por CORS, usar proxy
-      console.warn("Direct CORS fetch failed, trying proxy:", corsError);
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(kickUrl)}`;
-      response = await fetch(proxyUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
+    } catch (error) {
+      console.warn('Kick API request failed:', error);
+      return null;
     }
 
     if (!response.ok) {
@@ -146,6 +140,45 @@ export async function getKickStreamData(channelName: string): Promise<KickStream
   }
 }
 
+const AUDIO_URL_PATTERN = /(\.mp3|\.aac|\.m4a|\.ogg|\.wav|\.flac|\.opus|\.m3u8)(?:[?#].*)?$/i;
+
+function isAudioUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0) return false;
+  const trimmed = value.trim();
+  if (AUDIO_URL_PATTERN.test(trimmed)) return true;
+
+  try {
+    const parsed = new URL(trimmed);
+    const pathname = parsed.pathname.toLowerCase();
+    return pathname.endsWith('/hls') || pathname.endsWith('/stream') || pathname.endsWith('/playback');
+  } catch {
+    return false;
+  }
+}
+
+function extractUrlsFromObject(value: unknown, results: string[] = []): string[] {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      results.push(trimmed);
+    }
+    return results;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) extractUrlsFromObject(item, results);
+    return results;
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    for (const key of Object.keys(value)) {
+      extractUrlsFromObject((value as any)[key], results);
+    }
+  }
+
+  return results;
+}
+
 export async function getKickAudioUrl(channelName: string): Promise<string | null> {
   if (!channelName) return null;
 
@@ -160,15 +193,11 @@ export async function getKickAudioUrl(channelName: string): Promise<string | nul
           'Accept': 'application/json',
         },
         mode: 'cors',
+        referrer: `https://kick.com/${channelName}`,
       });
-    } catch {
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(kickUrl)}`;
-      response = await fetch(proxyUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
+    } catch (error) {
+      console.warn('Kick API request failed:', error);
+      return null;
     }
 
     if (!response.ok) {
@@ -184,20 +213,24 @@ export async function getKickAudioUrl(channelName: string): Promise<string | nul
       livestream?.source?.url,
       livestream?.source?.playback_url,
       livestream?.source?.stream_url,
+      livestream?.media?.source?.url,
+      livestream?.media?.source?.playback_url,
+      livestream?.media?.url,
       data?.playback_url,
       data?.playbackUrl,
       data?.stream_url,
+      data?.hls_url,
+      data?.m3u8_url,
     ];
 
-    const audioUrl = candidates.find(
-      (value) => typeof value === 'string' && value.length > 0,
-    ) as string | undefined;
-
+    const audioUrl = candidates.find((value) => isAudioUrl(value)) as string | undefined;
     if (audioUrl) {
       return audioUrl;
     }
 
-    return null;
+    const urls = extractUrlsFromObject(data);
+    const fallback = urls.find((value) => isAudioUrl(value));
+    return fallback ?? null;
   } catch (error) {
     console.error('Error fetching Kick audio URL:', error);
     return null;

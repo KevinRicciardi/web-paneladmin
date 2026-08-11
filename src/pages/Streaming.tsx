@@ -78,6 +78,10 @@ function getAudioUrl(url: string): string | null {
   return normalized;
 }
 
+function isHlsUrl(url: string) {
+  return url.trim().toLowerCase().split(/[?#]/)[0].endsWith(".m3u8");
+}
+
 function CardHeader({ icon, children }: { icon: string; children: React.ReactNode }) {
   return (
     <Typography
@@ -117,12 +121,15 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [error, setError] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioLoadError, setAudioLoadError] = useState("");
+  const [audioReady, setAudioReady] = useState(false);
+  const [audioLoading, setAudioLoading] = useState(false);
   const portadaInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const esPodcast = tipoTransmision === "audio";
   const embedUrl = streamUrl ? getEmbedUrl(streamUrl) : null;
   const audioUrl = kickAudioUrl || (streamUrl ? getAudioUrl(streamUrl) : null);
+  const isHlsStream = audioUrl ? isHlsUrl(audioUrl) : false;
   const plataforma = streamUrl ? detectarPlataforma(streamUrl) : null;
   const channelName = streamUrl ? extractKickChannelName(streamUrl) : null;
 
@@ -202,6 +209,62 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
     void fetchKickAudio();
   }, [channelName, esPodcast]);
+
+  useEffect(() => {
+    setAudioReady(false);
+    setAudioLoading(false);
+    setAudioLoadError("");
+
+    if (!audioUrl) {
+      return;
+    }
+
+    const audioElement = audioRef.current;
+    if (!audioElement) {
+      return;
+    }
+
+    audioElement.crossOrigin = "anonymous";
+    let canceled = false;
+
+    const cleanupAudioListeners = () => {
+      audioElement.onloadedmetadata = null;
+      audioElement.onerror = null;
+    };
+
+    const handleLoadedMetadata = () => {
+      if (canceled) return;
+      setAudioReady(true);
+      setAudioLoading(false);
+      setAudioLoadError("");
+    };
+
+    const handleAudioError = () => {
+      if (canceled) return;
+      setAudioReady(false);
+      setAudioLoading(false);
+      setAudioLoadError("No se pudo cargar el audio.");
+    };
+
+    audioElement.onloadedmetadata = handleLoadedMetadata;
+    audioElement.onerror = handleAudioError;
+    setAudioLoading(true);
+
+    const setupAudio = async () => {
+      const playbackUrl = audioUrl;
+      if (!playbackUrl) return;
+
+      audioElement.src = playbackUrl;
+      audioElement.load();
+    };
+
+    void setupAudio();
+
+    return () => {
+      canceled = true;
+      cleanupAudioListeners();
+    };
+  }, [audioUrl]);
 
   const handleTogglePlay = () => {
     if (!audioRef.current) return;
@@ -453,7 +516,17 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             </Typography>
           </Box>
           <CardContent>
-            {esPodcast ? (
+            {!esPodcast && embedUrl ? (
+              <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
+                <Box
+                  component="iframe"
+                  src={embedUrl}
+                  title="Vista previa del stream"
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  sx={ { position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" } }
+                />
+              </Box>
+            ) : esPodcast ? (
               audioUrl ? (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <Box
@@ -471,7 +544,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                       alignItems: "center",
                       justifyContent: "center",
                     }}
-                    onClick={handleTogglePlay}
+                    onClick={() => {
+                      if (audioLoading) return;
+                      if (isHlsStream && !audioReady) return;
+                      handleTogglePlay();
+                    }}
                   >
                     {imagenPortada ? (
                       <Box
@@ -528,17 +605,24 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
                   <audio
                     ref={audioRef}
-                    src={audioUrl}
+                    controls
+                    preload="metadata"
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
                     onEnded={handleAudioEnded}
                     onError={() => setAudioLoadError("No se pudo cargar el audio.")}
-                    style={{ display: "none" }}
+                    style={{ width: "100%", marginTop: 16, borderRadius: 8 }}
                   />
 
-                  <Box>
+                  <Box sx={{ mt: 1 }}>
                     <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 0.5 }}>
-                      {isPlaying ? "Reproduciendo" : "Tocá la portada para reproducir"}
+                      {audioLoading
+                        ? "Cargando audio..."
+                        : isPlaying
+                        ? "Reproduciendo"
+                        : isHlsStream && !audioReady
+                        ? "Preparando audio HLS..."
+                        : "Tocá la portada para reproducir"}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       Reproduciendo audio directo desde la URL.
@@ -568,21 +652,21 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                       Audio directo no disponible
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Para reproducir solo audio necesitás una URL de archivo o stream de audio directo (mp3/aac/m4a/ogg/m3u8).
+                      Para reproducir solo audio necesitás una URL de archivo o stream de audio directo compatible con el navegador.
                     </Typography>
+                    {!audioUrl && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                        Ingresa una URL válida de audio (mp3/aac/m4a/ogg/wav/flac/opus).
+                      </Typography>
+                    )}
+                    {audioUrl && isHlsStream && !audioReady && !audioLoading && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                        La URL es HLS y se está preparando para reproducción.
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
               )
-            ) : embedUrl ? (
-              <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
-                <Box
-                  component="iframe"
-                  src={embedUrl}
-                  title="Vista previa del stream"
-                  allow="autoplay; fullscreen; picture-in-picture"
-                  sx={ { position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" } }
-                />
-              </Box>
             ) : (
               <Box
                 sx={ {
