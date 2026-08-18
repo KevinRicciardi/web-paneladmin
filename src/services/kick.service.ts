@@ -11,25 +11,26 @@ export interface KickStreamData {
   thumbnail: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
-
 /**
  * Obtiene el nombre del canal desde una URL de Kick
  */
 export function extractKickChannelName(url: string): string | null {
   try {
     const parsed = new URL(url);
-    
-    // kick.com/canal
-    if (parsed.hostname.includes('kick.com') && parsed.pathname !== '/') {
-      const path = parsed.pathname.split('/')[1];
-      if (path && path !== 'api') return path;
-    }
-    
-    // player.kick.com/canal
-    if (parsed.hostname === 'player.kick.com' && parsed.pathname !== '/') {
-      const path = parsed.pathname.split('/')[1];
-      if (path) return path;
+    const hostname = parsed.hostname.toLowerCase();
+
+    const validKickHost = hostname === 'kick.com' || hostname === 'www.kick.com' || hostname === 'player.kick.com';
+    if (!validKickHost) return null;
+
+    const pathSegments = parsed.pathname.split('/').filter(Boolean);
+    if (pathSegments.length === 0) return null;
+
+    // Ignorar rutas comunes de embed/live/api
+    const ignored = new Set(['api', 'embed', 'live', 'channels', 'streams']);
+    for (const segment of pathSegments) {
+      if (!ignored.has(segment.toLowerCase())) {
+        return segment;
+      }
     }
   } catch {
     // URL inválida
@@ -38,16 +39,15 @@ export function extractKickChannelName(url: string): string | null {
 }
 
 /**
- * Obtiene datos del stream de Kick
- * Se conecta a la API pública de Kick a través de un proxy CORS
+ * Obtiene datos del stream de Kick desde la API pública de Kick
  */
 export async function getKickStreamData(channelName: string): Promise<KickStreamData | null> {
   if (!channelName) return null;
 
   try {
     const kickUrl = `https://kick.com/api/v1/channels/${channelName}`;
-    let response: Response;
 
+    let response: Response;
     try {
       response = await fetch(kickUrl, {
         method: 'GET',
@@ -55,7 +55,7 @@ export async function getKickStreamData(channelName: string): Promise<KickStream
           'Accept': 'application/json',
         },
         mode: 'cors',
-        referrer: `https://kick.com/${channelName}`,
+        cache: 'no-cache',
       });
     } catch (error) {
       console.warn('Kick API request failed:', error);
@@ -184,8 +184,8 @@ export async function getKickAudioUrl(channelName: string): Promise<string | nul
 
   try {
     const kickUrl = `https://kick.com/api/v1/channels/${channelName}`;
-    let response: Response;
 
+    let response: Response;
     try {
       response = await fetch(kickUrl, {
         method: 'GET',
@@ -193,7 +193,7 @@ export async function getKickAudioUrl(channelName: string): Promise<string | nul
           'Accept': 'application/json',
         },
         mode: 'cors',
-        referrer: `https://kick.com/${channelName}`,
+        cache: 'no-cache',
       });
     } catch (error) {
       console.warn('Kick API request failed:', error);

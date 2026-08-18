@@ -14,7 +14,7 @@ import { auth } from "../firebase";
 import type { Perfil } from "../types";
 import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";
 
-const API_URL = "http://localhost:3000";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
 
@@ -82,6 +82,16 @@ function isHlsUrl(url: string) {
   return url.trim().toLowerCase().split(/[?#]/)[0].endsWith(".m3u8");
 }
 
+function canPlayHlsNatively() {
+  if (typeof document === "undefined") return false;
+  const audio = document.createElement("audio");
+  return (
+    audio.canPlayType("application/vnd.apple.mpegurl") !== "" ||
+    audio.canPlayType("application/x-mpegURL") !== "" ||
+    audio.canPlayType("audio/mpegurl") !== ""
+  );
+}
+
 function CardHeader({ icon, children }: { icon: string; children: React.ReactNode }) {
   return (
     <Typography
@@ -123,15 +133,28 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [audioLoadError, setAudioLoadError] = useState("");
   const [audioReady, setAudioReady] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
+  const [kickIframeSrc, setKickIframeSrc] = useState<string | null>(null);
+  const [kickIframePlaying, setKickIframePlaying] = useState(false);
   const portadaInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const esPodcast = tipoTransmision === "audio";
   const embedUrl = streamUrl ? getEmbedUrl(streamUrl) : null;
-  const audioUrl = kickAudioUrl || (streamUrl ? getAudioUrl(streamUrl) : null);
-  const isHlsStream = audioUrl ? isHlsUrl(audioUrl) : false;
   const plataforma = streamUrl ? detectarPlataforma(streamUrl) : null;
   const channelName = streamUrl ? extractKickChannelName(streamUrl) : null;
+  const rawAudioUrl = kickAudioUrl || (streamUrl ? getAudioUrl(streamUrl) : null);
+  const isHlsStream = rawAudioUrl ? isHlsUrl(rawAudioUrl) : false;
+  const audioUrl = rawAudioUrl && !isHlsStream ? rawAudioUrl : null;
+  const useKickIframeFallback = esPodcast && Boolean(channelName) && !audioUrl;
+  const kickIframeUrl = useKickIframeFallback && channelName ? `https://player.kick.com/${channelName}` : null;
+
+  useEffect(() => {
+    if (!useKickIframeFallback) {
+      setKickIframeSrc(null);
+      setKickIframePlaying(false);
+      setIsPlaying(false);
+    }
+  }, [useKickIframeFallback]);
 
   useEffect(() => {
     if (t?.streamUrl) {
@@ -225,6 +248,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     }
 
     audioElement.crossOrigin = "anonymous";
+    let hlsInstance: any = null;
     let canceled = false;
 
     const cleanupAudioListeners = () => {
@@ -251,11 +275,62 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     setAudioLoading(true);
 
     const setupAudio = async () => {
-      const playbackUrl = audioUrl;
-      if (!playbackUrl) return;
+      if (!audioUrl) return;
 
-      audioElement.src = playbackUrl;
-      audioElement.load();
+      const playbackUrl = audioUrl;
+      const urlIsHls = isHlsUrl(playbackUrl);
+      if (urlIsHls) {
+        if (canPlayHlsNatively()) {
+          audioElement.src = playbackUrl;
+          audioElement.load();
+          return;
+        }
+
+        try {
+          // @ts-ignore
+          const module = await import("https://cdn.jsdelivr.net/npm/hls.js@1.5.0/dist/hls.min.js");
+          const Hls = (module.default || module) as any;
+
+          if (Hls.isSupported()) {
+            hlsInstance = new Hls();
+            hlsInstance.attachMedia(audioElement);
+            hlsInstance.on(Hls.Events.MEDIA_ATTACHED, () => {
+              if (!canceled) {
+                hlsInstance?.loadSource(playbackUrl);
+              }
+            });
+            hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+              if (canceled) return;
+              setAudioReady(true);
+              setAudioLoading(false);
+              setAudioLoadError("");
+            });
+            hlsInstance.on(Hls.Events.ERROR, (_event: any, data: any) => {
+              console.error("Error reproduciendo audio HLS:", data);
+              if (!canceled) {
+                setAudioReady(false);
+                setAudioLoading(false);
+                setAudioLoadError("No se pudo cargar el audio HLS en este navegador.");
+              }
+            });
+          } else {
+            audioElement.src = "";
+            setAudioReady(false);
+            setAudioLoading(false);
+            setAudioLoadError("El navegador no soporta reproducción HLS.");
+          }
+        } catch (err) {
+          console.error("No se pudo cargar hls.js:", err);
+          if (!canceled) {
+            setAudioReady(false);
+            setAudioLoading(false);
+            setAudioLoadError("No se pudo cargar el reproductor HLS.");
+          }
+        }
+      } else {
+        audioElement.src = playbackUrl;
+        audioElement.load();
+      }
     };
 
     void setupAudio();
@@ -263,10 +338,28 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     return () => {
       canceled = true;
       cleanupAudioListeners();
+      if (hlsInstance) {
+        hlsInstance.destroy();
+      }
     };
   }, [audioUrl]);
 
   const handleTogglePlay = () => {
+    if (useKickIframeFallback) {
+      if (!kickIframeUrl) return;
+      if (kickIframeSrc) {
+        setKickIframeSrc(null);
+        setKickIframePlaying(false);
+        setIsPlaying(false);
+        return;
+      }
+
+      setKickIframeSrc(`${kickIframeUrl}?autoplay=1`);
+      setKickIframePlaying(true);
+      setIsPlaying(true);
+      return;
+    }
+
     if (!audioRef.current) return;
 
     if (isPlaying) {
@@ -348,6 +441,17 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         localStorage.setItem("tipoTransmision", tipoTransmision);
         localStorage.setItem("imagenPortada", imagenPortada);
       } catch {}
+
+      if (payload.streamUrl) {
+        setStreamUrl(payload.streamUrl);
+      }
+      if (payload.tipoTransmision) {
+        setTipoTransmision(payload.tipoTransmision);
+      }
+      if (payload.imagenPortada) {
+        setImagenPortada(payload.imagenPortada);
+      }
+
       setSuccess(true);
       try {
         window.dispatchEvent(new CustomEvent("tenantUpdated", {
@@ -527,7 +631,115 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 />
               </Box>
             ) : esPodcast ? (
-              audioUrl ? (
+              useKickIframeFallback ? (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box
+                    sx={{
+                      position: "relative",
+                      width: "100%",
+                      aspectRatio: "16 / 9",
+                      borderRadius: 1,
+                      overflow: "hidden",
+                      border: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: "action.hover",
+                      cursor: kickIframeUrl ? "pointer" : "default",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onClick={() => {
+                      if (!kickIframeUrl) return;
+                      handleTogglePlay();
+                    }}
+                  >
+                    {imagenPortada ? (
+                      <Box
+                        component="img"
+                        src={imagenPortada}
+                        alt="Portada del podcast"
+                        sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <Box
+                        sx={{
+                          width: "100%",
+                          height: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          bgcolor: "action.hover",
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 48, opacity: 0.15 }}>
+                          <span className="material-symbols-outlined">podcasts</span>
+                        </Typography>
+                      </Box>
+                    )}
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.5))",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 66,
+                          height: 66,
+                          borderRadius: "50%",
+                          bgcolor: "rgba(0,0,0,0.7)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "white",
+                          fontSize: 32,
+                        }}
+                      >
+                        <span className="material-symbols-outlined">
+                          {kickIframePlaying ? "pause" : "play_arrow"}
+                        </span>
+                      </Box>
+                    </Box>
+
+                    {kickIframeSrc && (
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          inset: 0,
+                          width: "100%",
+                          height: "100%",
+                        }}
+                      >
+                        <Box
+                          component="iframe"
+                          src={kickIframeSrc}
+                          title="Kick audio player"
+                          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                          sx={{ width: "100%", height: "100%", border: "none", pointerEvents: "none" }}
+                        />
+                      </Box>
+                    )}
+                  </Box>
+
+                  <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 1 }}>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+                      {kickIframePlaying ? "Reproduciendo audio Kick" : "Tocá la portada para reproducir"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      El audio se reproduce con el iframe oficial de Kick.
+                    </Typography>
+                    {!kickIframeUrl && (
+                      <Typography variant="caption" color="error">
+                        No se pudo detectar el canal Kick en la URL.
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              ) : audioUrl ? (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <Box
                     sx={{
