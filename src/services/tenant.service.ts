@@ -43,6 +43,14 @@ export interface BrandingPayload {
   tipoTransmision?: string;
   imagenPortada?: string;
 
+  instagramUrl?: string;
+  youtubeUrl?: string;
+  tiktokUrl?: string;
+  facebookUrl?: string;
+  twitterUrl?: string;
+  linkedinUrl?: string;
+  whatsappUrl?: string;
+
   colorPrimario?: string;
   colorSecundario?: string;
   colorFondo?: string;
@@ -53,6 +61,8 @@ export interface BrandingPayload {
   colorBotones?: string; // extra
   colorCardFondo?: string; // extra
   colorIconos?: string; // extra
+
+  temasPersonalizados?: string;
 }
 
 /** GET /tenants — listado (público) */
