@@ -149,6 +149,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     nombre: t?.nombre ?? "",
     logoUrl: t?.logoUrl ?? "",
     bannerUrl: t?.bannerUrl ?? "",
+    instagramUrl: t?.instagramUrl ?? "",
+    youtubeUrl: t?.youtubeUrl ?? "",
+    tiktokUrl: t?.tiktokUrl ?? "",
+    facebookUrl: t?.facebookUrl ?? "",
+    twitterUrl: t?.twitterUrl ?? "",
+    linkedinUrl: t?.linkedinUrl ?? "",
+    whatsappUrl: t?.whatsappUrl ?? "",
     fontFamily: t?.fontFamily ?? "system-ui",
     colores: {
       fondo: t?.colorFondo ?? "#000000",
@@ -181,7 +188,15 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
   const [nombre, setNombre] = useState(inicial.nombre);
   const [logoUrl, setLogoUrl] = useState(inicial.logoUrl);
-  const [bannerUrl, setBannerUrl] = useState(inicial.bannerUrl);  const [fontFamily, setFontFamily] = useState(inicial.fontFamily);  const [colores, setColores] = useState<Colores>(inicial.colores);
+  const [bannerUrl, setBannerUrl] = useState(inicial.bannerUrl);
+  const [instagramUrl, setInstagramUrl] = useState(inicial.instagramUrl);
+  const [youtubeUrl, setYoutubeUrl] = useState(inicial.youtubeUrl);
+  const [tiktokUrl, setTiktokUrl] = useState(inicial.tiktokUrl);
+  const [facebookUrl, setFacebookUrl] = useState(inicial.facebookUrl);
+  const [twitterUrl, setTwitterUrl] = useState(inicial.twitterUrl);
+  const [linkedinUrl, setLinkedinUrl] = useState(inicial.linkedinUrl);
+  const [whatsappUrl, setWhatsappUrl] = useState(inicial.whatsappUrl);
+  const [fontFamily, setFontFamily] = useState(inicial.fontFamily);  const [colores, setColores] = useState<Colores>(inicial.colores);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -193,6 +208,28 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [nombreNuevoTema, setNombreNuevoTema] = useState("");
   const [temasPersonalizados, setTemasPersonalizados] = useState<{ nombre: string; colores: Colores }[]>([]);
 
+  const guardarTemasEnBase = async (temas: { nombre: string; colores: Colores }[]) => {
+    const payload = JSON.stringify(temas);
+    localStorage.setItem("branding-temas-personalizados", payload);
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+
+      const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ temasPersonalizados: payload }),
+      });
+
+      if (!res.ok) {
+        throw new Error("No se pudo guardar el tema en la base de datos");
+      }
+    } catch {
+      // Se mantiene localStorage como respaldo en caso de que la API no esté disponible.
+    }
+  };
+
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -200,17 +237,24 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
   useEffect(() => {
     setUltimoGuardado(inicial);
-    // Cargar temas personalizados desde localStorage
-    const temasGuardados = localStorage.getItem("branding-temas-personalizados");
-    if (temasGuardados) {
+
+    const cargarTemas = async () => {
+      const tenantTemas = (perfil.tenant as any)?.temasPersonalizados;
+      const localTemas = localStorage.getItem("branding-temas-personalizados");
+      const raw = tenantTemas || localTemas;
+
+      if (!raw) return;
+
       try {
-        const parsed = JSON.parse(temasGuardados) as { nombre: string; colores: Partial<Colores> }[];
+        const parsed = JSON.parse(raw) as { nombre: string; colores: Partial<Colores> }[];
         const normalized = parsed.map((t) => ({ nombre: t.nombre, colores: ensureColores(t.colores) }));
         setTemasPersonalizados(normalized);
       } catch (e) {
         console.error("Error cargando temas personalizados", e);
       }
-    }
+    };
+
+    cargarTemas();
   }, [perfil]);
 
   useEffect(() => {
@@ -286,12 +330,19 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setNombre(ultimoGuardado.nombre);
     setLogoUrl(ultimoGuardado.logoUrl);
     setBannerUrl(ultimoGuardado.bannerUrl);
+    setInstagramUrl(ultimoGuardado.instagramUrl);
+    setYoutubeUrl(ultimoGuardado.youtubeUrl);
+    setTiktokUrl(ultimoGuardado.tiktokUrl);
+    setFacebookUrl(ultimoGuardado.facebookUrl);
+    setTwitterUrl(ultimoGuardado.twitterUrl);
+    setLinkedinUrl(ultimoGuardado.linkedinUrl);
+    setWhatsappUrl(ultimoGuardado.whatsappUrl);
     setFontFamily(ultimoGuardado.fontFamily);
     setColores(ultimoGuardado.colores);
     setSuccess(false);
     setError("");
   };
-  const handleGuardarTemaPersonalizado = () => {
+  const handleGuardarTemaPersonalizado = async () => {
     if (!nombreNuevoTema.trim()) {
       setError("El nombre del tema no puede estar vacío");
       return;
@@ -299,7 +350,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     const nuevoTema = { nombre: nombreNuevoTema.trim(), colores: ensureColores(colores) };
     const temasActualizados = [...temasPersonalizados, nuevoTema];
     setTemasPersonalizados(temasActualizados);
-    localStorage.setItem("branding-temas-personalizados", JSON.stringify(temasActualizados));
+    await guardarTemasEnBase(temasActualizados);
     setSuccess(true);
     setShowGuardarTema(false);
     setNombreNuevoTema("");
@@ -315,7 +366,17 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          nombre, logoUrl, bannerUrl, fontFamily,
+          nombre,
+          logoUrl,
+          bannerUrl,
+          fontFamily,
+          instagramUrl,
+          youtubeUrl,
+          tiktokUrl,
+          facebookUrl,
+          twitterUrl,
+          linkedinUrl,
+          whatsappUrl,
           colorFondo: colores.fondo,
           colorCabecera: colores.cabecera,
           colorTexto: colores.texto,
@@ -329,7 +390,20 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       });
       if (!res.ok) throw new Error("Error");
       setSuccess(true);
-      setUltimoGuardado({ nombre, logoUrl, bannerUrl, fontFamily, colores });
+      setUltimoGuardado({
+        nombre,
+        logoUrl,
+        bannerUrl,
+        instagramUrl,
+        youtubeUrl,
+        tiktokUrl,
+        facebookUrl,
+        twitterUrl,
+        linkedinUrl,
+        whatsappUrl,
+        fontFamily,
+        colores,
+      });
       try {
         window.dispatchEvent(new CustomEvent("tenantUpdated", {
           detail: {
@@ -337,6 +411,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             logoUrl,
             bannerUrl,
             fontFamily,
+            instagramUrl,
+            youtubeUrl,
+            tiktokUrl,
+            facebookUrl,
+            twitterUrl,
+            linkedinUrl,
+            whatsappUrl,
             colorFondo: colores.fondo,
             colorCabecera: colores.cabecera,
             colorTexto: colores.texto,
@@ -388,6 +469,37 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               <CardHeader icon="label">Nombre de la Marca</CardHeader>
               <TextField value={nombre} fullWidth placeholder="Ej: StreamManager"
                 onChange={(e) => { setNombre(e.target.value); setSuccess(false); }} />
+            </CardContent>
+          </Card>
+
+          {/* Redes sociales */}
+          <Card variant="outlined">
+            <CardContent>
+              <CardHeader icon="share">Redes Sociales</CardHeader>
+              <Box sx={{ display: "grid", gap: 2 }}>
+                {[
+                  { key: "instagramUrl", label: "Instagram", value: instagramUrl, setter: setInstagramUrl },
+                  { key: "youtubeUrl", label: "YouTube", value: youtubeUrl, setter: setYoutubeUrl },
+                  { key: "tiktokUrl", label: "TikTok", value: tiktokUrl, setter: setTiktokUrl },
+                  { key: "facebookUrl", label: "Facebook", value: facebookUrl, setter: setFacebookUrl },
+                  { key: "twitterUrl", label: "X / Twitter", value: twitterUrl, setter: setTwitterUrl },
+                  { key: "linkedinUrl", label: "LinkedIn", value: linkedinUrl, setter: setLinkedinUrl },
+                  { key: "whatsappUrl", label: "WhatsApp", value: whatsappUrl, setter: setWhatsappUrl },
+                ].map(({ key, label, value, setter }) => (
+                  <TextField
+                    key={key}
+                    fullWidth
+                    label={label}
+                    value={value}
+                    placeholder={label === "WhatsApp" ? "https://wa.me/5491112345678" : `https://${label.toLowerCase().replace(/\s+/g, "")}.com/tu-cuenta`}
+                    onChange={(e) => {
+                      setter(e.target.value);
+                      setSuccess(false);
+                    }}
+                    size="small"
+                  />
+                ))}
+              </Box>
             </CardContent>
           </Card>
 

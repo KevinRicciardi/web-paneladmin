@@ -15,6 +15,14 @@ export interface Tenant {
   tipoTransmision?: string;
   imagenPortada?: string;
 
+  instagramUrl?: string | null;
+  youtubeUrl?: string | null;
+  tiktokUrl?: string | null;
+  facebookUrl?: string | null;
+  twitterUrl?: string | null;
+  linkedinUrl?: string | null;
+  whatsappUrl?: string | null;
+
   colorPrimario?: string | null;
   colorSecundario?: string | null;
   colorFondo?: string;
@@ -28,6 +36,7 @@ export interface Tenant {
 
   admins?: AdminUser[];
   fontFamily?: string | null; // Fuente personalizada (ej: "Roboto", "Montserrat", etc.)
+  temasPersonalizados?: string | null;
 }
 
 export interface Perfil {
