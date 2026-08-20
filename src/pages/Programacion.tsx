@@ -27,6 +27,7 @@ import {
 import type { DiasSemana, Programa, ProgramaPayload } from "../types";
 import {
   listarMiProgramacion,
+  obtenerPrograma,
   crearPrograma,
   actualizarPrograma,
   eliminarPrograma,
@@ -419,18 +420,22 @@ export default function Programacion() {
 
   useEffect(() => {
     let active = true;
+    let tieneCache = false;
 
     // Mostrar cache inmediata si existe, luego cargar en background
     try {
       const cached = sessionStorage.getItem("programacion_cache");
       if (cached) {
         setProgramas(JSON.parse(cached));
+        tieneCache = true;
       }
     } catch {}
 
     void (async () => {
       try {
-        setCargando(true);
+        if (!tieneCache) {
+          setCargando(true);
+        }
         setError(null);
 
         const data = await listarMiProgramacion();
@@ -464,7 +469,14 @@ export default function Programacion() {
     setAbierto(true);
   };
 
-  const abrirEdicion = (p: Programa) => {
+  const abrirEdicion = async (p: Programa) => {
+    try {
+      p = await obtenerPrograma(p.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al cargar el programa");
+      return;
+    }
+
     const fechaInicioDate = parsearFechaInput(p.fechaInicio ?? "");
     const fechaFinDate = parsearFechaInput(p.fechaFin ?? "");
 

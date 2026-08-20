@@ -3,29 +3,35 @@ import type { Programa, ProgramaPayload } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
+let tokenCache: { value: string; expiresAt: number } | null = null;
+let tokenRequest: Promise<string> | null = null;
+let listadoProgramacionEnCurso: Promise<Programa[]> | null = null;
+let listadoProgramacionCache: { userId: string; data: Programa[]; expiresAt: number } | null = null;
+const DURACION_CACHE_LISTADO = 30_000;
+
 async function getAuthHeaders() {
-  // Simple in-memory token cache to avoid requesting a new token on every call.
-  // Cache is valid for 50 seconds.
   const now = Date.now();
-  // @ts-ignore - module-scoped cache
-  if ((getAuthHeaders as any)._cachedToken && (getAuthHeaders as any)._cachedTokenExp > now) {
+  if (tokenCache && tokenCache.expiresAt > now) {
     return {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${(getAuthHeaders as any)._cachedToken}`,
+      Authorization: `Bearer ${tokenCache.value}`,
     };
   }
 
-  const token = await auth.currentUser?.getIdToken();
+  tokenRequest ??= auth.currentUser?.getIdToken() ?? Promise.reject(new Error("No hay usuario autenticado"));
+
+  let token: string;
+  try {
+    token = await tokenRequest;
+  } finally {
+    tokenRequest = null;
+  }
 
   if (!token) {
     throw new Error("No hay usuario autenticado");
   }
 
-  // Cache token for a short period to reduce latency on repeated requests.
-  try {
-    (getAuthHeaders as any)._cachedToken = token;
-    (getAuthHeaders as any)._cachedTokenExp = now + 50_000; // 50 seconds
-  } catch {}
+  tokenCache = { value: token, expiresAt: now + 50_000 };
 
   return {
     "Content-Type": "application/json",
@@ -51,11 +57,47 @@ async function parseResponse<T>(res: Response): Promise<T> {
 }
 
 export async function listarMiProgramacion(): Promise<Programa[]> {
+  const userId = auth.currentUser?.uid;
+  const ahora = Date.now();
+
+  if (
+    userId &&
+    listadoProgramacionCache?.userId === userId &&
+    listadoProgramacionCache.expiresAt > ahora
+  ) {
+    return listadoProgramacionCache.data;
+  }
+
+  if (listadoProgramacionEnCurso) {
+    return listadoProgramacionEnCurso;
+  }
+
+  listadoProgramacionEnCurso = (async () => {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/programacion/mi-tenant`, { headers });
+
+    const data = await parseResponse<Programa[]>(res);
+    if (userId) {
+      listadoProgramacionCache = {
+        userId,
+        data,
+        expiresAt: Date.now() + DURACION_CACHE_LISTADO,
+      };
+    }
+    return data;
+  })();
+
+  try {
+    return await listadoProgramacionEnCurso;
+  } finally {
+    listadoProgramacionEnCurso = null;
+  }
+}
+
+export async function obtenerPrograma(id: number): Promise<Programa> {
   const headers = await getAuthHeaders();
-
-  const res = await fetch(`${API_URL}/programacion/mi-tenant`, { headers });
-
-  return parseResponse<Programa[]>(res);
+  const res = await fetch(`${API_URL}/programacion/mi-tenant/${id}`, { headers });
+  return parseResponse<Programa>(res);
 }
 
 export async function crearPrograma(
@@ -71,7 +113,9 @@ export async function crearPrograma(
     body,
   });
 
-  return parseResponse<Programa>(res);
+  const data = await parseResponse<Programa>(res);
+  invalidarCacheProgramacion();
+  return data;
 }
 
 export async function actualizarPrograma(
@@ -88,7 +132,9 @@ export async function actualizarPrograma(
     body,
   });
 
-  return parseResponse<Programa>(res);
+  const data = await parseResponse<Programa>(res);
+  invalidarCacheProgramacion();
+  return data;
 }
 
 export async function eliminarPrograma(
@@ -101,7 +147,9 @@ export async function eliminarPrograma(
     headers,
   });
 
-  return parseResponse<{ deleted: boolean; id: number }>(res);
+  const data = await parseResponse<{ deleted: boolean; id: number }>(res);
+  invalidarCacheProgramacion();
+  return data;
 }
 
 /** Público, para la app: GET /tenants/:slug/programacion */
@@ -110,4 +158,8 @@ export async function listarProgramacionPorSlug(
 ): Promise<Programa[]> {
   const res = await fetch(`${API_URL}/tenants/${slug}/programacion`);
   return parseResponse<Programa[]>(res);
+}
+
+function invalidarCacheProgramacion() {
+  listadoProgramacionCache = null;
 }
