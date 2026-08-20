@@ -1,3 +1,9 @@
+export interface AdminUser {
+  email: string;
+  rol: string;
+  activo?: boolean;
+}
+
 export interface Tenant {
   id: number;
   nombre: string;
@@ -28,6 +34,7 @@ export interface Tenant {
   colorCardFondo?: string | null; // extra
   colorIconos?: string | null; // extra
 
+  admins?: AdminUser[];
   fontFamily?: string | null; // Fuente personalizada (ej: "Roboto", "Montserrat", etc.)
   temasPersonalizados?: string | null;
 }
