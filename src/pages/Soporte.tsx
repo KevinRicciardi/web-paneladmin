@@ -6,23 +6,23 @@ export default function Soporte({ perfil: _perfil }: { perfil: Perfil }) {
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
-        Guía de Uso
+        Centro de ayuda
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Te ayudamos a configurar tu canal paso a paso para que tu marca se vea profesional y tu stream funcione correctamente.
+        Aquí encontrarás orientación práctica para mantener tu panel actualizado, ordenado y listo para operar.
       </Typography>
 
       <Stack spacing={2}>
         <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ mb: 1 }}>
-              1. Prepara tu marca
+              1. Define la identidad de tu marca
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              Comenzá por completar el nombre, logo, banner y paleta de colores en la sección Branding.
+              Antes de salir al aire, lo primero es ponerle tu toque personal. Acá podés subir la foto de perfil, poner el logo de tu marca, cambiar la imagen de portada y elegir los colores que te van a identificar. Es la cara visible que van a ver todos cuando entren.
             </Typography>
             <Button component={RouterLink} to="/branding" variant="contained" size="small">
-              Ir a Branding
+              Ver Branding
             </Button>
           </CardContent>
         </Card>
@@ -30,10 +30,10 @@ export default function Soporte({ perfil: _perfil }: { perfil: Perfil }) {
         <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ mb: 1 }}>
-              2. Configura tu stream
+              2. Gestiona tu transmisión
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              Verificá la URL de transmisión, seleccioná el modo de stream y cargá la imagen de portada correcta.
+              Para que tu programa de video (como OBS) se conecte con esta página, necesitás la clave de acceso. En este apartado vas a encontrar los datos para copiar y pegar en tu programa, elegir cómo vas a emitir y dejar la pantalla lista para cuando aprietes el botón de salir en vivo.
             </Typography>
             <Button component={RouterLink} to="/streaming" variant="contained" size="small">
               Ir a Streaming
@@ -44,10 +44,10 @@ export default function Soporte({ perfil: _perfil }: { perfil: Perfil }) {
         <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ mb: 1 }}>
-              3. Organiza tu programación
+              3. Organiza tu agenda de contenido
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              Agregá bloques de emisión con horarios claros para que tu público conozca la grilla semanal.
+              A nadie le gusta entrar a un canal y no saber cuándo hay contenido. Acá podés armar un calendario bien claro con los días y los horarios en los que vas a transmitir durante la semana, así tus seguidores ya saben exactamente qué día conectarse para verte.
             </Typography>
             <Button component={RouterLink} to="/programacion" variant="contained" size="small">
               Ir a Programación
@@ -58,10 +58,10 @@ export default function Soporte({ perfil: _perfil }: { perfil: Perfil }) {
         <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ mb: 1 }}>
-              4. Publica noticias
+              4. Publica novedades con frecuencia
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              Creá anuncios, guardá borradores y publicá noticias sobre novedades de tu canal.
+              Usá este espacio para escribirle directamente a la gente que te sigue. Podés contarles sobre el próximo evento que vas a hacer, avisar si cambiás un horario o dejar un mensaje fijado para los que recién te conocen. Es tu cartelera de anuncios.
             </Typography>
             <Button component={RouterLink} to="/noticias" variant="contained" size="small">
               Ir a Noticias
@@ -72,16 +72,25 @@ export default function Soporte({ perfil: _perfil }: { perfil: Perfil }) {
         <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ mb: 1 }}>
-              Soporte y ayuda adicional
+              Ayuda personalizada
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 1 }}>
-              Si tenés dudas técnicas o querés reportar un error, escribinos al siguiente mail:
+              Si necesitas asistencia, puedes escribirnos a nuestro canal de soporte para resolver dudas o problemas.
             </Typography>
             <Typography sx={{ mb: 1 }}>
-              <Link href="mailto:soporte@streammanager.example">soporte@streammanager.example</Link>
+              <Link
+                href="https://mail.google.com/mail/u/0/?view=cm&to=ayuda@webpanel.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                underline="hover"
+                color="info.main"
+                sx={{ fontWeight: 600 }}
+              >
+                ayuda@webpanel.com
+              </Link>
             </Typography>
             <Typography color="text.secondary">
-              También podés consultar la documentación interna de tu plataforma en el futuro si se habilita.
+              También puedes revisar la configuración de tu cuenta y las secciones del panel para encontrar respuestas rápidas.
             </Typography>
           </CardContent>
         </Card>
