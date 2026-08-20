@@ -3,12 +3,32 @@ import type { News, NewsPayload } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
+let tokenCache: { value: string; expiresAt: number } | null = null;
+let tokenRequest: Promise<string> | null = null;
+
 async function getAuthHeaders() {
-  const token = await auth.currentUser?.getIdToken();
+  const now = Date.now();
+  if (tokenCache && tokenCache.expiresAt > now) {
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${tokenCache.value}`,
+    };
+  }
+
+  tokenRequest ??= auth.currentUser?.getIdToken() ?? Promise.reject(new Error("No hay usuario autenticado"));
+
+  let token: string;
+  try {
+    token = await tokenRequest;
+  } finally {
+    tokenRequest = null;
+  }
 
   if (!token) {
     throw new Error("No hay usuario autenticado");
   }
+
+  tokenCache = { value: token, expiresAt: now + 50_000 };
 
   return {
     "Content-Type": "application/json",
@@ -41,6 +61,12 @@ export async function listarMisNoticias(): Promise<News[]> {
   });
 
   return parseResponse<News[]>(res);
+}
+
+export async function obtenerNoticia(id: number): Promise<News> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}/news/mi-tenant/${id}`, { headers });
+  return parseResponse<News>(res);
 }
 
 export async function crearNoticia(payload: NewsPayload): Promise<News> {

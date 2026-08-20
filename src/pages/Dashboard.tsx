@@ -53,23 +53,25 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
       console.debug("Cache read error:", e);
     }
 
-    void (async () => {
-      try {
-        const [progs, newsList] = await Promise.all([listarMiProgramacion(), listarMisNoticias()]);
+    void listarMiProgramacion()
+      .then((progs) => {
         if (!active) return;
         setProgramas(progs);
+        try { sessionStorage.setItem("programacion_cache", JSON.stringify(progs)); } catch (e) {
+          console.debug("Cache write error:", e);
+        }
+      })
+      .catch((e) => console.debug("Programming load error:", e));
+
+    void listarMisNoticias()
+      .then((newsList) => {
+        if (!active) return;
         setNoticias(newsList);
-        try { sessionStorage.setItem("programacion_cache", JSON.stringify(progs)); } catch (e) { 
+        try { sessionStorage.setItem("noticias_cache", JSON.stringify(newsList)); } catch (e) {
           console.debug("Cache write error:", e);
         }
-        try { sessionStorage.setItem("noticias_cache", JSON.stringify(newsList)); } catch (e) { 
-          console.debug("Cache write error:", e);
-        }
-      } catch (e) {
-        // Silencioso: no bloquear dashboard si falla
-        console.debug("Load error:", e);
-      }
-    })();
+      })
+      .catch((e) => console.debug("News load error:", e));
 
     // Polling de Kick cada 1 segundo si hay canal
     const fetchKickData = async () => {
@@ -313,3 +315,4 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
     </Box>
   );
 }
+

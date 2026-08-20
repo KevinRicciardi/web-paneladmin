@@ -25,6 +25,7 @@ import {
   despublicarNoticia,
   eliminarNoticia,
   listarMisNoticias,
+  obtenerNoticia,
   publicarNoticia,
 } from "../services/news.service";
 
@@ -81,8 +82,7 @@ function timeAgo(value?: string | null) {
 function excerptFrom(news: News) {
   return (
     news.excerpt ||
-    news.content
-      .replace(/[#*_>`-]/g, "")
+    news.content?.replace(/[#*_>`-]/g, "")
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 120) ||
@@ -158,7 +158,19 @@ export default function Noticias() {
   
 
   const loadNoticias = async () => {
-    setLoading(true);
+    let hasCache = false;
+    try {
+      const cached = sessionStorage.getItem("noticias_cache");
+      if (cached) {
+        const parsed = JSON.parse(cached) as News[];
+        setNoticias(parsed);
+        hasCache = true;
+      }
+    } catch {
+      // Una caché inválida no debe impedir la carga desde la API.
+    }
+
+    setLoading(!hasCache);
     setError("");
 
     try {
@@ -199,15 +211,27 @@ export default function Noticias() {
     setSuccess("");
   };
 
-  const openEdit = (news: News) => {
+  const openEdit = async (news: News) => {
     setSelected(news);
     setForm({
       title: news.title,
       coverImageUrl: news.coverImageUrl ?? "",
-      content: news.content,
+      content: "",
     });
     setError("");
     setSuccess("");
+
+    try {
+      const detail = await obtenerNoticia(news.id);
+      setSelected(detail);
+      setForm({
+        title: detail.title,
+        coverImageUrl: detail.coverImageUrl ?? "",
+        content: detail.content,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cargar la noticia");
+    }
   };
 
   const closeEditor = () => {
