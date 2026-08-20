@@ -140,6 +140,13 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
   };
 
   const handleAddAdmin = async () => {
+    if (perfil.rol !== "SUPER_ADMIN" && adminRole === "SUPER_ADMIN") {
+      setAdminError("Solo un super administrador puede agregar otro super administrador.");
+      setAdminSuccess("");
+      setAdminRole("ADMIN_CLIENTE");
+      return;
+    }
+
     const email = adminEmail.trim().toLowerCase();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setAdminError("Ingresá un correo válido para agregar un administrador.");
@@ -170,10 +177,10 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
     try {
       setAdminLoading(true);
       const token = await auth.currentUser?.getIdToken();
-      const res = await fetch(`${API_URL}/tenants/mi-tenant/admins`, {
+      const res = await fetch(`${API_URL}/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ email, rol: adminRole }),
+        body: JSON.stringify({ email, rol: adminRole, tenantId: tenant.id }),
       });
 
       if (!res.ok) {
@@ -325,7 +332,9 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
                   onChange={(e) => setAdminRole(e.target.value)}
                 >
                   <MenuItem value="ADMIN_CLIENTE">Administrador</MenuItem>
-                  <MenuItem value="SUPER_ADMIN">Super administrador</MenuItem>
+                  {perfil.rol === "SUPER_ADMIN" && (
+                    <MenuItem value="SUPER_ADMIN">Super administrador</MenuItem>
+                  )}
                 </Select>
               </FormControl>
             </Stack>
