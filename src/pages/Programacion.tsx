@@ -469,14 +469,19 @@ export default function Programacion() {
     setAbierto(true);
   };
 
-  const abrirEdicion = async (p: Programa) => {
-    try {
-      p = await obtenerPrograma(p.id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cargar el programa");
-      return;
-    }
+  const abrirEdicion = (p: Programa) => {
+    prepararFormularioEdicion(p);
+    setAbierto(true);
 
+    void obtenerPrograma(p.id)
+      .then((detalle) => prepararFormularioEdicion(detalle))
+      .catch(() => {
+        // El listado ya contiene los datos necesarios para abrir el editor.
+      });
+  };
+
+  const prepararFormularioEdicion = (p: Programa) => {
+    try {
     const fechaInicioDate = parsearFechaInput(p.fechaInicio ?? "");
     const fechaFinDate = parsearFechaInput(p.fechaFin ?? "");
 
@@ -521,7 +526,9 @@ export default function Programacion() {
     } else {
       setModoFecha("NINGUNO");
     }
-    setAbierto(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al cargar el programa");
+    }
   };
 
   const alternarDia = (dia: string) => {
