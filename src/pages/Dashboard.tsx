@@ -146,7 +146,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
         <Card variant="outlined">
           <CardContent>
             <Box sx={ { display: "flex", justifyContent: "space-between", mb: 1 } }>
-              <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>Viewers en Línea</Typography>
+              <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>Espectadores en Línea</Typography>
             </Box>
             <Box sx={ { display: "flex", alignItems: "flex-end", gap: 1 } }>
               <Typography sx={ { fontSize: 36, fontWeight: 800 } }>{kickData ? formatViewers(kickData.viewerCount) : "—"}</Typography>
