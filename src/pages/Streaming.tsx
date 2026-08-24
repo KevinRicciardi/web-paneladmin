@@ -202,7 +202,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const refreshKickData = async () => {
-      if (!channelName) return;
+      if (!channelName || streamProvider !== "kick") return;
 
       try {
         const data = await getKickStreamData(channelName);
@@ -228,7 +228,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       active = false;
       if (intervalId) clearInterval(intervalId);
     };
-  }, [channelName]);
+  }, [channelName, streamProvider]);
 
   useEffect(() => {
     const fetchKickAudio = async () => {
