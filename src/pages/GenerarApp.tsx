@@ -296,12 +296,12 @@ export default function GenerarApp({ perfil }: { perfil: Perfil }) {
               {
                 numero: "01",
                 titulo: "Configuración",
-                texto: "La aplicación utiliza la configuración actual del tenant.",
+                texto: "La aplicación utiliza la configuración actual del cliente.",
               },
               {
                 numero: "02",
                 titulo: "Compilación",
-                texto: "Se genera el .AAB utilizando el identificador del tenant.",
+                texto: "Se genera el .AAB utilizando el identificador del cliente.",
               },
               {
                 numero: "03",
