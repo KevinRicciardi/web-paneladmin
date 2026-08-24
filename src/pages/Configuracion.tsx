@@ -312,7 +312,7 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
             Administradores
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
-            Permití que otros usuarios gestionen el canal agregándolos como administradores del tenant.
+            Permití que otros usuarios gestionen el canal agregándolos como administradores del cliente.
           </Typography>
 
           <Stack spacing={2}>

@@ -44,7 +44,7 @@ export default function Soporte({ perfil: _perfil }: { perfil: Perfil }) {
         <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ mb: 1 }}>
-              3. Organiza tu agenda de contenido
+              3. Organiza tu Programación de contenido
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
               A nadie le gusta entrar a un canal y no saber cuándo hay contenido. Acá podés armar un calendario bien claro con los días y los horarios en los que vas a transmitir durante la semana, así tus seguidores ya saben exactamente qué día conectarse para verte.
