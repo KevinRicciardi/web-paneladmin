@@ -104,3 +104,36 @@ export interface ProgramaPayload {
   orden?: number;
   activo?: boolean;
 }
+
+export type PeriodoEstadisticas = "7d" | "30d" | "90d";
+
+export interface EstadisticasKpis {
+  descargas: number;
+  descargasVariacion: number;
+  usuariosActivos: number;
+  usuariosAndroid: number;
+}
+
+export interface EstadisticasBucket {
+  etiqueta: string;
+  valor: number;
+}
+
+export interface EstadisticasPais {
+  pais: string;
+  cantidad: number;
+  porcentaje: number;
+}
+
+export interface EstadisticasCiudad {
+  ciudad: string;
+  usuarios: number;
+}
+
+export interface Estadisticas {
+  periodo: PeriodoEstadisticas;
+  kpis: EstadisticasKpis;
+  descargasEnElTiempo: EstadisticasBucket[];
+  paises: EstadisticasPais[];
+  ciudades: EstadisticasCiudad[];
+}

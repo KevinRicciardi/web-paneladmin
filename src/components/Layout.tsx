@@ -10,6 +10,7 @@ const navItems = [
   { to: "/streaming", label: "Streaming", icon: "sensors" },
   { to: "/programacion", label: "Programación", icon: "calendar_month" },
   { to: "/noticias", label: "Noticias", icon: "newspaper" },
+  { to: "/estadisticas", label: "Estadísticas", icon: "monitoring" },
   { to: "/generar-app", label: "Generar App", icon: "phone_android" },
 ];
 
