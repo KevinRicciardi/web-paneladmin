@@ -141,6 +141,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [audioLoading, setAudioLoading] = useState(false);
   const [kickIframeSrc, setKickIframeSrc] = useState<string | null>(null);
   const [kickIframePlaying, setKickIframePlaying] = useState(false);
+  const [youtubeAudioSrc, setYoutubeAudioSrc] = useState<string | null>(null);
+  const [youtubeAudioPlaying, setYoutubeAudioPlaying] = useState(false);
   const portadaInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -154,6 +156,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const audioUrl = rawAudioUrl && !isHlsStream ? rawAudioUrl : null;
   const useKickIframeFallback = esPodcast && Boolean(channelName) && !audioUrl;
   const kickIframeUrl = useKickIframeFallback && channelName ? `https://player.kick.com/${channelName}` : null;
+  const useYoutubeAudioFallback = esPodcast && streamProvider === "youtube" && Boolean(youtubeEmbedUrl);
 
   useEffect(() => {
     if (!useKickIframeFallback) {
@@ -162,6 +165,13 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       setIsPlaying(false);
     }
   }, [useKickIframeFallback]);
+
+  useEffect(() => {
+    if (!useYoutubeAudioFallback) {
+      setYoutubeAudioSrc(null);
+      setYoutubeAudioPlaying(false);
+    }
+  }, [useYoutubeAudioFallback]);
 
   useEffect(() => {
     if (t?.streamUrl) {
@@ -361,6 +371,21 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   }, [audioUrl]);
 
   const handleTogglePlay = () => {
+    if (useYoutubeAudioFallback) {
+      if (!youtubeEmbedUrl) return;
+      if (youtubeAudioSrc) {
+        setYoutubeAudioSrc(null);
+        setYoutubeAudioPlaying(false);
+        setIsPlaying(false);
+        return;
+      }
+
+      setYoutubeAudioSrc(`${youtubeEmbedUrl}&autoplay=1`);
+      setYoutubeAudioPlaying(true);
+      setIsPlaying(true);
+      return;
+    }
+
     if (useKickIframeFallback) {
       if (!kickIframeUrl) return;
       if (kickIframeSrc) {
@@ -739,7 +764,107 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 />
               </Box>
             ) : esPodcast ? (
-              useKickIframeFallback ? (
+              useYoutubeAudioFallback ? (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box
+                    sx={{
+                      position: "relative",
+                      width: "100%",
+                      aspectRatio: "16 / 9",
+                      borderRadius: 1,
+                      overflow: "hidden",
+                      border: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: "action.hover",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onClick={handleTogglePlay}
+                  >
+                    {imagenPortada ? (
+                      <Box
+                        component="img"
+                        src={imagenPortada}
+                        alt="Portada del podcast"
+                        sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <Box
+                        sx={{
+                          width: "100%",
+                          height: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          bgcolor: "action.hover",
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 48, opacity: 0.15 }}>
+                          <span className="material-symbols-outlined">podcasts</span>
+                        </Typography>
+                      </Box>
+                    )}
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.5))",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 66,
+                          height: 66,
+                          borderRadius: "50%",
+                          bgcolor: "rgba(0,0,0,0.7)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "white",
+                          fontSize: 32,
+                        }}
+                      >
+                        <span className="material-symbols-outlined">
+                          {youtubeAudioPlaying ? "pause" : "play_arrow"}
+                        </span>
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  {/* Iframe de YouTube realmente oculto: sigue sonando pero no se ve el video */}
+                  {youtubeAudioSrc && (
+                    <Box
+                      component="iframe"
+                      src={youtubeAudioSrc}
+                      title="YouTube audio player"
+                      allow="autoplay; encrypted-media"
+                      sx={{
+                        position: "absolute",
+                        width: "1px",
+                        height: "1px",
+                        opacity: 0,
+                        overflow: "hidden",
+                        pointerEvents: "none",
+                        border: "none",
+                      }}
+                    />
+                  )}
+
+                  <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 1 }}>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+                      {youtubeAudioPlaying ? "Reproduciendo audio de YouTube" : "Tocá la portada para reproducir"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      YouTube no permite extraer solo el audio: se reproduce el video oficial de YouTube oculto en segundo plano, así que solo se escucha.
+                    </Typography>
+                  </Box>
+                </Box>
+              ) : useKickIframeFallback ? (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <Box
                     sx={{
