@@ -5,6 +5,7 @@ import {
   alpha,
 } from "@mui/material";
 import { auth } from "../firebase";
+import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 
 const API_URL = "http://localhost:3000";
@@ -207,6 +208,12 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [showGuardarTema, setShowGuardarTema] = useState(false);
   const [nombreNuevoTema, setNombreNuevoTema] = useState("");
   const [temasPersonalizados, setTemasPersonalizados] = useState<{ nombre: string; colores: Colores }[]>([]);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropDialogSource, setCropDialogSource] = useState<string | null>(null);
+  const [cropDialogType, setCropDialogType] = useState<"logo" | "banner">("logo");
+  const [cropDialogFileName, setCropDialogFileName] = useState("imagen");
+  const [originalLogoSource, setOriginalLogoSource] = useState<string | null>(null);
+  const [originalBannerSource, setOriginalBannerSource] = useState<string | null>(null);
 
   const guardarTemasEnBase = async (temas: { nombre: string; colores: Colores }[]) => {
     const payload = JSON.stringify(temas);
@@ -312,14 +319,41 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     }
   };
 
+  const abrirEditorDeRecorte = (file: File, tipo: "logo" | "banner") => {
+    const url = URL.createObjectURL(file);
+    if (tipo === "logo" && originalLogoSource?.startsWith("blob:")) URL.revokeObjectURL(originalLogoSource);
+    if (tipo === "banner" && originalBannerSource?.startsWith("blob:")) URL.revokeObjectURL(originalBannerSource);
+    tipo === "logo" ? setOriginalLogoSource(url) : setOriginalBannerSource(url);
+    setCropDialogSource(url);
+    setCropDialogType(tipo);
+    setCropDialogFileName(file.name || `${tipo}.jpg`);
+    setCropModalOpen(true);
+  };
+
+  const abrirEditorExistente = (tipo: "logo" | "banner") => {
+    const url = tipo === "logo" ? logoUrl : bannerUrl;
+    if (!url) return;
+    setCropDialogSource(tipo === "logo" ? originalLogoSource || url : originalBannerSource || url);
+    setCropDialogType(tipo);
+    setCropDialogFileName(`${tipo}.jpg`);
+    setCropModalOpen(true);
+  };
+
+  const cancelarRecorte = () => {
+    setCropModalOpen(false);
+    if (cropDialogSource?.startsWith("blob:") && cropDialogSource !== originalLogoSource && cropDialogSource !== originalBannerSource) URL.revokeObjectURL(cropDialogSource);
+    setCropDialogSource(null);
+  };
+
   const handleDrop = (e: React.DragEvent, tipo: "logo" | "banner") => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
-    if (file) handleUpload(file, tipo);
+    if (file) abrirEditorDeRecorte(file, tipo);
   };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, tipo: "logo" | "banner") => {
     const file = e.target.files?.[0];
-    if (file) handleUpload(file, tipo);
+    if (file) abrirEditorDeRecorte(file, tipo);
+    e.target.value = "";
   };
   const copiar = (valor: string, key: string) => {
     navigator.clipboard.writeText(valor);
@@ -531,13 +565,17 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     </Box>
                     <Typography variant="body1">Arrastrá y soltá tu logo aquí</Typography>
                     <Typography variant="body2" color="text.secondary">PNG, SVG o JPG (máx. 2MB)</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={ { display: "block", mt: 0.5 } }>
+                      Tamaño recomendado: 512x512px o más, formato cuadrado para mejor visualización.
+                    </Typography>
                     <Button variant="outlined" size="small" sx={ { mt: 1 } }
                       onClick={(e) => { e.stopPropagation(); logoInputRef.current?.click(); } }>Buscar Archivos</Button>
                   </>
                 )}
               </Box>
               {logoUrl && (
-                <Box sx={ { textAlign: "right", mt: 1 } }>
+                <Box sx={ { display: "flex", justifyContent: "flex-end", gap: 1, mt: 1 } }>
+                  <Button size="small" variant="outlined" onClick={() => abrirEditorExistente("logo")}>Editar</Button>
                   <Button size="small" color="error" onClick={() => { setLogoUrl(""); setSuccess(false); }}>Quitar logo</Button>
                 </Box>
               )}
@@ -687,6 +725,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 ) : (
                   <Box sx={ { py: 2, textAlign: "center" } }>
                     <Typography variant="body2" color="text.secondary" gutterBottom>Tamaño recomendado: 1920x320px</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={ { display: "block", mb: 1 } }>
+                      Ideal para banner de cabecera: formato panorámico y resolución alta.
+                    </Typography>
                     <Button variant="outlined" size="small"
                       onClick={(e) => { e.stopPropagation(); bannerInputRef.current?.click(); } } startIcon={<span className="material-symbols-outlined">file_upload</span>}>
                       Seleccionar Imagen
@@ -695,7 +736,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 )}
               </Box>
               {bannerUrl && (
-                <Box sx={ { textAlign: "right", mt: 1 } }>
+                <Box sx={ { display: "flex", justifyContent: "flex-end", gap: 1, mt: 1 } }>
+                  <Button size="small" variant="outlined" onClick={() => abrirEditorExistente("banner")}>Editar</Button>
                   <Button size="small" color="error" onClick={() => { setBannerUrl(""); setSuccess(false); }}>Quitar banner</Button>
                 </Box>
               )}
@@ -771,7 +813,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 <Box sx={ { position: "absolute", bottom: 16, left: 16, right: 16, display: "flex", alignItems: "center", justifyContent: "space-between" } }>
                   <Box>
                     <Typography sx={ { color: colores.texto, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5 } }>Stream</Typography>
-                    <Typography sx={ { color: colores.texto, fontSize: 18, fontWeight: 900, mt: 0.5 } }>Tinubii is offline</Typography>
+                    <Typography sx={ { color: colores.texto, fontSize: 18, fontWeight: 900, mt: 0.5 } }>{nombre || "Tu canal"} está offline</Typography>
                   </Box>
                   <Box sx={ { width: 40, height: 40, borderRadius: "50%", bgcolor: alpha(colores.texto, 0.2), display: "flex", alignItems: "center", justifyContent: "center" } }>
                     <span className="material-symbols-outlined" style={ { color: colores.texto, fontSize: 20 } }>play_arrow</span>
@@ -812,6 +854,19 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           </Card>
         </Box>
       </Box>
+
+      <ImageCropDialog
+        open={cropModalOpen}
+        imageUrl={cropDialogSource}
+        type={cropDialogType}
+        fileName={cropDialogFileName}
+        onClose={cancelarRecorte}
+        onConfirm={(file) => {
+          setCropDialogSource(null);
+          setCropModalOpen(false);
+          void handleUpload(file, cropDialogType);
+        }}
+      />
 
       {/* Modal para guardar como tema personalizado */}
       <Dialog open={showGuardarTema} onClose={() => setShowGuardarTema(false)} maxWidth="sm" fullWidth>

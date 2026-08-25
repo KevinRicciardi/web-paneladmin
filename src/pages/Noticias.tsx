@@ -18,6 +18,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import ImageCropDialog from "../components/ImageCropDialog";
 import type { News, NewsPayload, NewsStatus } from "../types";
 import {
   actualizarNoticia,
@@ -25,7 +26,6 @@ import {
   despublicarNoticia,
   eliminarNoticia,
   listarMisNoticias,
-  obtenerNoticia,
   publicarNoticia,
 } from "../services/news.service";
 
@@ -140,6 +140,10 @@ export default function Noticias() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
+  const [originalCoverSource, setOriginalCoverSource] = useState<string | null>(null);
+  const [originalCoverSources, setOriginalCoverSources] = useState<Record<number, string>>({});
 
   const filteredNews = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -163,8 +167,10 @@ export default function Noticias() {
       const cached = sessionStorage.getItem("noticias_cache");
       if (cached) {
         const parsed = JSON.parse(cached) as News[];
-        setNoticias(parsed);
-        hasCache = true;
+        if (parsed.length > 0) {
+          setNoticias(parsed);
+          hasCache = true;
+        }
       }
     } catch {
       // Una caché inválida no debe impedir la carga desde la API.
@@ -194,6 +200,7 @@ export default function Noticias() {
   }, []);
 
   useEffect(() => {
+    if (loading && noticias.length === 0) return;
     try { sessionStorage.setItem("noticias_cache", JSON.stringify(noticias)); } catch {}
   }, [noticias]);
 
@@ -207,31 +214,21 @@ export default function Noticias() {
   const openCreate = () => {
     setSelected(null);
     setForm(EMPTY_FORM);
+    setOriginalCoverSource(null);
     setError("");
     setSuccess("");
   };
 
-  const openEdit = async (news: News) => {
+  const openEdit = (news: News) => {
     setSelected(news);
+    setOriginalCoverSource(originalCoverSources[news.id] ?? null);
     setForm({
       title: news.title,
       coverImageUrl: news.coverImageUrl ?? "",
-      content: "",
+      content: news.content ?? "",
     });
     setError("");
     setSuccess("");
-
-    try {
-      const detail = await obtenerNoticia(news.id);
-      setSelected(detail);
-      setForm({
-        title: detail.title,
-        coverImageUrl: detail.coverImageUrl ?? "",
-        content: detail.content,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar la noticia");
-    }
   };
 
   const closeEditor = () => {
@@ -397,16 +394,38 @@ export default function Noticias() {
     }
   };
 
+  const openCropEditor = (url: string) => {
+    setCropImageUrl(originalCoverSource || url);
+    setCropOpen(true);
+  };
+
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
 
     const file = event.dataTransfer.files?.[0];
-    if (file) uploadCover(file);
+    if (file) {
+      const localUrl = URL.createObjectURL(file);
+      setOriginalCoverSource(localUrl);
+      if (selected) {
+        setOriginalCoverSources((sources) => ({ ...sources, [selected.id]: localUrl }));
+      }
+      setCropImageUrl(localUrl);
+      setCropOpen(true);
+    }
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) uploadCover(file);
+    if (file) {
+      const localUrl = URL.createObjectURL(file);
+      setOriginalCoverSource(localUrl);
+      if (selected) {
+        setOriginalCoverSources((sources) => ({ ...sources, [selected.id]: localUrl }));
+      }
+      setCropImageUrl(localUrl);
+      setCropOpen(true);
+    }
+    event.target.value = "";
   };
 
   return (
@@ -762,18 +781,25 @@ export default function Noticias() {
                         <Typography color="text.secondary" variant="body2">
                           SVG, PNG, JPG o GIF
                         </Typography>
+                        <Typography color="text.secondary" variant="caption" sx={{ display: "block", mt: 0.75 }}>
+                          Recomendado: 1600x900px (formato panorámico 16:9)
+                        </Typography>
                       </Box>
                     )}
                   </Box>
 
-                  <TextField
-                    value={form.coverImageUrl}
-                    onChange={(event) => setField("coverImageUrl", event.target.value)}
-                    placeholder="O pegá una URL de imagen"
-                    size="small"
-                    fullWidth
-                    sx={{ mt: 1.5 }}
-                  />
+                  <Box sx={{ display: "flex", gap: 1, mt: 1.5, alignItems: "center" }}>
+                    <TextField
+                      value={form.coverImageUrl}
+                      onChange={(event) => setField("coverImageUrl", event.target.value)}
+                      placeholder="O pegá una URL de imagen"
+                      size="small"
+                      fullWidth
+                    />
+                    {form.coverImageUrl && (
+                      <Button size="small" variant="outlined" onClick={() => openCropEditor(form.coverImageUrl)}>Editar</Button>
+                    )}
+                  </Box>
                 </Box>
 
                 <TextField
@@ -819,6 +845,22 @@ export default function Noticias() {
           </Card>
         </Box>
       </Box>
+      <ImageCropDialog
+        open={cropOpen}
+        imageUrl={cropImageUrl}
+        type="cover"
+        fileName="portada.jpg"
+        onClose={() => {
+          setCropImageUrl(null);
+          setCropOpen(false);
+        }}
+        onConfirm={async (file) => {
+          setCropImageUrl(null);
+          setCropOpen(false);
+          await uploadCover(file);
+        }}
+      />
+
       <Dialog open={Boolean(noticiaAEliminar)} onClose={() => setNoticiaAEliminar(null)}>
         <DialogTitle>Confirmar eliminación</DialogTitle>
         <DialogContent>
