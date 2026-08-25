@@ -11,6 +11,7 @@ import {
   Typography,
 } from "@mui/material";
 import { auth } from "../firebase";
+import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";
 import { buildYoutubeChannelEmbedUrl } from "../services/youtube.service";
@@ -141,6 +142,9 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [audioLoading, setAudioLoading] = useState(false);
   const [kickIframeSrc, setKickIframeSrc] = useState<string | null>(null);
   const [kickIframePlaying, setKickIframePlaying] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
+  const [originalCoverSource, setOriginalCoverSource] = useState<string | null>(null);
   const portadaInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -407,6 +411,14 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const handlePortada = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const localUrl = URL.createObjectURL(file);
+    setOriginalCoverSource(localUrl);
+    setCropImageUrl(localUrl);
+    setCropOpen(true);
+    e.target.value = "";
+  };
+
+  const aplicarPortadaRecortada = async (file: File) => {
     setUploadingPortada(true);
     setError("");
     try {
@@ -671,9 +683,14 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                       {uploadingPortada ? "Subiendo..." : imagenPortada ? "Cambiar" : "Subir Imagen"}
                     </Button>
                     {imagenPortada && !uploadingPortada && (
-                      <Button size="small" color="error" onClick={() => { setImagenPortada(""); setSuccess(false); }} sx={ { fontSize: 11, letterSpacing: 0.5 } }>
-                        Eliminar
-                      </Button>
+                      <>
+                        <Button size="small" variant="outlined" onClick={() => { setCropImageUrl(originalCoverSource || imagenPortada); setCropOpen(true); }} sx={ { fontSize: 11, letterSpacing: 0.5 } }>
+                          Editar
+                        </Button>
+                        <Button size="small" color="error" onClick={() => { setImagenPortada(""); setSuccess(false); }} sx={ { fontSize: 11, letterSpacing: 0.5 } }>
+                          Eliminar
+                        </Button>
+                      </>
                     )}
                   </Box>
                 </Box>
@@ -1008,6 +1025,22 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         </Card>
 
       </Box>
+
+      <ImageCropDialog
+        open={cropOpen}
+        imageUrl={cropImageUrl}
+        type="cover"
+        fileName="portada-stream.jpg"
+        onClose={() => {
+          setCropImageUrl(null);
+          setCropOpen(false);
+        }}
+        onConfirm={async (file) => {
+          setCropImageUrl(null);
+          setCropOpen(false);
+          await aplicarPortadaRecortada(file);
+        }}
+      />
 
       <Box sx={ { display: "flex", justifyContent: "center", gap: 1.5, mt: 4 } }>
         <Button variant="outlined" onClick={handleDescartar} disabled={loading || uploadingPortada} sx={ { minWidth: 160 } }>
