@@ -12,6 +12,8 @@ export interface Tenant {
   bannerUrl?: string | null;
   streamUrl?: string | null;
   streamActivo?: boolean;
+  streamProvider?: string | null;
+  youtubeChannelId?: string | null;
   tipoTransmision?: string;
   imagenPortada?: string;
 

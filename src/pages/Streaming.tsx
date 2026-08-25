@@ -11,8 +11,10 @@ import {
   Typography,
 } from "@mui/material";
 import { auth } from "../firebase";
+import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";
+import { buildYoutubeChannelEmbedUrl } from "../services/youtube.service";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
@@ -118,6 +120,11 @@ function getStoredValue(key: string): string {
 export default function Streaming({ perfil }: { perfil: Perfil }) {
   const t = perfil.tenant;
   const [streamUrl, setStreamUrl] = useState<string>(() => t?.streamUrl ?? getStoredValue("streamUrl"));
+  const [streamProvider, setStreamProvider] = useState<string>(() => {
+    const valor = t?.streamProvider ?? getStoredValue("streamProvider");
+    return valor || "kick";
+  });
+  const [youtubeChannelId, setYoutubeChannelId] = useState<string | null>(() => t?.youtubeChannelId ?? null);
   const [kickData, setKickData] = useState<KickStreamData | null>(null);
   const [kickAudioUrl, setKickAudioUrl] = useState<string | null>(null);
   const [tipoTransmision, setTipoTransmision] = useState<string>(() => {
@@ -135,12 +142,16 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [audioLoading, setAudioLoading] = useState(false);
   const [kickIframeSrc, setKickIframeSrc] = useState<string | null>(null);
   const [kickIframePlaying, setKickIframePlaying] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
+  const [originalCoverSource, setOriginalCoverSource] = useState<string | null>(null);
   const portadaInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const esPodcast = tipoTransmision === "audio";
   const embedUrl = streamUrl ? getEmbedUrl(streamUrl) : null;
-  const plataforma = streamUrl ? detectarPlataforma(streamUrl) : null;
+  const plataforma = streamProvider === "youtube" ? "YouTube" : streamUrl ? detectarPlataforma(streamUrl) : null;
+  const youtubeEmbedUrl = buildYoutubeChannelEmbedUrl(youtubeChannelId);
   const channelName = streamUrl ? extractKickChannelName(streamUrl) : null;
   const rawAudioUrl = kickAudioUrl || (streamUrl ? getAudioUrl(streamUrl) : null);
   const isHlsStream = rawAudioUrl ? isHlsUrl(rawAudioUrl) : false;
@@ -164,6 +175,15 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       if (storedUrl) setStreamUrl(storedUrl);
     }
 
+    if (t?.streamProvider) {
+      setStreamProvider(t.streamProvider);
+    } else {
+      const storedProvider = getStoredValue("streamProvider");
+      setStreamProvider(storedProvider || "kick");
+    }
+
+    setYoutubeChannelId(t?.youtubeChannelId ?? null);
+
     if (t?.tipoTransmision) {
       setTipoTransmision(t.tipoTransmision);
     } else {
@@ -179,14 +199,14 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       if (storedImagen) setImagenPortada(storedImagen);
       else setImagenPortada("");
     }
-  }, [t?.streamUrl, t?.tipoTransmision, t?.imagenPortada]);
+  }, [t?.streamUrl, t?.streamProvider, t?.youtubeChannelId, t?.tipoTransmision, t?.imagenPortada]);
 
   useEffect(() => {
     let active = true;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const refreshKickData = async () => {
-      if (!channelName) return;
+      if (!channelName || streamProvider !== "kick") return;
 
       try {
         const data = await getKickStreamData(channelName);
@@ -212,7 +232,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       active = false;
       if (intervalId) clearInterval(intervalId);
     };
-  }, [channelName]);
+  }, [channelName, streamProvider]);
 
   useEffect(() => {
     const fetchKickAudio = async () => {
@@ -391,6 +411,14 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const handlePortada = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const localUrl = URL.createObjectURL(file);
+    setOriginalCoverSource(localUrl);
+    setCropImageUrl(localUrl);
+    setCropOpen(true);
+    e.target.value = "";
+  };
+
+  const aplicarPortadaRecortada = async (file: File) => {
     setUploadingPortada(true);
     setError("");
     try {
@@ -406,6 +434,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
   const handleDescartar = () => {
     setStreamUrl(t?.streamUrl ?? "");
+    setStreamProvider(t?.streamProvider ?? "kick");
+    setYoutubeChannelId(t?.youtubeChannelId ?? null);
     setTipoTransmision(t?.tipoTransmision ?? "video");
     setImagenPortada(t?.imagenPortada ?? "");
     setSuccess(false);
@@ -424,11 +454,26 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ streamUrl, tipoTransmision, imagenPortada }),
+        body: JSON.stringify({ streamUrl, streamProvider, tipoTransmision, imagenPortada }),
       });
-      if (!res.ok) throw new Error("Error al guardar");
+      if (!res.ok) {
+        let message = "Error al guardar";
+        try {
+          const data = await res.json();
+          if (data?.message) message = data.message;
+        } catch {
+          // Si la API no devuelve JSON, dejamos el mensaje genérico.
+        }
+        throw new Error(message);
+      }
 
-      let payload = { streamUrl, tipoTransmision, imagenPortada };
+      let payload: {
+        streamUrl: string;
+        streamProvider: string;
+        tipoTransmision: string;
+        imagenPortada: string;
+        youtubeChannelId?: string | null;
+      } = { streamUrl, streamProvider, tipoTransmision, imagenPortada };
       try {
         const data = await res.json();
         if (data && typeof data === "object") {
@@ -438,6 +483,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
       try {
         localStorage.setItem("streamUrl", streamUrl);
+        localStorage.setItem("streamProvider", streamProvider);
         localStorage.setItem("tipoTransmision", tipoTransmision);
         localStorage.setItem("imagenPortada", imagenPortada);
       } catch {}
@@ -445,6 +491,10 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       if (payload.streamUrl) {
         setStreamUrl(payload.streamUrl);
       }
+      if (payload.streamProvider) {
+        setStreamProvider(payload.streamProvider);
+      }
+      setYoutubeChannelId(payload.youtubeChannelId ?? null);
       if (payload.tipoTransmision) {
         setTipoTransmision(payload.tipoTransmision);
       }
@@ -458,8 +508,12 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
           detail: payload,
         }));
       } catch {}
-    } catch {
-      setError("No se pudo guardar. Revisá la URL e intentá de nuevo.");
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "No se pudo guardar. Revisá la URL e intentá de nuevo.",
+      );
     } finally {
       setLoading(false);
     }
@@ -509,21 +563,55 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
               )}
             </Box>
 
+            {/* Proveedor de streaming */}
+            <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 } }>
+              Proveedor de Streaming
+            </Typography>
+            <Box sx={ { display: "grid", gridTemplateColumns: "1fr 1fr", border: "1px solid", borderColor: "divider", mb: 3, borderRadius: 1, overflow: "hidden" } }>
+              {[
+                { val: "kick", label: "Kick" },
+                { val: "youtube", label: "YouTube" },
+              ].map((op) => {
+                const activo = streamProvider === op.val;
+                return (
+                  <Box
+                    key={op.val}
+                    onClick={() => { setStreamProvider(op.val); setSuccess(false); }}
+                    sx={ {
+                      textAlign: "center", py: 1.25, cursor: "pointer",
+                      fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
+                      bgcolor: activo ? "primary.main" : "transparent",
+                      color: activo ? "primary.contrastText" : "text.primary",
+                      transition: "all 0.15s",
+                      "&:hover": { bgcolor: activo ? "primary.main" : "action.hover" },
+                    } }
+                  >
+                    {op.label}
+                  </Box>
+                );
+              })}
+            </Box>
+
             {/* URL */}
             <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 } }>
-              URL del Servidor
+              {streamProvider === "youtube" ? "Link del Canal de YouTube" : "URL del Servidor"}
             </Typography>
             <TextField
-              placeholder="rtmp://a.rtmp.youtube.com/live2"
+              placeholder={streamProvider === "youtube" ? "https://www.youtube.com/@tuCanal" : "rtmp://a.rtmp.youtube.com/live2"}
               value={streamUrl}
               onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { setStreamUrl(e.target.value); setSuccess(false); }}
               fullWidth
               size="small"
               sx={{
-                mb: 3,
+                mb: streamProvider === "youtube" ? 1 : 3,
                 '& .MuiInputBase-input': { fontFamily: 'monospace', fontSize: 13 },
               }}
             />
+            {streamProvider === "youtube" && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>
+                Pegá el link del canal (no de un video puntual): al guardar, la app resuelve sola cuál es el video en vivo actual.
+              </Typography>
+            )}
 
             {/* Tipo de transmisión */}
             <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 } }>
@@ -595,9 +683,14 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                       {uploadingPortada ? "Subiendo..." : imagenPortada ? "Cambiar" : "Subir Imagen"}
                     </Button>
                     {imagenPortada && !uploadingPortada && (
-                      <Button size="small" color="error" onClick={() => { setImagenPortada(""); setSuccess(false); }} sx={ { fontSize: 11, letterSpacing: 0.5 } }>
-                        Eliminar
-                      </Button>
+                      <>
+                        <Button size="small" variant="outlined" onClick={() => { setCropImageUrl(originalCoverSource || imagenPortada); setCropOpen(true); }} sx={ { fontSize: 11, letterSpacing: 0.5 } }>
+                          Editar
+                        </Button>
+                        <Button size="small" color="error" onClick={() => { setImagenPortada(""); setSuccess(false); }} sx={ { fontSize: 11, letterSpacing: 0.5 } }>
+                          Eliminar
+                        </Button>
+                      </>
                     )}
                   </Box>
                 </Box>
@@ -620,7 +713,39 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             </Typography>
           </Box>
           <CardContent>
-            {!esPodcast && embedUrl ? (
+            {!esPodcast && streamProvider === "youtube" ? (
+              youtubeEmbedUrl ? (
+                <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
+                  <Box
+                    component="iframe"
+                    src={youtubeEmbedUrl}
+                    title="Vista previa del stream de YouTube"
+                    allow="autoplay; fullscreen; picture-in-picture"
+                    sx={ { position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" } }
+                  />
+                </Box>
+              ) : (
+                <Box
+                  sx={ {
+                    width: "100%", aspectRatio: "16 / 9", borderRadius: 1,
+                    border: "1px solid", borderColor: "divider",
+                    bgcolor: "action.hover", color: "text.secondary",
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1,
+                    p: 2, textAlign: "center",
+                  } }
+                >
+                  <Typography sx={ { fontSize: 28, opacity: 0.4 } }>
+                    <span className="material-symbols-outlined">smart_display</span>
+                  </Typography>
+                  <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase" } }>
+                    Guardá para previsualizar
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    YouTube resuelve el video en vivo recién después de guardar el link del canal.
+                  </Typography>
+                </Box>
+              )
+            ) : !esPodcast && embedUrl ? (
               <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
                 <Box
                   component="iframe"
@@ -900,6 +1025,22 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         </Card>
 
       </Box>
+
+      <ImageCropDialog
+        open={cropOpen}
+        imageUrl={cropImageUrl}
+        type="cover"
+        fileName="portada-stream.jpg"
+        onClose={() => {
+          setCropImageUrl(null);
+          setCropOpen(false);
+        }}
+        onConfirm={async (file) => {
+          setCropImageUrl(null);
+          setCropOpen(false);
+          await aplicarPortadaRecortada(file);
+        }}
+      />
 
       <Box sx={ { display: "flex", justifyContent: "center", gap: 1.5, mt: 4 } }>
         <Button variant="outlined" onClick={handleDescartar} disabled={loading || uploadingPortada} sx={ { minWidth: 160 } }>
