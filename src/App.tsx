@@ -12,6 +12,7 @@ import Soporte from "./pages/Soporte";
 import Streaming from "./pages/Streaming";
 import Programacion from "./pages/Programacion";
 import Noticias from "./pages/Noticias";
+import Estadisticas from "./pages/Estadisticas";
 import GenerarApp from "./pages/GenerarApp";
 import type { Perfil } from "./types";
 
@@ -102,6 +103,7 @@ function App() {
           <Route path="/streaming" element={<Streaming perfil={perfil} />} />
           <Route path="/programacion" element={<Programacion />} />
           <Route path="/noticias" element={<Noticias />} />
+          <Route path="/estadisticas" element={<Estadisticas />} />
           <Route path="/generar-app" element={<GenerarApp perfil={perfil} />} />
           <Route path="/configuracion" element={<Configuracion perfil={perfil} />} />
           <Route path="/soporte" element={<Soporte perfil={perfil} />} />
