@@ -63,12 +63,6 @@ export async function listarMisNoticias(): Promise<News[]> {
   return parseResponse<News[]>(res);
 }
 
-export async function obtenerNoticia(id: number): Promise<News> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${API_URL}/news/mi-tenant/${id}`, { headers });
-  return parseResponse<News>(res);
-}
-
 export async function crearNoticia(payload: NewsPayload): Promise<News> {
   const headers = await getAuthHeaders();
 
