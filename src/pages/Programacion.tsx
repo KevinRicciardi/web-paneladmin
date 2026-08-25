@@ -24,6 +24,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import ImageCropDialog from "../components/ImageCropDialog";
 import type { DiasSemana, Programa, ProgramaPayload } from "../types";
 import {
   listarMiProgramacion,
@@ -374,6 +375,9 @@ export default function Programacion() {
   const [modoFecha, setModoFecha] = useState<"NINGUNO" | "ESPECIFICA" | "RANGO">("NINGUNO");
   const [programaAEliminar, setProgramaAEliminar] = useState<Programa | null>(null);
   const [eliminando, setEliminando] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
+  const [originalImageSource, setOriginalImageSource] = useState<string | null>(null);
 
   const abrirSelectorFecha = (tipo: "inicio" | "fin", elemento?: HTMLElement | null) => {
     const valor = tipo === "inicio" ? fechaInicio : fechaFin;
@@ -587,14 +591,21 @@ export default function Programacion() {
       return;
     }
 
-    const lector = new FileReader();
-    lector.onload = () => {
-      const resultado = typeof lector.result === "string" ? lector.result : "";
+    const localUrl = URL.createObjectURL(archivo);
+    setOriginalImageSource(localUrl);
+    setCropImageUrl(localUrl);
+    setCropOpen(true);
+    event.target.value = "";
+  };
+
+  const aplicarImagenRecortada = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const resultado = typeof reader.result === "string" ? reader.result : "";
       setForm((actual) => ({ ...actual, imagenUrl: resultado }));
       setImagenPreview(resultado);
     };
-
-    lector.readAsDataURL(archivo);
+    reader.readAsDataURL(file);
   };
 
   const guardar = async () => {
@@ -855,6 +866,22 @@ export default function Programacion() {
         )}
       </Paper>
 
+      <ImageCropDialog
+        open={cropOpen}
+        imageUrl={cropImageUrl}
+        type="event"
+        fileName="evento.jpg"
+        onClose={() => {
+          setCropImageUrl(null);
+          setCropOpen(false);
+        }}
+        onConfirm={(file) => {
+          setCropImageUrl(null);
+          setCropOpen(false);
+          aplicarImagenRecortada(file);
+        }}
+      />
+
       <Dialog
         open={abierto}
         onClose={() => setAbierto(false)}
@@ -897,6 +924,12 @@ export default function Programacion() {
                   Adjuntar imagen
                   <input hidden accept="image/*" type="file" onChange={manejarArchivo} />
                 </Button>
+                <Typography variant="caption" color="text.secondary">
+                  Tamaño recomendado: 1200x675px o más, ideal para portada del evento en formato 16:9.
+                </Typography>
+                {form.imagenUrl && (
+                  <Button size="small" variant="outlined" onClick={() => { setCropImageUrl(originalImageSource || form.imagenUrl || null); setCropOpen(true); }}>Editar imagen</Button>
+                )}
                 <TextField
                   label="o pegar URL"
                   value={form.imagenUrl}
