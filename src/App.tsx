@@ -16,7 +16,7 @@ import Estadisticas from "./pages/Estadisticas";
 import GenerarApp from "./pages/GenerarApp";
 import type { Perfil } from "./types";
 
-const API_URL = "http://localhost:3000";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const ROLES_ADMIN = ["SUPER_ADMIN", "ADMIN_CLIENTE"];
 
 function App() {

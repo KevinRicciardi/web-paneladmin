@@ -8,7 +8,7 @@ import { auth } from "../firebase";
 import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 
-const API_URL = "http://localhost:3000";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
 

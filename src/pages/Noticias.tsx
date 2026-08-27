@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Backdrop,
   Box,
   Button,
   Card,
@@ -19,6 +20,7 @@ import {
   Typography,
 } from "@mui/material";
 import ImageCropDialog from "../components/ImageCropDialog";
+import NewsContentEditor from "../components/NewsContentEditor";
 import type { News, NewsPayload, NewsStatus } from "../types";
 import {
   actualizarNoticia,
@@ -144,6 +146,7 @@ export default function Noticias() {
   const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
   const [originalCoverSource, setOriginalCoverSource] = useState<string | null>(null);
   const [originalCoverSources, setOriginalCoverSources] = useState<Record<number, string>>({});
+  const [redactorExpandido, setRedactorExpandido] = useState(false);
 
   const filteredNews = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -211,14 +214,6 @@ export default function Noticias() {
     return () => window.clearTimeout(timer);
   }, [success]);
 
-  const openCreate = () => {
-    setSelected(null);
-    setForm(EMPTY_FORM);
-    setOriginalCoverSource(null);
-    setError("");
-    setSuccess("");
-  };
-
   const openEdit = (news: News) => {
     setSelected(news);
     setOriginalCoverSource(originalCoverSources[news.id] ?? null);
@@ -229,12 +224,6 @@ export default function Noticias() {
     });
     setError("");
     setSuccess("");
-  };
-
-  const closeEditor = () => {
-    if (saving || uploading) return;
-    setSelected(null);
-    setForm(EMPTY_FORM);
   };
 
   const setField = (field: keyof FormState, value: string) => {
@@ -399,6 +388,26 @@ export default function Noticias() {
     setCropOpen(true);
   };
 
+  const handleCoverUrlChange = (value: string) => {
+    setOriginalCoverSource(null);
+    setField("coverImageUrl", value);
+  };
+
+  const validateCoverUrl = () => {
+    const value = form.coverImageUrl.trim();
+    if (!value) return;
+
+    try {
+      const parsed = new URL(value);
+      if (!/^https?:$/.test(parsed.protocol)) {
+        throw new Error("La URL debe comenzar con http:// o https://");
+      }
+      setError("");
+    } catch {
+      setError("Ingresá una URL de imagen válida (http:// o https://).");
+    }
+  };
+
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
 
@@ -448,14 +457,6 @@ export default function Noticias() {
           </Typography>
         </Box>
 
-        <Button
-          variant="contained"
-          onClick={openCreate}
-          startIcon={<span className="material-symbols-outlined">add</span>}
-          sx={{ fontWeight: 800 }}
-        >
-          Crear noticia
-        </Button>
       </Box>
 
       {(error || success) && (
@@ -535,9 +536,6 @@ export default function Noticias() {
                   Creá el primer anuncio para que luego aparezca publicado en la
                   app.
                 </Typography>
-                <Button variant="contained" onClick={openCreate}>
-                  Crear noticia
-                </Button>
               </Box>
             ) : (
               <Stack spacing={2} sx={{ p: 2.5 }}>
@@ -675,8 +673,31 @@ export default function Noticias() {
           </CardContent>
         </Card>
 
-        <Box sx={{ position: { lg: "sticky" }, top: 24 }}>
-          <Card variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.03)", borderColor: "divider" }}>
+        <Box sx={{ position: redactorExpandido ? "static" : { lg: "sticky" }, top: 24 }}>
+          {redactorExpandido && (
+            <Backdrop
+              open
+              onClick={() => setRedactorExpandido(false)}
+              sx={{ zIndex: (theme) => theme.zIndex.modal - 1 }}
+            />
+          )}
+          <Card
+            variant="outlined"
+            sx={{
+              bgcolor: "#161616",
+              borderColor: "divider",
+              ...(redactorExpandido && {
+                position: "fixed",
+                zIndex: (theme) => theme.zIndex.modal,
+                top: "3vh",
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: "min(900px, calc(100vw - 32px))",
+                maxHeight: "94vh",
+                overflow: "auto",
+              }),
+            }}
+          >
             <CardContent sx={{ p: 3 }}>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
                 <Box>
@@ -689,9 +710,17 @@ export default function Noticias() {
                       : "Creá una nueva noticia para tu tenant."}
                   </Typography>
                 </Box>
-                <IconButton onClick={closeEditor} disabled={saving || uploading} size="small">
-                  <span className="material-symbols-outlined">close</span>
-                </IconButton>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <IconButton
+                    onClick={() => setRedactorExpandido((expanded) => !expanded)}
+                    size="small"
+                    title={redactorExpandido ? "Contraer redactor" : "Expandir redactor"}
+                  >
+                    <span className="material-symbols-outlined">
+                      {redactorExpandido ? "close_fullscreen" : "open_in_full"}
+                    </span>
+                  </IconButton>
+                </Box>
               </Box>
 
               <Stack spacing={2.5}>
@@ -791,7 +820,8 @@ export default function Noticias() {
                   <Box sx={{ display: "flex", gap: 1, mt: 1.5, alignItems: "center" }}>
                     <TextField
                       value={form.coverImageUrl}
-                      onChange={(event) => setField("coverImageUrl", event.target.value)}
+                      onChange={(event) => handleCoverUrlChange(event.target.value)}
+                      onBlur={validateCoverUrl}
                       placeholder="O pegá una URL de imagen"
                       size="small"
                       fullWidth
@@ -802,15 +832,16 @@ export default function Noticias() {
                   </Box>
                 </Box>
 
-                <TextField
-                  label="Contenido"
-                  placeholder="Escribe el contenido de la noticia aquí..."
-                  value={form.content}
-                  onChange={(event) => setField("content", event.target.value)}
-                  minRows={10}
-                  multiline
-                  fullWidth
-                />
+                <Box>
+                  <Typography sx={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, mb: 1 }}>
+                    Contenido
+                  </Typography>
+                  <NewsContentEditor
+                    value={form.content}
+                    onChange={(content) => setField("content", content)}
+                    onUploadImage={subirACloudinary}
+                  />
+                </Box>
 
                 {selected && (
                   <Alert severity={selected.status === "published" ? "success" : "info"}>
