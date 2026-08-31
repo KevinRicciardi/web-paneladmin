@@ -144,6 +144,38 @@ function CardHeader({ icon, children }: { icon: string; children: React.ReactNod
   );
 }
 
+function normalizarBanners(valor?: string | null): string[] {
+  if (!valor) return [];
+
+  const valorTrimmed = valor.trim();
+  if (!valorTrimmed) return [];
+
+  try {
+    const parsed = JSON.parse(valorTrimmed);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === "string" && !!item.trim());
+    }
+  } catch {
+    // Si no es JSON, se asume un valor legacy de un único banner.
+  }
+
+  if (valorTrimmed.includes(",")) {
+    return valorTrimmed
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [valorTrimmed];
+}
+
+function serializarBanners(banners: string[]): string {
+  const validos = banners.map((item) => item.trim()).filter(Boolean);
+  if (validos.length === 0) return "";
+  if (validos.length === 1) return validos[0];
+  return JSON.stringify(validos);
+}
+
 export default function Branding({ perfil }: { perfil: Perfil }) {
   const t = perfil.tenant;
   const inicial = {
@@ -189,7 +221,10 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
   const [nombre, setNombre] = useState(inicial.nombre);
   const [logoUrl, setLogoUrl] = useState(inicial.logoUrl);
-  const [bannerUrl, setBannerUrl] = useState(inicial.bannerUrl);
+  const [bannerUrls, setBannerUrls] = useState<string[]>(() => normalizarBanners(inicial.bannerUrl));
+  const [bannerActivoIndex, setBannerActivoIndex] = useState(0);
+  const [bannerAutoRotate, setBannerAutoRotate] = useState(true);
+  const [bannerIntervalSeconds, setBannerIntervalSeconds] = useState(5);
   const [instagramUrl, setInstagramUrl] = useState(inicial.instagramUrl);
   const [youtubeUrl, setYoutubeUrl] = useState(inicial.youtubeUrl);
   const [tiktokUrl, setTiktokUrl] = useState(inicial.tiktokUrl);
@@ -296,6 +331,17 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   };
 
   const previewPlatform = platformLabel(perfil.tenant?.streamUrl);
+  const bannerPreviewUrl = bannerUrls[bannerActivoIndex] ?? bannerUrls[0] ?? "";
+
+  useEffect(() => {
+    if (!bannerAutoRotate || bannerUrls.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setBannerActivoIndex((prev) => (prev + 1) % bannerUrls.length);
+    }, Math.max(2, bannerIntervalSeconds) * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [bannerAutoRotate, bannerIntervalSeconds, bannerUrls.length]);
 
   // (Funciones auxiliares de preview eliminadas porque no se usan actualmente)
 
@@ -310,7 +356,15 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setError("");
     try {
       const url = await subirACloudinary(file);
-      tipo === "logo" ? setLogoUrl(url) : setBannerUrl(url);
+      if (tipo === "logo") {
+        setLogoUrl(url);
+      } else {
+        setBannerUrls((prev) => {
+          const next = [...prev, url];
+          setBannerActivoIndex(Math.max(0, next.length - 1));
+          return next;
+        });
+      }
       setSuccess(false);
     } catch {
       setError("No se pudo subir la imagen. Revisá el preset unsigned de Cloudinary.");
@@ -331,7 +385,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   };
 
   const abrirEditorExistente = (tipo: "logo" | "banner") => {
-    const url = tipo === "logo" ? logoUrl : bannerUrl;
+    const url = tipo === "logo" ? logoUrl : (bannerUrls[bannerActivoIndex] ?? bannerUrls[0] ?? "");
     if (!url) return;
     setCropDialogSource(tipo === "logo" ? originalLogoSource || url : originalBannerSource || url);
     setCropDialogType(tipo);
@@ -363,7 +417,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const handleDescartar = () => {
     setNombre(ultimoGuardado.nombre);
     setLogoUrl(ultimoGuardado.logoUrl);
-    setBannerUrl(ultimoGuardado.bannerUrl);
+    setBannerUrls(normalizarBanners(ultimoGuardado.bannerUrl));
+    setBannerActivoIndex(0);
     setInstagramUrl(ultimoGuardado.instagramUrl);
     setYoutubeUrl(ultimoGuardado.youtubeUrl);
     setTiktokUrl(ultimoGuardado.tiktokUrl);
@@ -396,13 +451,15 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setError("");
     try {
       const token = await auth.currentUser?.getIdToken();
+      const bannerParaGuardar = serializarBanners(bannerUrls);
+
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           nombre,
           logoUrl,
-          bannerUrl,
+          bannerUrl: bannerParaGuardar,
           fontFamily,
           instagramUrl,
           youtubeUrl,
@@ -427,7 +484,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       setUltimoGuardado({
         nombre,
         logoUrl,
-        bannerUrl,
+        bannerUrl: bannerParaGuardar,
         instagramUrl,
         youtubeUrl,
         tiktokUrl,
@@ -443,7 +500,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           detail: {
             nombre,
             logoUrl,
-            bannerUrl,
+            bannerUrl: bannerParaGuardar,
             fontFamily,
             instagramUrl,
             youtubeUrl,
@@ -705,40 +762,78 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Banner */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="photo_size_select_large">Banner de Cabecera</CardHeader>
+              <CardHeader icon="photo_size_select_large">Banners de Cabecera</CardHeader>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
+                Se aceptan varios banners. Pueden rotar automáticamente o mantenerse fijos. Los GIF/animaciones también pueden cargarse si el formato lo permite.
+              </Typography>
               <input ref={bannerInputRef} type="file" accept="image/*" hidden
                 onChange={(e) => handleFileChange(e, "banner")} />
-              <Box
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => handleDrop(e, "banner")}
-                onClick={() => !uploadingBanner && bannerInputRef.current?.click()}
-                sx={ {
-                  border: "2px dashed", borderColor: bannerUrl ? "primary.main" : borde,
-                  borderRadius: 2, cursor: "pointer", minHeight: 96, overflow: "hidden",
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                  gap: 1, bgcolor: bannerUrl ? "transparent" : alpha(colores.texto, 0.03), transition: "all 0.2s",
-                  "&:hover": { bgcolor: alpha(colores.texto, 0.05), borderColor: "primary.main" },
-                } }
-              >
-                {uploadingBanner ? <CircularProgress size={28} sx={ { my: 2 } } /> : bannerUrl ? (
-                  <Box component="img" src={bannerUrl} sx={ { width: "100%", height: 96, objectFit: "cover" } } />
-                ) : (
+
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, mb: 2, flexWrap: "wrap" }}>
+                <Button variant="outlined" size="small" onClick={() => bannerInputRef.current?.click()}>
+                  + Agregar banner
+                </Button>
+                {bannerUrls.length > 1 && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Button
+                      size="small"
+                      variant={bannerAutoRotate ? "contained" : "outlined"}
+                      onClick={() => setBannerAutoRotate((prev) => !prev)}
+                    >
+                      Rotación {bannerAutoRotate ? "ON" : "OFF"}
+                    </Button>
+                    <TextField
+                      size="small"
+                      type="number"
+                      label="Segundos"
+                      value={bannerIntervalSeconds}
+                      onChange={(e) => setBannerIntervalSeconds(Math.max(2, Number(e.target.value) || 2))}
+                      sx={{ width: 110 }}
+                    />
+                  </Box>
+                )}
+              </Box>
+
+              {bannerUrls.length === 0 ? (
+                <Box
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleDrop(e, "banner")}
+                  onClick={() => !uploadingBanner && bannerInputRef.current?.click()}
+                  sx={ {
+                    border: "2px dashed", borderColor: borde,
+                    borderRadius: 2, cursor: "pointer", minHeight: 96, overflow: "hidden",
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                    gap: 1, bgcolor: alpha(colores.texto, 0.03), transition: "all 0.2s",
+                    "&:hover": { bgcolor: alpha(colores.texto, 0.05), borderColor: "primary.main" },
+                  } }
+                >
                   <Box sx={ { py: 2, textAlign: "center" } }>
                     <Typography variant="body2" color="text.secondary" gutterBottom>Tamaño recomendado: 1920x320px</Typography>
                     <Typography variant="caption" color="text.secondary" sx={ { display: "block", mb: 1 } }>
                       Ideal para banner de cabecera: formato panorámico y resolución alta.
                     </Typography>
-                    <Button variant="outlined" size="small"
-                      onClick={(e) => { e.stopPropagation(); bannerInputRef.current?.click(); } } startIcon={<span className="material-symbols-outlined">file_upload</span>}>
+                    <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); bannerInputRef.current?.click(); } } startIcon={<span className="material-symbols-outlined">file_upload</span>}>
                       Seleccionar Imagen
                     </Button>
                   </Box>
-                )}
-              </Box>
-              {bannerUrl && (
-                <Box sx={ { display: "flex", justifyContent: "flex-end", gap: 1, mt: 1 } }>
-                  <Button size="small" variant="outlined" onClick={() => abrirEditorExistente("banner")}>Editar</Button>
-                  <Button size="small" color="error" onClick={() => { setBannerUrl(""); setSuccess(false); }}>Quitar banner</Button>
+                </Box>
+              ) : (
+                <Box sx={{ display: "grid", gap: 1.5 }}>
+                  {bannerUrls.map((bannerUrl, index) => (
+                    <Box key={`${bannerUrl}-${index}`} sx={{ position: "relative", borderRadius: 2, overflow: "hidden", border: index === bannerActivoIndex ? "2px solid" : "1px solid", borderColor: index === bannerActivoIndex ? "primary.main" : borde }}>
+                      <Box component="img" src={bannerUrl} sx={{ width: "100%", height: 96, objectFit: "cover", display: "block" }} />
+                      <Box sx={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 0.5 }}>
+                        <Button size="small" variant="contained" sx={{ minWidth: 0, px: 1, fontSize: 10 }} onClick={() => setBannerActivoIndex(index)}>Ver</Button>
+                        <Button size="small" variant="outlined" color="error" sx={{ minWidth: 0, px: 1, fontSize: 10 }} onClick={() => {
+                          setBannerUrls((prev) => prev.filter((_, i) => i !== index));
+                          setBannerActivoIndex((prev) => (prev > 0 ? prev - 1 : 0));
+                          setSuccess(false);
+                        }}>
+                          Quitar
+                        </Button>
+                      </Box>
+                    </Box>
+                  ))}
                 </Box>
               )}
             </CardContent>
@@ -824,8 +919,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               <Box sx={ { mt: 2, display: "grid", gap: 2 } }>
                 <Box sx={ { borderRadius: 3, bgcolor: colores.cardFondo, p: 2 } }>
                   <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>Publicidad</Typography>
-                  {bannerUrl ? (
-                    <Box component="img" src={bannerUrl} sx={ { width: "100%", height: 96, borderRadius: 2, objectFit: "cover" } } />
+                  {bannerPreviewUrl ? (
+                    <Box component="img" src={bannerPreviewUrl} sx={ { width: "100%", height: 96, borderRadius: 2, objectFit: "cover" } } />
                   ) : (
                     <Box sx={ { width: "100%", height: 96, borderRadius: 2, bgcolor: alpha(colores.texto, 0.04), display: "flex", alignItems: "center", justifyContent: "center" } }>
                       <Typography sx={ { color: textoSuave } }>Publicidad</Typography>
