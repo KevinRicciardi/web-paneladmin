@@ -361,7 +361,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       } else {
         setBannerUrls((prev) => {
           const next = [...prev, url];
-          setBannerActivoIndex(Math.max(0, next.length - 1));
+          setBannerActivoIndex(next.length - 1);
           return next;
         });
       }
@@ -371,6 +371,24 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     } finally {
       tipo === "logo" ? setUploadingLogo(false) : setUploadingBanner(false);
     }
+  };
+
+  const manejarEliminarBanner = (index: number) => {
+    setBannerUrls((prev) => {
+      if (prev.length <= 1) {
+        setBannerActivoIndex(0);
+        return [];
+      }
+
+      const next = prev.filter((_, i) => i !== index);
+      setBannerActivoIndex((current) => {
+        if (current >= next.length) return next.length - 1;
+        if (current > index) return current - 1;
+        return current;
+      });
+      return next;
+    });
+    setSuccess(false);
   };
 
   const abrirEditorDeRecorte = (file: File, tipo: "logo" | "banner") => {
@@ -823,11 +841,22 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     <Box key={`${bannerUrl}-${index}`} sx={{ position: "relative", borderRadius: 2, overflow: "hidden", border: index === bannerActivoIndex ? "2px solid" : "1px solid", borderColor: index === bannerActivoIndex ? "primary.main" : borde }}>
                       <Box component="img" src={bannerUrl} sx={{ width: "100%", height: 96, objectFit: "cover", display: "block" }} />
                       <Box sx={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 0.5 }}>
-                        <Button size="small" variant="contained" sx={{ minWidth: 0, px: 1, fontSize: 10 }} onClick={() => setBannerActivoIndex(index)}>Ver</Button>
-                        <Button size="small" variant="outlined" color="error" sx={{ minWidth: 0, px: 1, fontSize: 10 }} onClick={() => {
-                          setBannerUrls((prev) => prev.filter((_, i) => i !== index));
-                          setBannerActivoIndex((prev) => (prev > 0 ? prev - 1 : 0));
-                          setSuccess(false);
+                        <Button
+                          size="small"
+                          variant={index === bannerActivoIndex ? "contained" : "outlined"}
+                          sx={{ minWidth: 0, px: 1, fontSize: 10 }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setBannerActivoIndex(index);
+                          }}
+                        >
+                          Ver
+                        </Button>
+                        <Button size="small" variant="outlined" color="error" sx={{ minWidth: 0, px: 1, fontSize: 10 }} onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          manejarEliminarBanner(index);
                         }}>
                           Quitar
                         </Button>
