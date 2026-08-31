@@ -327,8 +327,12 @@ export default function NewsContentEditor({ value, onChange, onUploadImage }: Ne
           outline: "none",
           textAlign: "left",
           lineHeight: 1.6,
+          wordBreak: "break-word",
+          overflowWrap: "anywhere",
+          whiteSpace: "normal",
           "&:focus": { borderColor: "primary.main" },
           "& img": { maxWidth: "100%", height: "auto", cursor: "default" },
+          "& *": { overflowWrap: "anywhere", wordBreak: "break-word" },
           "&:empty::before": { content: '"Escribí el contenido de la noticia aquí..."', color: "text.secondary" },
         }}
       />
