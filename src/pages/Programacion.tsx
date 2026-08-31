@@ -33,7 +33,6 @@ import {
   actualizarPrograma,
   eliminarPrograma,
 } from "../services/schedule.service";
-import { shouldShowLoadingState } from "./programacion.utils";
 
 const OPCIONES_DIAS: { value: DiasSemana; label: string }[] = [
   { value: "LUN_VIE", label: "Lunes a Viernes" },
@@ -431,7 +430,6 @@ export default function Programacion() {
       return [];
     }
   });
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [cargando, setCargando] = useState(() => {
     if (typeof window === "undefined") {
       return true;
@@ -439,7 +437,7 @@ export default function Programacion() {
 
     try {
       const cached = sessionStorage.getItem("programacion_cache");
-      return shouldShowLoadingState({ hasCache: Boolean(cached), hasLoadedOnce: false });
+      return !cached;
     } catch {
       return true;
     }
@@ -530,7 +528,6 @@ export default function Programacion() {
         if (!active) return;
 
         setProgramas(data);
-        setHasLoadedOnce(true);
         try {
           sessionStorage.setItem("programacion_cache", JSON.stringify(data));
         } catch {}
@@ -540,7 +537,6 @@ export default function Programacion() {
       } finally {
         if (active) {
           setCargando(false);
-          setHasLoadedOnce(true);
         }
       }
     })();
