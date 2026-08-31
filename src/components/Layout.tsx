@@ -4,7 +4,7 @@ import type { Perfil } from "../types";
 
 const drawerWidth = 280;
 
-const navItems = [
+const navItemsBase = [
   { to: "/", label: "Dashboard", icon: "dashboard" },
   { to: "/branding", label: "Branding", icon: "palette" },
   { to: "/streaming", label: "Streaming", icon: "sensors" },
@@ -13,6 +13,10 @@ const navItems = [
   { to: "/estadisticas", label: "Estadísticas", icon: "monitoring" },
   { to: "/generar-app", label: "Generar App", icon: "phone_android" },
 ];
+
+// Solo el dueño del tenant (SUPER_ADMIN) puede invitar/gestionar
+// administradores internos.
+const itemAdministradores = { to: "/administradores", label: "Administradores", icon: "group" };
 
 const footerItems = [
   { to: "/configuracion", label: "Configuración", icon: "settings" },
@@ -23,6 +27,10 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
   const navigate = useNavigate();
   const location = useLocation();
   const brandName = perfil.tenant?.nombre || "StreamManager";
+  const navItems =
+    perfil.rol === "SUPER_ADMIN"
+      ? [...navItemsBase, itemAdministradores]
+      : navItemsBase;
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>

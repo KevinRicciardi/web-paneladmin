@@ -139,3 +139,24 @@ export interface Estadisticas {
   paises: EstadisticasPais[];
   ciudades: EstadisticasCiudad[];
 }
+
+export type EstadoAdministrador = "PENDING_ACTIVATION" | "ACTIVE";
+
+export const CARGOS_ADMINISTRADOR = [
+  "Operador de Streaming",
+  "Editor de Contenido",
+  "Programador",
+  "Moderador",
+  "Analista",
+  "Gestor de Usuarios",
+  "Diseñador/Branding",
+] as const;
+
+export interface Administrador {
+  id: number;
+  email: string;
+  cargo?: string | null;
+  status: EstadoAdministrador;
+  tenantId: number;
+  createdAt: string;
+}
