@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, type ChangeEvent } from "react";
+import { useEffect, useState, useMemo, memo, type ChangeEvent } from "react";
 import {
   Alert,
   Box,
@@ -33,6 +33,7 @@ import {
   actualizarPrograma,
   eliminarPrograma,
 } from "../services/schedule.service";
+import { shouldShowLoadingState } from "./programacion.utils";
 
 const OPCIONES_DIAS: { value: DiasSemana; label: string }[] = [
   { value: "LUN_VIE", label: "Lunes a Viernes" },
@@ -141,6 +142,66 @@ function formatearRangoFechas(fechaInicio?: string | null, fechaFin?: string | n
 
   return `${fechaInicio} → ${fechaFin}`;
 }
+
+const ProgramaTableRow = memo(function ProgramaTableRow({
+  programa,
+  onEditar,
+  onEliminar,
+  onAbrirDetalle,
+}: {
+  programa: Programa;
+  onEditar: (p: Programa) => void;
+  onEliminar: (p: Programa) => void;
+  onAbrirDetalle: (p: Programa) => void;
+}) {
+  return (
+    <TableRow sx={{ opacity: programa.activo ? 1 : 0.5 }}>
+      <TableCell>{etiquetaDiaPrograma(programa)}</TableCell>
+      <TableCell sx={{ fontFamily: "monospace" }}>
+        {programa.horaInicio} — {programa.horaFin}
+      </TableCell>
+      <TableCell>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          {programa.imagenUrl && (
+            <Box
+              sx={{ width: 48, height: 48, borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider", flexShrink: 0 }}
+            >
+              <Box component="img" src={programa.imagenUrl} alt={programa.titulo} loading="lazy" decoding="async" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </Box>
+          )}
+          <Box
+            onClick={() => (programa.fechaInicio || programa.dias === "FECHA_ESPECIFICA") && onAbrirDetalle(programa)}
+            sx={{ cursor: programa.fechaInicio || programa.dias === "FECHA_ESPECIFICA" ? "pointer" : "default" }}
+            role={programa.fechaInicio || programa.dias === "FECHA_ESPECIFICA" ? "button" : undefined}
+            tabIndex={programa.fechaInicio || programa.dias === "FECHA_ESPECIFICA" ? 0 : undefined}
+            onKeyDown={(e) => {
+              if ((e.key === "Enter" || e.key === " ") && (programa.fechaInicio || programa.dias === "FECHA_ESPECIFICA")) {
+                onAbrirDetalle(programa);
+              }
+            }}
+          >
+            <Typography sx={{ fontWeight: 600, fontStyle: programa.activo ? "normal" : "italic" }}>
+              {programa.titulo}
+            </Typography>
+            {programa.descripcion && (
+              <Typography variant="caption" color="text.secondary">
+                {programa.descripcion}
+              </Typography>
+            )}
+          </Box>
+        </Box>
+      </TableCell>
+      <TableCell align="right">
+        <Button size="small" onClick={() => onEditar(programa)}>
+          Editar
+        </Button>
+        <Button size="small" color="error" onClick={() => onEliminar(programa)}>
+          Eliminar
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 function formatearFechaParaMostrar(fecha?: string | null) {
   if (!fecha) {
@@ -358,8 +419,31 @@ export default function Programacion() {
   const [selectorFechaTipo, setSelectorFechaTipo] = useState<"inicio" | "fin" | null>(null);
   const [selectorFechaMes, setSelectorFechaMes] = useState<Date>(new Date());
 
-  const [programas, setProgramas] = useState<Programa[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const [programas, setProgramas] = useState<Programa[]>(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+
+    try {
+      const cached = sessionStorage.getItem("programacion_cache");
+      return cached ? (JSON.parse(cached) as Programa[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [cargando, setCargando] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    try {
+      const cached = sessionStorage.getItem("programacion_cache");
+      return shouldShowLoadingState({ hasCache: Boolean(cached), hasLoadedOnce: false });
+    } catch {
+      return true;
+    }
+  });
   const [error, setError] = useState<string | null>(null);
 
   const [abierto, setAbierto] = useState(false);
@@ -424,28 +508,29 @@ export default function Programacion() {
 
   useEffect(() => {
     let active = true;
-    let tieneCache = false;
 
-    // Mostrar cache inmediata si existe, luego cargar en background
     try {
       const cached = sessionStorage.getItem("programacion_cache");
       if (cached) {
-        setProgramas(JSON.parse(cached));
-        tieneCache = true;
+        const parsed = JSON.parse(cached) as Programa[];
+        setProgramas(parsed);
+        setCargando(false);
+      } else {
+        setCargando(true);
       }
-    } catch {}
+    } catch {
+      setCargando(true);
+    }
 
     void (async () => {
       try {
-        if (!tieneCache) {
-          setCargando(true);
-        }
         setError(null);
 
         const data = await listarMiProgramacion();
         if (!active) return;
 
         setProgramas(data);
+        setHasLoadedOnce(true);
         try {
           sessionStorage.setItem("programacion_cache", JSON.stringify(data));
         } catch {}
@@ -453,9 +538,13 @@ export default function Programacion() {
         if (!active) return;
         setError(e instanceof Error ? e.message : "Error al cargar");
       } finally {
-        if (active) setCargando(false);
+        if (active) {
+          setCargando(false);
+          setHasLoadedOnce(true);
+        }
       }
     })();
+
     return () => {
       active = false;
     };
@@ -477,6 +566,12 @@ export default function Programacion() {
     prepararFormularioEdicion(p);
     setAbierto(true);
 
+    // Si el listado ya trae los datos suficientes, evitamos un fetch extra para abrir el editor y
+    // dejamos la primera edición casi instantánea.
+    if (p.fechaInicio || p.dias === "FECHA_ESPECIFICA" || p.diasPersonalizados?.length) {
+      return;
+    }
+
     void obtenerPrograma(p.id)
       .then((detalle) => prepararFormularioEdicion(detalle))
       .catch(() => {
@@ -494,15 +589,6 @@ export default function Programacion() {
 
     const esFechaEspecifica = p.fechaInicio != null && p.fechaInicio !== "";
     const diasParaForm = esFechaEspecifica ? "FECHA_ESPECIFICA" : p.dias;
-
-    console.log("abrirEdicion", {
-      id: p.id,
-      diasOriginal: p.dias,
-      fechaInicio: p.fechaInicio,
-      fechaFin: p.fechaFin,
-      esFechaEspecifica,
-      diasParaForm,
-    });
 
     setEditandoId(p.id);
     setForm({
@@ -658,15 +744,6 @@ export default function Programacion() {
         fechaFin: fechaFinPayload,
       };
 
-      console.log("guardar payload final", {
-        modoDias,
-        modoFecha,
-        fechaInicioPayload,
-        fechaFinPayload,
-        diasSeleccionados,
-        payloadParaGuardar,
-      });
-
       if (editandoId === null) {
         const creado = await crearPrograma(payloadParaGuardar);
         const nuevos = [creado, ...programas];
@@ -776,7 +853,16 @@ export default function Programacion() {
 
   const calendarioDisabled = modoFecha === "NINGUNO";
 
-  
+  const programasOrdenados = useMemo(
+    () =>
+      [...programas].sort((a, b) => {
+        const ordenA = a.orden ?? 0;
+        const ordenB = b.orden ?? 0;
+        if (ordenA !== ordenB) return ordenA - ordenB;
+        return (a.titulo ?? "").localeCompare(b.titulo ?? "");
+      }),
+    [programas],
+  );
 
   return (
     <Box sx={{ p: 3 }}>
@@ -814,52 +900,14 @@ export default function Programacion() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {programas.map((p) => (
-                <TableRow key={p.id} sx={{ opacity: p.activo ? 1 : 0.5 }}>
-                  <TableCell>{etiquetaDiaPrograma(p)}</TableCell>
-                  <TableCell sx={{ fontFamily: "monospace" }}>
-                    {p.horaInicio} — {p.horaFin}
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                      {p.imagenUrl && (
-                        <Box
-                          sx={{ width: 48, height: 48, borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider", flexShrink: 0 }}
-                        >
-                          <Box component="img" src={p.imagenUrl} alt={p.titulo} loading="lazy" decoding="async" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        </Box>
-                      )}
-                      <Box
-                        onClick={() => (p.fechaInicio || p.dias === "FECHA_ESPECIFICA") && setFechaModalPrograma(p)}
-                        sx={{ cursor: p.fechaInicio || p.dias === "FECHA_ESPECIFICA" ? "pointer" : "default" }}
-                        role={p.fechaInicio || p.dias === "FECHA_ESPECIFICA" ? "button" : undefined}
-                        tabIndex={p.fechaInicio || p.dias === "FECHA_ESPECIFICA" ? 0 : undefined}
-                        onKeyDown={(e) => {
-                          if ((e.key === "Enter" || e.key === " ") && (p.fechaInicio || p.dias === "FECHA_ESPECIFICA")) {
-                            setFechaModalPrograma(p);
-                          }
-                        }}
-                      >
-                        <Typography sx={{ fontWeight: 600, fontStyle: p.activo ? "normal" : "italic" }}>
-                          {p.titulo}
-                        </Typography>
-                        {p.descripcion && (
-                          <Typography variant="caption" color="text.secondary">
-                            {p.descripcion}
-                          </Typography>
-                        )}
-                      </Box>
-                    </Box>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Button size="small" onClick={() => abrirEdicion(p)}>
-                      Editar
-                    </Button>
-                    <Button size="small" color="error" onClick={() => borrar(p)}>
-                      Eliminar
-                    </Button>
-                  </TableCell>
-                </TableRow>
+              {programasOrdenados.map((p) => (
+                <ProgramaTableRow
+                  key={p.id}
+                  programa={p}
+                  onEditar={abrirEdicion}
+                  onEliminar={borrar}
+                  onAbrirDetalle={setFechaModalPrograma}
+                />
               ))}
             </TableBody>
           </Table>
