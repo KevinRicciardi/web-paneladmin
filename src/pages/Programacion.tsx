@@ -34,6 +34,8 @@ import {
   eliminarPrograma,
 } from "../services/schedule.service";
 
+// Lista completa: se usa para traducir a texto el campo "dias" de programas
+// ya guardados (incluye opciones viejas que ya no se pueden crear desde acá).
 const OPCIONES_DIAS: { value: DiasSemana; label: string }[] = [
   { value: "LUN_VIE", label: "Lunes a Viernes" },
   { value: "SABADOS", label: "Sábados" },
@@ -42,6 +44,15 @@ const OPCIONES_DIAS: { value: DiasSemana; label: string }[] = [
   { value: "PERSONALIZADO", label: "Días específicos" },
   { value: "FECHA_ESPECIFICA", label: "Fecha específica" },
 ];
+
+// Únicas opciones elegibles al crear/editar un programa desde el modal.
+const OPCIONES_DIAS_MODAL = OPCIONES_DIAS.filter(
+  (opcion) => opcion.value === "PERSONALIZADO" || opcion.value === "FECHA_ESPECIFICA",
+);
+
+// Valores viejos que ya no se pueden elegir, pero pueden seguir existiendo
+// en programas creados antes de este cambio.
+const DIAS_LEGACY: DiasSemana[] = ["LUN_VIE", "SABADOS", "DOMINGOS", "TODOS"];
 
 const DIAS_SEMANA = [
   { value: "LUN", label: "Lun" },
@@ -57,7 +68,7 @@ const FORM_VACIO: ProgramaPayload = {
   titulo: "",
   descripcion: "",
   imagenUrl: "",
-  dias: "LUN_VIE",
+  dias: "PERSONALIZADO",
   horaInicio: "09:00",
   horaFin: "12:00",
   orden: 0,
@@ -367,7 +378,7 @@ export default function Programacion() {
   const [form, setForm] = useState<ProgramaPayload>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
   const [diasSeleccionados, setDiasSeleccionados] = useState<string[]>(["LUN", "MAR", "MIE", "JUE", "VIE"]);
-  const [modoDias, setModoDias] = useState<DiasSemana>("LUN_VIE");
+  const [modoDias, setModoDias] = useState<DiasSemana>("PERSONALIZADO");
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
   const [imagenPreview, setImagenPreview] = useState<string | null>(null);
@@ -465,7 +476,7 @@ export default function Programacion() {
     setEditandoId(null);
     setForm({ ...FORM_VACIO });
     setDiasSeleccionados(["LUN", "MAR", "MIE", "JUE", "VIE"]);
-    setModoDias("LUN_VIE");
+    setModoDias("PERSONALIZADO");
     setFechaInicio("");
     setFechaFin("");
     setImagenPreview(null);
@@ -493,7 +504,16 @@ export default function Programacion() {
     const fechaFinNormalizada = fechaFinDate ? formatearFechaInput(fechaFinDate) : "";
 
     const esFechaEspecifica = p.fechaInicio != null && p.fechaInicio !== "";
-    const diasParaForm = esFechaEspecifica ? "FECHA_ESPECIFICA" : p.dias;
+    // Los valores viejos (Lunes a Viernes, Sábados, etc.) ya no se pueden
+    // elegir desde el modal, pero un programa creado antes de este cambio
+    // puede seguir teniéndolos guardados: los tratamos como "Días
+    // específicos" con esos días ya marcados, para que el modal los muestre
+    // de forma consistente con las opciones disponibles hoy.
+    const diasParaForm = esFechaEspecifica
+      ? "FECHA_ESPECIFICA"
+      : DIAS_LEGACY.includes(p.dias)
+        ? "PERSONALIZADO"
+        : p.dias;
 
     console.log("abrirEdicion", {
       id: p.id,
@@ -949,10 +969,10 @@ export default function Programacion() {
                 Días de la semana
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: "block" }}>
-                Elige si el programa se repite por semana, por días específicos o todos los días.
+                Elige los días específicos en los que se repite, o una fecha puntual.
               </Typography>
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 1, mb: 2 }}>
-                {OPCIONES_DIAS.map((opcion) => (
+                {OPCIONES_DIAS_MODAL.map((opcion) => (
                   <Button
                     key={opcion.value}
                     size="small"

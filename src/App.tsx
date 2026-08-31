@@ -13,11 +13,13 @@ import Streaming from "./pages/Streaming";
 import Programacion from "./pages/Programacion";
 import Noticias from "./pages/Noticias";
 import Estadisticas from "./pages/Estadisticas";
+import Administradores from "./pages/Administradores";
 import GenerarApp from "./pages/GenerarApp";
+import Activate from "./pages/Activate";
 import type { Perfil } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
-const ROLES_ADMIN = ["SUPER_ADMIN", "ADMIN_CLIENTE"];
+const ROLES_ADMIN = ["MEGA_ADMIN", "SUPER_ADMIN", "ADMIN"];
 
 function App() {
   const [perfil, setPerfil] = useState<Perfil | null>(null);
@@ -84,30 +86,40 @@ function App() {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <Box sx={ { display: "flex", justifyContent: "center", mt: 10 } }>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (!perfil) return <Login error={error} />;
-
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<Layout perfil={perfil} />}>
-          <Route path="/" element={<Dashboard perfil={perfil} />} />
-<Route path="/branding" element={<Branding perfil={perfil} />} />
-          <Route path="/streaming" element={<Streaming perfil={perfil} />} />
-          <Route path="/programacion" element={<Programacion />} />
-          <Route path="/noticias" element={<Noticias />} />
-          <Route path="/estadisticas" element={<Estadisticas />} />
-          <Route path="/generar-app" element={<GenerarApp perfil={perfil} />} />
-          <Route path="/configuracion" element={<Configuracion perfil={perfil} />} />
-          <Route path="/soporte" element={<Soporte perfil={perfil} />} />
-        </Route>
+        {/* Pública: se llega acá sin sesión iniciada, desde el link del
+            email de invitación. */}
+        <Route path="/activate" element={<Activate />} />
+
+        <Route
+          path="/*"
+          element={
+            loading ? (
+              <Box sx={ { display: "flex", justifyContent: "center", mt: 10 } }>
+                <CircularProgress />
+              </Box>
+            ) : !perfil ? (
+              <Login error={error} />
+            ) : (
+              <Routes>
+                <Route element={<Layout perfil={perfil} />}>
+                  <Route path="/" element={<Dashboard perfil={perfil} />} />
+                  <Route path="/branding" element={<Branding perfil={perfil} />} />
+                  <Route path="/streaming" element={<Streaming perfil={perfil} />} />
+                  <Route path="/programacion" element={<Programacion />} />
+                  <Route path="/noticias" element={<Noticias />} />
+                  <Route path="/estadisticas" element={<Estadisticas />} />
+                  <Route path="/administradores" element={<Administradores />} />
+                  <Route path="/generar-app" element={<GenerarApp perfil={perfil} />} />
+                  <Route path="/configuracion" element={<Configuracion perfil={perfil} />} />
+                  <Route path="/soporte" element={<Soporte perfil={perfil} />} />
+                </Route>
+              </Routes>
+            )
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
