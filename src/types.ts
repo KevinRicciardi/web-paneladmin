@@ -45,6 +45,7 @@ export interface Perfil {
   id: number;
   email: string;
   rol: string;
+  cargo?: string | null;
   tenantId: number;
   tenant: Tenant;
 }
@@ -148,9 +149,20 @@ export const CARGOS_ADMINISTRADOR = [
   "Programador",
   "Moderador",
   "Analista",
-  "Gestor de Usuarios",
   "Diseñador/Branding",
 ] as const;
+
+// Espejo del mapeo de permisos del backend (src/common/cargo-permissions.ts),
+// solo para mostrar/ocultar secciones en el panel — el backend es quien
+// realmente aplica los permisos, esto es nada más para la UI.
+export const SECCIONES_POR_CARGO: Record<string, string[]> = {
+  "Operador de Streaming": ["streaming", "programacion"],
+  "Editor de Contenido": ["noticias", "programacion"],
+  Programador: ["programacion"],
+  Analista: ["estadisticas"],
+  "Diseñador/Branding": ["branding"],
+  Moderador: [],
+};
 
 export interface Administrador {
   id: number;

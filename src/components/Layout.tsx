@@ -1,17 +1,20 @@
 ﻿import { Box, Divider, Drawer, List, ListItemButton, ListItemText, Typography } from "@mui/material";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { Perfil } from "../types";
+import { puedeVerSeccion } from "../utils/permisos";
 
 const drawerWidth = 280;
 
+// "seccion: null" = todos los admins la ven, sin importar cargo.
+// "seccion: 'soloDueno'" = solo el dueño del tenant (SUPER_ADMIN/MEGA_ADMIN).
 const navItemsBase = [
-  { to: "/", label: "Dashboard", icon: "dashboard" },
-  { to: "/branding", label: "Branding", icon: "palette" },
-  { to: "/streaming", label: "Streaming", icon: "sensors" },
-  { to: "/programacion", label: "Programación", icon: "calendar_month" },
-  { to: "/noticias", label: "Noticias", icon: "newspaper" },
-  { to: "/estadisticas", label: "Estadísticas", icon: "monitoring" },
-  { to: "/generar-app", label: "Generar App", icon: "phone_android" },
+  { to: "/", label: "Dashboard", icon: "dashboard", seccion: null as string | null },
+  { to: "/branding", label: "Branding", icon: "palette", seccion: "branding" },
+  { to: "/streaming", label: "Streaming", icon: "sensors", seccion: "streaming" },
+  { to: "/programacion", label: "Programación", icon: "calendar_month", seccion: "programacion" },
+  { to: "/noticias", label: "Noticias", icon: "newspaper", seccion: "noticias" },
+  { to: "/estadisticas", label: "Estadísticas", icon: "monitoring", seccion: "estadisticas" },
+  { to: "/generar-app", label: "Generar App", icon: "phone_android", seccion: "soloDueno" },
 ];
 
 // Solo el dueño del tenant (SUPER_ADMIN) puede invitar/gestionar
@@ -27,10 +30,11 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
   const navigate = useNavigate();
   const location = useLocation();
   const brandName = perfil.tenant?.nombre || "StreamManager";
+  const navItemsVisibles = navItemsBase.filter((item) => puedeVerSeccion(perfil, item.seccion));
   const navItems =
     perfil.rol === "SUPER_ADMIN"
-      ? [...navItemsBase, itemAdministradores]
-      : navItemsBase;
+      ? [...navItemsVisibles, itemAdministradores]
+      : navItemsVisibles;
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
