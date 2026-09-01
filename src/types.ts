@@ -39,6 +39,16 @@ export interface Tenant {
   admins?: AdminUser[];
   fontFamily?: string | null; // Fuente personalizada (ej: "Roboto", "Montserrat", etc.)
   temasPersonalizados?: string | null;
+  
+  // Nuevos campos para Branding
+  websiteUrl?: string | null; // Enlace del sitio web
+  socialMediasJson?: string | null; // JSON con redes sociales seleccionadas
+  otherContentJson?: string | null; // JSON array con objetos {nombre, enlace}
+}
+
+export interface OtherContentItem {
+  nombre: string;
+  enlace: string;
 }
 
 export interface Perfil {

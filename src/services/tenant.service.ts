@@ -64,6 +64,11 @@ export interface BrandingPayload {
   colorIconos?: string; // extra
 
   temasPersonalizados?: string;
+  
+  // Nuevos campos para Branding
+  websiteUrl?: string; // Enlace del sitio web
+  socialMediasJson?: string; // JSON con redes sociales seleccionadas
+  otherContentJson?: string; // JSON array con objetos {nombre, enlace}
 }
 
 /** GET /tenants — listado (público) */
