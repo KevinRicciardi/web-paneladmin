@@ -683,7 +683,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               <Box sx={{ display: "grid", gap: 2, mb: 2 }}>
                 {otherContentList.map((item, idx) => (
                   <Box
-                    key={idx}
+                    key={`other-content-${idx}`}
                     sx={{
                       display: "grid",
                       gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr auto" },
@@ -746,7 +746,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 }}
                 startIcon={<span className="material-symbols-outlined">add</span>}
               >
-                + Agregar Enlace
+                Agregar Enlace
               </Button>
             </CardContent>
           </Card>
@@ -855,10 +855,10 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               <CardContent>
                 <CardHeader icon="favorite">Temas Personalizados</CardHeader>
                 <Box sx={ { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 1.5 } }>
-                  {temasPersonalizados.map((p) => {
+                  {temasPersonalizados.map((p, idx) => {
                     const activo = presetActivo(p.colores);
                     return (
-                      <Box key={p.nombre} onClick={() => aplicarPreset(p.colores)}
+                      <Box key={`custom-theme-${idx}`} onClick={() => aplicarPreset(p.colores)}
                         sx={ {
                           cursor: "pointer", border: "2px solid",
                           borderColor: activo ? "primary.main" : alpha(colores.texto, 0.08),
