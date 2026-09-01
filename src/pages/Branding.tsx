@@ -257,6 +257,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [cropDialogSource, setCropDialogSource] = useState<string | null>(null);
   const [cropDialogType, setCropDialogType] = useState<"logo" | "banner">("logo");
   const [cropDialogFileName, setCropDialogFileName] = useState("imagen");
+  const [editingBannerIndex, setEditingBannerIndex] = useState<number | null>(null);
   const [originalLogoSource, setOriginalLogoSource] = useState<string | null>(null);
   const [originalBannerSource, setOriginalBannerSource] = useState<string | null>(null);
   
@@ -380,7 +381,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   };
   const aplicarPreset = (c: Partial<Colores>) => { setColores(ensureColores(c)); setSuccess(false); };
 
-  const handleUpload = async (file: File, tipo: "logo" | "banner") => {
+  const handleUpload = async (file: File, tipo: "logo" | "banner", replaceIndex?: number) => {
     tipo === "logo" ? setUploadingLogo(true) : setUploadingBanner(true);
     setError("");
     try {
@@ -389,7 +390,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         setLogoUrl(url);
       } else {
         setBannerUrls((prev) => {
-          const next = [...prev, url];
+          const next = [...prev];
+          if (typeof replaceIndex === "number" && replaceIndex >= 0 && replaceIndex < next.length) {
+            next[replaceIndex] = url;
+            setBannerActivoIndex(replaceIndex);
+            return next;
+          }
+          next.push(url);
           setBannerActivoIndex(next.length - 1);
           return next;
         });
@@ -437,6 +444,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setCropDialogSource(tipo === "logo" ? originalLogoSource || url : originalBannerSource || url);
     setCropDialogType(tipo);
     setCropDialogFileName(`${tipo}.jpg`);
+    if (tipo === "banner") setEditingBannerIndex(bannerActivoIndex);
+    else setEditingBannerIndex(null);
     setCropModalOpen(true);
   };
 
@@ -444,6 +453,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setCropModalOpen(false);
     if (cropDialogSource?.startsWith("blob:") && cropDialogSource !== originalLogoSource && cropDialogSource !== originalBannerSource) URL.revokeObjectURL(cropDialogSource);
     setCropDialogSource(null);
+    setEditingBannerIndex(null);
   };
 
   const handleDrop = (e: React.DragEvent, tipo: "logo" | "banner") => {
@@ -988,9 +998,14 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                             e.preventDefault();
                             e.stopPropagation();
                             setBannerActivoIndex(index);
+                            setEditingBannerIndex(index);
+                            setCropDialogSource(bannerUrl);
+                            setCropDialogType("banner");
+                            setCropDialogFileName(`banner-${index + 1}.jpg`);
+                            setCropModalOpen(true);
                           }}
                         >
-                          Ver
+                          Editar
                         </Button>
                         <Button size="small" variant="outlined" color="error" sx={{ minWidth: 0, px: 1, fontSize: 10 }} onClick={(e) => {
                           e.preventDefault();
@@ -1127,7 +1142,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         onConfirm={(file) => {
           setCropDialogSource(null);
           setCropModalOpen(false);
-          void handleUpload(file, cropDialogType);
+          const replaceIndex = cropDialogType === "banner" ? editingBannerIndex : undefined;
+          void handleUpload(file, cropDialogType, replaceIndex);
+          setEditingBannerIndex(null);
         }}
       />
 
