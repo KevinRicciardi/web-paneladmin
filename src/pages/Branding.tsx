@@ -26,6 +26,16 @@ const FUENTES_DISPONIBLES = [
   { valor: "Oswald", etiqueta: "Oswald" },
 ];
 
+// Redes sociales disponibles (6 opciones)
+const REDES_SOCIALES_DISPONIBLES = [
+  { valor: "instagram", etiqueta: "Instagram", icono: "🔗" },
+  { valor: "youtube", etiqueta: "YouTube", icono: "🎥" },
+  { valor: "tiktok", etiqueta: "TikTok", icono: "🎵" },
+  { valor: "facebook", etiqueta: "Facebook", icono: "📘" },
+  { valor: "twitter", etiqueta: "X / Twitter", icono: "𝕏" },
+  { valor: "linkedin", etiqueta: "LinkedIn", icono: "💼" },
+];
+
 type Colores = {
   fondo: string;
   cabecera: string;
@@ -249,6 +259,25 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [cropDialogFileName, setCropDialogFileName] = useState("imagen");
   const [originalLogoSource, setOriginalLogoSource] = useState<string | null>(null);
   const [originalBannerSource, setOriginalBannerSource] = useState<string | null>(null);
+  
+  // Nuevos estados para Branding
+  const [websiteUrl, setWebsiteUrl] = useState(t?.websiteUrl ?? "");
+  const [selectedSocialMedias, setSelectedSocialMedias] = useState<string[]>(() => {
+    try {
+      const parsed = JSON.parse(t?.socialMediasJson ?? "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [otherContentList, setOtherContentList] = useState<Array<{ nombre: string; enlace: string }>>(() => {
+    try {
+      const parsed = JSON.parse(t?.otherContentJson ?? "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
 
   const guardarTemasEnBase = async (temas: { nombre: string; colores: Colores }[]) => {
     const payload = JSON.stringify(temas);
@@ -446,6 +475,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setWhatsappUrl(ultimoGuardado.whatsappUrl);
     setFontFamily(ultimoGuardado.fontFamily);
     setColores(ultimoGuardado.colores);
+    setWebsiteUrl((ultimoGuardado as any).websiteUrl ?? "");
+    setSelectedSocialMedias((ultimoGuardado as any).selectedSocialMedias ?? []);
+    setOtherContentList((ultimoGuardado as any).otherContentList ?? []);
     setSuccess(false);
     setError("");
   };
@@ -495,6 +527,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           colorBotones: colores.botones,
           colorCardFondo: colores.cardFondo,
           colorIconos: colores.iconos,
+          websiteUrl,
+          socialMediasJson: JSON.stringify(selectedSocialMedias),
+          otherContentJson: JSON.stringify(otherContentList),
         }),
       });
       if (!res.ok) throw new Error("Error");
@@ -512,7 +547,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         whatsappUrl,
         fontFamily,
         colores,
-      });
+      } as any);
       try {
         window.dispatchEvent(new CustomEvent("tenantUpdated", {
           detail: {
@@ -536,6 +571,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             colorBotones: colores.botones,
             colorCardFondo: colores.cardFondo,
             colorIconos: colores.iconos,
+            websiteUrl,
+            socialMediasJson: JSON.stringify(selectedSocialMedias),
+            otherContentJson: JSON.stringify(otherContentList),
           },
         }));
       } catch {
@@ -609,6 +647,107 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   />
                 ))}
               </Box>
+            </CardContent>
+          </Card>
+
+          {/* Página Web */}
+          <Card variant="outlined">
+            <CardContent>
+              <CardHeader icon="public">Página Web</CardHeader>
+              <TextField
+                fullWidth
+                label="URL del Sitio Web"
+                value={websiteUrl}
+                placeholder="https://ejemplo.com"
+                onChange={(e) => {
+                  setWebsiteUrl(e.target.value);
+                  setSuccess(false);
+                }}
+                size="small"
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                Enlace a tu sitio web oficial
+              </Typography>
+            </CardContent>
+          </Card>
+
+          {/* Contenido Personalizado */}
+          <Card variant="outlined">
+            <CardContent>
+              <CardHeader icon="add_box">Contenido Personalizado</CardHeader>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
+                Agrega múltiples enlaces o información adicional (ej: WhatsApp, Tienda online, etc.)
+              </Typography>
+
+              {/* Lista de elementos */}
+              <Box sx={{ display: "grid", gap: 2, mb: 2 }}>
+                {otherContentList.map((item, idx) => (
+                  <Box
+                    key={idx}
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr auto" },
+                      gap: 1,
+                      alignItems: "flex-end",
+                      p: 1.5,
+                      borderRadius: 1,
+                      bgcolor: alpha(colores.texto, 0.03),
+                      border: "1px solid",
+                      borderColor: alpha(colores.texto, 0.1),
+                    }}
+                  >
+                    <TextField
+                      size="small"
+                      label="Nombre"
+                      placeholder="WhatsApp, Tienda online, etc."
+                      value={item.nombre}
+                      onChange={(e) => {
+                        const updated = [...otherContentList];
+                        updated[idx].nombre = e.target.value;
+                        setOtherContentList(updated);
+                        setSuccess(false);
+                      }}
+                    />
+                    <TextField
+                      size="small"
+                      label="Enlace"
+                      placeholder="https://ejemplo.com"
+                      value={item.enlace}
+                      onChange={(e) => {
+                        const updated = [...otherContentList];
+                        updated[idx].enlace = e.target.value;
+                        setOtherContentList(updated);
+                        setSuccess(false);
+                      }}
+                    />
+                    <Button
+                      color="error"
+                      size="small"
+                      onClick={() => {
+                        setOtherContentList(otherContentList.filter((_, i) => i !== idx));
+                        setSuccess(false);
+                      }}
+                      startIcon={<span className="material-symbols-outlined">delete</span>}
+                    >
+                      Eliminar
+                    </Button>
+                  </Box>
+                ))}
+              </Box>
+
+              {/* Botón para agregar */}
+              <Button
+                variant="outlined"
+                size="small"
+                fullWidth
+                onClick={() => {
+                  setOtherContentList([...otherContentList, { nombre: "", enlace: "" }]);
+                  setSuccess(false);
+                }}
+                startIcon={<span className="material-symbols-outlined">add</span>}
+              >
+                + Agregar Enlace
+              </Button>
             </CardContent>
           </Card>
 
