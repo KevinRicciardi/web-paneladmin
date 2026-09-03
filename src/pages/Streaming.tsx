@@ -46,6 +46,12 @@ function getEmbedUrl(url: string): string | null {
       const canal = u.pathname.replace("/", "").split("/")[0];
       return canal ? "https://player.kick.com/" + canal : null;
     }
+    if (u.hostname === "twitch.tv" || u.hostname === "www.twitch.tv") {
+      const canal = u.pathname.split("/").filter(Boolean)[0];
+      if (!canal || canal === "directory" || canal === "videos") return null;
+      const parent = typeof window !== "undefined" ? window.location.hostname : "localhost";
+      return `https://player.twitch.tv/?channel=${encodeURIComponent(canal)}&parent=${encodeURIComponent(parent)}`;
+    }
     return null;
   } catch {
     return null;
@@ -54,8 +60,17 @@ function getEmbedUrl(url: string): string | null {
 
 function detectarPlataforma(url: string): string {
   if (url.includes("kick.com")) return "Kick";
+  if (url.includes("twitch.tv")) return "Twitch";
   if (url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube";
   return "Desconocida";
+}
+
+function detectarProveedor(url: string): string | null {
+  const normalized = url.toLowerCase();
+  if (normalized.includes("kick.com")) return "kick";
+  if (normalized.includes("twitch.tv")) return "twitch";
+  if (normalized.includes("youtube.com") || normalized.includes("youtu.be")) return "youtube";
+  return null;
 }
 
 function getAudioUrl(url: string): string | null {
@@ -70,7 +85,12 @@ function getAudioUrl(url: string): string | null {
 
   try {
     const parsed = new URL(normalized);
-    if (parsed.hostname.includes("kick.com") || parsed.hostname.includes("youtube.com") || parsed.hostname.includes("youtu.be")) {
+    if (
+      parsed.hostname.includes("kick.com")
+      || parsed.hostname.includes("youtube.com")
+      || parsed.hostname.includes("youtu.be")
+      || parsed.hostname.includes("twitch.tv")
+    ) {
       return null;
     }
   } catch {
@@ -152,7 +172,13 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
   const esPodcast = tipoTransmision === "audio";
   const embedUrl = streamUrl ? getEmbedUrl(streamUrl) : null;
-  const plataforma = streamProvider === "youtube" ? "YouTube" : streamUrl ? detectarPlataforma(streamUrl) : null;
+  const plataforma = streamProvider === "youtube"
+    ? "YouTube"
+    : streamProvider === "twitch"
+    ? "Twitch"
+    : streamUrl
+    ? detectarPlataforma(streamUrl)
+    : null;
   const youtubeEmbedUrl = buildYoutubeChannelEmbedUrl(youtubeChannelId);
   const channelName = streamUrl ? extractKickChannelName(streamUrl) : null;
   const rawAudioUrl = kickAudioUrl || (streamUrl ? getAudioUrl(streamUrl) : null);
@@ -588,43 +614,20 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
               )}
             </Box>
 
-            {/* Proveedor de streaming */}
-            <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 } }>
-              Proveedor de Streaming
-            </Typography>
-            <Box sx={ { display: "grid", gridTemplateColumns: "1fr 1fr", border: "1px solid", borderColor: "divider", mb: 3, borderRadius: 1, overflow: "hidden" } }>
-              {[
-                { val: "kick", label: "Kick" },
-                { val: "youtube", label: "YouTube" },
-              ].map((op) => {
-                const activo = streamProvider === op.val;
-                return (
-                  <Box
-                    key={op.val}
-                    onClick={() => { setStreamProvider(op.val); setSuccess(false); }}
-                    sx={ {
-                      textAlign: "center", py: 1.25, cursor: "pointer",
-                      fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
-                      bgcolor: activo ? "primary.main" : "transparent",
-                      color: activo ? "primary.contrastText" : "text.primary",
-                      transition: "all 0.15s",
-                      "&:hover": { bgcolor: activo ? "primary.main" : "action.hover" },
-                    } }
-                  >
-                    {op.label}
-                  </Box>
-                );
-              })}
-            </Box>
-
             {/* URL */}
             <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 } }>
-              {streamProvider === "youtube" ? "Link del Canal de YouTube" : "URL del Servidor"}
+              Link de Stream
             </Typography>
             <TextField
-              placeholder={streamProvider === "youtube" ? "https://www.youtube.com/@tuCanal" : "rtmp://a.rtmp.youtube.com/live2"}
+              placeholder="Poné tu link de Kick, Twitch o YouTube"
               value={streamUrl}
-              onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { setStreamUrl(e.target.value); setSuccess(false); }}
+              onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                const value = e.target.value;
+                const detectedProvider = detectarProveedor(value);
+                setStreamUrl(value);
+                if (detectedProvider) setStreamProvider(detectedProvider);
+                setSuccess(false);
+              }}
               fullWidth
               size="small"
               sx={{
@@ -632,11 +635,9 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 '& .MuiInputBase-input': { fontFamily: 'monospace', fontSize: 13 },
               }}
             />
-            {streamProvider === "youtube" && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>
-                Pegá el link del canal (no de un video puntual): al guardar, la app resuelve sola cuál es el video en vivo actual.
-              </Typography>
-            )}
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>
+              Poné tu link de Kick, Twitch o YouTube.
+            </Typography>
 
             {/* Tipo de transmisión */}
             <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 } }>
@@ -738,7 +739,36 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             </Typography>
           </Box>
           <CardContent>
-            {!esPodcast && streamProvider === "youtube" ? (
+            {!esPodcast && streamProvider === "twitch" ? (
+              embedUrl ? (
+                <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
+                  <Box
+                    component="iframe"
+                    src={embedUrl}
+                    title="Vista previa del stream de Twitch"
+                    allow="autoplay; fullscreen; picture-in-picture"
+                    sx={ { position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" } }
+                  />
+                </Box>
+              ) : (
+                <Box
+                  sx={ {
+                    width: "100%", aspectRatio: "16 / 9", borderRadius: 1,
+                    border: "1px solid", borderColor: "divider",
+                    bgcolor: "action.hover", color: "text.secondary",
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1,
+                    p: 2, textAlign: "center",
+                  } }
+                >
+                  <Typography sx={ { fontSize: 28, opacity: 0.4 } }>
+                    <span className="material-symbols-outlined">live_tv</span>
+                  </Typography>
+                  <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase" } }>
+                    Ingresá un canal de Twitch
+                  </Typography>
+                </Box>
+              )
+            ) : !esPodcast && streamProvider === "youtube" ? (
               youtubeEmbedUrl ? (
                 <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
                   <Box
