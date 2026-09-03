@@ -54,6 +54,7 @@ export interface OtherContentItem {
 export interface Perfil {
   id: number;
   email: string;
+  name?: string | null;
   rol: string;
   cargo?: string | null;
   tenantId: number;
