@@ -30,6 +30,11 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
   const navigate = useNavigate();
   const location = useLocation();
   const brandName = perfil.tenant?.nombre || "StreamManager";
+  const nombreUsuario = perfil.name?.trim() || perfil.email.split("@")[0];
+  const etiquetaRol =
+    perfil.rol === "MEGA_ADMIN" ? "MegaAdmin" : perfil.rol === "SUPER_ADMIN" ? "SuperAdmin" : "Admin";
+  const etiquetaCargo = perfil.rol === "ADMIN" && perfil.cargo ? ` ${perfil.cargo}` : "";
+  const subtitulo = `${nombreUsuario} - ${etiquetaRol}${etiquetaCargo}`;
   const navItemsVisibles = navItemsBase.filter((item) => puedeVerSeccion(perfil, item.seccion));
   const navItems =
     perfil.rol === "SUPER_ADMIN"
@@ -79,8 +84,8 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
             <Typography variant="h6" sx={{ fontWeight: 900, mb: 0.5 }}>
               {brandName}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Admin de Marca
+            <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "break-word" }}>
+              {subtitulo}
             </Typography>
           </Box>
 

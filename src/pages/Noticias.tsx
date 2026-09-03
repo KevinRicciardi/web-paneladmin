@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Backdrop,
@@ -19,9 +19,8 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import ImageCropDialog from "../components/ImageCropDialog";
-import NewsContentEditor from "../components/NewsContentEditor";
-import type { News, NewsPayload, NewsStatus } from "../types";
+import NoticiaEditorForm from "../components/NoticiaEditorForm";
+import type { News, NewsStatus } from "../types";
 import {
   actualizarNoticia,
   crearNoticia,
@@ -30,36 +29,6 @@ import {
   listarMisNoticias,
   publicarNoticia,
 } from "../services/news.service";
-
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as
-  | string
-  | undefined;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as
-  | string
-  | undefined;
-
-type FormState = {
-  title: string;
-  coverImageUrl: string;
-  content: string;
-};
-
-const EMPTY_FORM: FormState = {
-  title: "",
-  coverImageUrl: "",
-  content: "",
-};
-
-function formatDate(value?: string | null) {
-  if (!value) return "Sin publicar";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
 
 function timeAgo(value?: string | null) {
   if (!value) return "Borrador";
@@ -78,7 +47,12 @@ function timeAgo(value?: string | null) {
   if (days === 1) return "ayer";
   if (days < 7) return `hace ${days} días`;
 
-  return formatDate(value);
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function excerptFrom(news: News) {
@@ -100,52 +74,19 @@ function statusColor(status: NewsStatus) {
   return status === "published" ? "success" : "default";
 }
 
-async function subirACloudinary(file: File): Promise<string> {
-  if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error(
-      "Faltan VITE_CLOUDINARY_CLOUD_NAME y VITE_CLOUDINARY_UPLOAD_PRESET",
-    );
-  }
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", UPLOAD_PRESET);
-
-  const res = await fetch(
-    "https://api.cloudinary.com/v1_1/" + CLOUD_NAME + "/image/upload",
-    {
-      method: "POST",
-      body: formData,
-    },
-  );
-
-  if (!res.ok) throw new Error("No se pudo subir la imagen");
-
-  const data = await res.json();
-  return data.secure_url as string;
-}
-
 export default function Noticias() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [noticias, setNoticias] = useState<News[]>([]);
-  const [selected, setSelected] = useState<News | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [editando, setEditando] = useState<News | null>(null);
 
   const [search, setSearch] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [noticiaAEliminar, setNoticiaAEliminar] = useState<News | null>(null);
   const [eliminando, setEliminando] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [cropOpen, setCropOpen] = useState(false);
-  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
-  const [originalCoverSource, setOriginalCoverSource] = useState<string | null>(null);
-  const [originalCoverSources, setOriginalCoverSources] = useState<Record<number, string>>({});
   const [redactorExpandido, setRedactorExpandido] = useState(false);
 
   const filteredNews = useMemo(() => {
@@ -161,8 +102,6 @@ export default function Noticias() {
       );
     });
   }, [noticias, search]);
-
-  
 
   const loadNoticias = async () => {
     let hasCache = false;
@@ -214,78 +153,15 @@ export default function Noticias() {
     return () => window.clearTimeout(timer);
   }, [success]);
 
-  const openEdit = (news: News) => {
-    setSelected(news);
-    setOriginalCoverSource(originalCoverSources[news.id] ?? null);
-    setForm({
-      title: news.title,
-      coverImageUrl: news.coverImageUrl ?? "",
-      content: news.content ?? "",
+  const actualizarListado = (noticia: News) => {
+    setNoticias((prev) => {
+      const exists = prev.some((item) => item.id === noticia.id);
+      const nuevos = exists
+        ? prev.map((item) => (item.id === noticia.id ? noticia : item))
+        : [noticia, ...prev];
+      try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
+      return nuevos;
     });
-    setError("");
-    setSuccess("");
-  };
-
-  const setField = (field: keyof FormState, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const validate = () => {
-    if (!form.title.trim()) {
-      setError("Ingresá un título para la noticia.");
-      return false;
-    }
-
-    if (!form.content.trim()) {
-      setError("Ingresá el contenido de la noticia.");
-      return false;
-    }
-
-    return true;
-  };
-
-  const buildPayload = (status: NewsStatus): NewsPayload => ({
-    title: form.title.trim(),
-    coverImageUrl: form.coverImageUrl.trim(),
-    content: form.content.trim(),
-    contentFormat: "markdown",
-    status,
-  });
-
-  const save = async (status: NewsStatus) => {
-    if (!validate()) return;
-
-    setSaving(true);
-    setError("");
-
-    try {
-      const payload = buildPayload(status);
-
-      const saved = selected
-        ? await actualizarNoticia(selected.id, payload)
-        : await crearNoticia(payload);
-
-      setNoticias((prev) => {
-        const exists = prev.some((item) => item.id === saved.id);
-        const nuevos = exists
-          ? prev.map((item) => (item.id === saved.id ? saved : item))
-          : [saved, ...prev];
-        try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
-        return nuevos;
-      });
-
-      setSelected(saved);
-      setSuccess(
-        status === "published" ? "Noticia publicada." : "Borrador guardado.",
-      );
-    } catch (err) {
-      console.error(err);
-      setError(
-        err instanceof Error ? err.message : "No se pudo guardar la noticia",
-      );
-    } finally {
-      setSaving(false);
-    }
   };
 
   const publishExisting = async (news: News) => {
@@ -294,13 +170,7 @@ export default function Noticias() {
 
     try {
       const updated = await publicarNoticia(news.id);
-
-      setNoticias((prev) => {
-        const nuevos = prev.map((item) => (item.id === updated.id ? updated : item));
-        try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
-        return nuevos;
-      });
-
+      actualizarListado(updated);
       setSuccess("Noticia publicada.");
     } catch (err) {
       console.error(err);
@@ -318,13 +188,7 @@ export default function Noticias() {
 
     try {
       const updated = await despublicarNoticia(news.id);
-
-      setNoticias((prev) => {
-        const nuevos = prev.map((item) => (item.id === updated.id ? updated : item));
-        try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
-        return nuevos;
-      });
-
+      actualizarListado(updated);
       setSuccess("La noticia volvió a borrador.");
     } catch (err) {
       console.error(err);
@@ -367,76 +231,6 @@ export default function Noticias() {
     }
   };
 
-  const uploadCover = async (file: File) => {
-    setUploading(true);
-    setError("");
-
-    try {
-      const url = await subirACloudinary(file);
-      setField("coverImageUrl", url);
-      setSuccess("Imagen subida.");
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "No se pudo subir la imagen");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const openCropEditor = (url: string) => {
-    setCropImageUrl(originalCoverSource || url);
-    setCropOpen(true);
-  };
-
-  const handleCoverUrlChange = (value: string) => {
-    setOriginalCoverSource(null);
-    setField("coverImageUrl", value);
-  };
-
-  const validateCoverUrl = () => {
-    const value = form.coverImageUrl.trim();
-    if (!value) return;
-
-    try {
-      const parsed = new URL(value);
-      if (!/^https?:$/.test(parsed.protocol)) {
-        throw new Error("La URL debe comenzar con http:// o https://");
-      }
-      setError("");
-    } catch {
-      setError("Ingresá una URL de imagen válida (http:// o https://).");
-    }
-  };
-
-  const handleDrop = (event: React.DragEvent) => {
-    event.preventDefault();
-
-    const file = event.dataTransfer.files?.[0];
-    if (file) {
-      const localUrl = URL.createObjectURL(file);
-      setOriginalCoverSource(localUrl);
-      if (selected) {
-        setOriginalCoverSources((sources) => ({ ...sources, [selected.id]: localUrl }));
-      }
-      setCropImageUrl(localUrl);
-      setCropOpen(true);
-    }
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const localUrl = URL.createObjectURL(file);
-      setOriginalCoverSource(localUrl);
-      if (selected) {
-        setOriginalCoverSources((sources) => ({ ...sources, [selected.id]: localUrl }));
-      }
-      setCropImageUrl(localUrl);
-      setCropOpen(true);
-    }
-    event.target.value = "";
-  };
-
   return (
     <Box>
       <Box
@@ -456,7 +250,6 @@ export default function Noticias() {
             Gestioná y publicá anuncios de la plataforma.
           </Typography>
         </Box>
-
       </Box>
 
       {(error || success) && (
@@ -533,8 +326,8 @@ export default function Noticias() {
                     : "Todavía no hay noticias cargadas"}
                 </Typography>
                 <Typography color="text.secondary" sx={{ mb: 3 }}>
-                  Creá el primer anuncio para que luego aparezca publicado en la
-                  app.
+                  Creá el primer anuncio desde el redactor de la derecha para
+                  que luego aparezca publicado en la app.
                 </Typography>
               </Box>
             ) : (
@@ -630,7 +423,7 @@ export default function Noticias() {
                       </Box>
 
                       <Stack direction={{ xs: "row", sm: "column" }} spacing={1}>
-                        <Button variant="outlined" size="small" onClick={() => openEdit(news)}>
+                        <Button variant="outlined" size="small" onClick={() => setEditando(news)}>
                           Editar
                         </Button>
 
@@ -705,192 +498,83 @@ export default function Noticias() {
                     Redactor
                   </Typography>
                   <Typography color="text.secondary" variant="body2">
-                    {selected
-                      ? "Editá la noticia seleccionada."
-                      : "Creá una nueva noticia para tu tenant."}
+                    Creá una nueva noticia para tu tenant.
                   </Typography>
                 </Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <IconButton
-                    onClick={() => setRedactorExpandido((expanded) => !expanded)}
-                    size="small"
-                    title={redactorExpandido ? "Contraer redactor" : "Expandir redactor"}
-                  >
-                    <span className="material-symbols-outlined">
-                      {redactorExpandido ? "close_fullscreen" : "open_in_full"}
-                    </span>
-                  </IconButton>
-                </Box>
+                <IconButton
+                  onClick={() => setRedactorExpandido((expanded) => !expanded)}
+                  size="small"
+                  title={redactorExpandido ? "Contraer redactor" : "Expandir redactor"}
+                >
+                  <span className="material-symbols-outlined">
+                    {redactorExpandido ? "close_fullscreen" : "open_in_full"}
+                  </span>
+                </IconButton>
               </Box>
 
-              <Stack spacing={2.5}>
-                <TextField
-                  label="Título"
-                  placeholder="Ingrese el título del artículo"
-                  value={form.title}
-                  onChange={(event) => setField("title", event.target.value)}
-                  fullWidth
-                />
-
-                <Box>
-                  <Typography
-                    sx={{
-                      fontSize: 12,
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                      mb: 1,
-                    }}
-                  >
-                    Imagen de portada
-                  </Typography>
-
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={handleFileChange}
-                  />
-
-                  <Box
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                    sx={{
-                      minHeight: 150,
-                      border: "1.5px dashed",
-                      borderColor: form.coverImageUrl ? "primary.main" : "divider",
-                      borderRadius: 2,
-                      bgcolor: "rgba(255,255,255,0.03)",
-                      cursor: "pointer",
-                      overflow: "hidden",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      textAlign: "center",
-                      p: form.coverImageUrl ? 0 : 3,
-                      "&:hover": {
-                        bgcolor: "rgba(255,255,255,0.05)",
-                        borderColor: "primary.main",
-                      },
-                    }}
-                  >
-                    {uploading ? (
-                      <CircularProgress />
-                    ) : form.coverImageUrl ? (
-                      <Box
-                        component="img"
-                        src={form.coverImageUrl}
-                        alt="Portada"
-                        sx={{ width: "100%", height: 180, objectFit: "cover" }}
-                      />
-                    ) : (
-                      <Box>
-                        <Box
-                          sx={{
-                            width: 54,
-                            height: 54,
-                            borderRadius: 2,
-                            bgcolor: "rgba(255,255,255,0.08)",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            mb: 1,
-                          }}
-                        >
-                          <span className="material-symbols-outlined">
-                            cloud_upload
-                          </span>
-                        </Box>
-
-                        <Typography sx={{ fontWeight: 800 }}>
-                          Clic para subir o arrastrar y soltar
-                        </Typography>
-                        <Typography color="text.secondary" variant="body2">
-                          SVG, PNG, JPG o GIF
-                        </Typography>
-                        <Typography color="text.secondary" variant="caption" sx={{ display: "block", mt: 0.75 }}>
-                          Recomendado: 1600x900px (formato panorámico 16:9)
-                        </Typography>
-                      </Box>
-                    )}
-                  </Box>
-
-                  <Box sx={{ display: "flex", gap: 1, mt: 1.5, alignItems: "center" }}>
-                    <TextField
-                      value={form.coverImageUrl}
-                      onChange={(event) => handleCoverUrlChange(event.target.value)}
-                      onBlur={validateCoverUrl}
-                      placeholder="O pegá una URL de imagen"
-                      size="small"
-                      fullWidth
-                    />
-                    {form.coverImageUrl && (
-                      <Button size="small" variant="outlined" onClick={() => openCropEditor(form.coverImageUrl)}>Editar</Button>
-                    )}
-                  </Box>
-                </Box>
-
-                <Box>
-                  <Typography sx={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, mb: 1 }}>
-                    Contenido
-                  </Typography>
-                  <NewsContentEditor
-                    value={form.content}
-                    onChange={(content) => setField("content", content)}
-                    onUploadImage={subirACloudinary}
-                  />
-                </Box>
-
-                {selected && (
-                  <Alert severity={selected.status === "published" ? "success" : "info"}>
-                    Estado actual: {statusLabel(selected.status)} ·{" "}
-                    {formatDate(selected.publishedAt)}
-                  </Alert>
-                )}
-
-                <Divider />
-
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    disabled={saving || uploading}
-                    onClick={() => save("draft")}
-                  >
-                    {saving ? "Guardando..." : "Guardar borrador"}
-                  </Button>
-
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    disabled={saving || uploading}
-                    onClick={() => save("published")}
-                  >
-                    {saving ? "Publicando..." : "Publicar ahora"}
-                  </Button>
-                </Stack>
-              </Stack>
+              <NoticiaEditorForm
+                key="crear"
+                modo="crear"
+                onGuardar={(status, form) =>
+                  crearNoticia({
+                    title: form.title,
+                    coverImageUrl: form.coverImageUrl,
+                    content: form.content,
+                    contentFormat: "markdown",
+                    status,
+                  })
+                }
+                onGuardado={actualizarListado}
+              />
             </CardContent>
           </Card>
         </Box>
       </Box>
-      <ImageCropDialog
-        open={cropOpen}
-        imageUrl={cropImageUrl}
-        type="cover"
-        fileName="portada.jpg"
-        onClose={() => {
-          setCropImageUrl(null);
-          setCropOpen(false);
-        }}
-        onConfirm={async (file) => {
-          setCropImageUrl(null);
-          setCropOpen(false);
-          await uploadCover(file);
-        }}
-      />
+
+      {/* Editar noticia — modal aparte, así el redactor de arriba nunca
+          se "pisa" con lo que se esté editando. */}
+      <Dialog
+        open={Boolean(editando)}
+        onClose={() => setEditando(null)}
+        fullWidth
+        maxWidth="md"
+        slotProps={{ paper: { sx: { bgcolor: "#161616", borderColor: "divider" } } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900 }}>
+          Editar noticia
+        </DialogTitle>
+        <DialogContent>
+          {editando && (
+            <NoticiaEditorForm
+              key={editando.id}
+              modo="editar"
+              initial={{
+                title: editando.title,
+                coverImageUrl: editando.coverImageUrl ?? "",
+                content: editando.content ?? "",
+              }}
+              estadoActual={{ status: editando.status, publishedAt: editando.publishedAt }}
+              onGuardar={(status, form) =>
+                actualizarNoticia(editando.id, {
+                  title: form.title,
+                  coverImageUrl: form.coverImageUrl,
+                  content: form.content,
+                  contentFormat: "markdown",
+                  status,
+                })
+              }
+              onGuardado={(noticia) => {
+                actualizarListado(noticia);
+                setSuccess(
+                  noticia.status === "published" ? "Noticia publicada." : "Borrador guardado.",
+                );
+                setEditando(null);
+              }}
+              onCancelar={() => setEditando(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(noticiaAEliminar)} onClose={() => setNoticiaAEliminar(null)}>
         <DialogTitle>Confirmar eliminación</DialogTitle>
