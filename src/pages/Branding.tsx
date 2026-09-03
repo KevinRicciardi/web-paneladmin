@@ -286,6 +286,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
     try {
       const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("No hay una sesión autenticada.");
       if (!token) return;
 
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
@@ -510,7 +511,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setSuccess(false);
     setError("");
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await auth.currentUser?.getIdToken(true);
+      if (!token) throw new Error("No hay una sesión autenticada.");
       const bannerParaGuardar = serializarBanners(bannerUrls);
 
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
@@ -542,7 +544,18 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           otherContentJson: JSON.stringify(otherContentList),
         }),
       });
-      if (!res.ok) throw new Error("Error");
+      if (!res.ok) {
+        let message = `Error ${res.status} al guardar la configuración.`;
+        try {
+          const data = await res.json();
+          if (typeof data?.message === "string" && data.message.trim()) {
+            message = data.message;
+          }
+        } catch {
+          // La API puede responder sin un cuerpo JSON.
+        }
+        throw new Error(message);
+      }
       setSuccess(true);
       setUltimoGuardado({
         nombre,
@@ -589,8 +602,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       } catch {
         // Ignoramos si el evento no se puede despachar
       }
-    } catch {
-      setError("No se pudo guardar. Intentá de nuevo.");
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "No se pudo guardar. Intentá de nuevo.");
     } finally {
       setLoading(false);
     }
