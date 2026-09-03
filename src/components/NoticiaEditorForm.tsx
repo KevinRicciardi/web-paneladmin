@@ -250,7 +250,7 @@ export default function NoticiaEditorForm({
             mb: 1,
           }}
         >
-          Imagen de portada
+          Imagen de portada · Recomendado: 1600x900px
         </Typography>
 
         <input
@@ -315,9 +315,6 @@ export default function NoticiaEditorForm({
               </Typography>
               <Typography color="text.secondary" variant="body2">
                 SVG, PNG, JPG o GIF
-              </Typography>
-              <Typography color="text.secondary" variant="caption" sx={{ display: "block", mt: 0.75 }}>
-                Recomendado: 1600x900px (formato panorámico 16:9)
               </Typography>
             </Box>
           )}

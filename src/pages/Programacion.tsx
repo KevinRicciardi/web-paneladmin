@@ -981,16 +981,13 @@ export default function Programacion() {
 
             <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                Imagen del evento
+                Imagen del evento · Tamaño recomendado: 1200x675px o más
               </Typography>
               <Stack spacing={1.5}>
                 <Button component="label" variant="outlined" sx={{ alignSelf: "flex-start" }}>
                   Adjuntar imagen
                   <input hidden accept="image/*" type="file" onChange={manejarArchivo} />
                 </Button>
-                <Typography variant="caption" color="text.secondary">
-                  Tamaño recomendado: 1200x675px o más, ideal para portada del evento en formato 16:9.
-                </Typography>
                 {form.imagenUrl && (
                   <Button size="small" variant="outlined" onClick={() => { setCropImageUrl(originalImageSource || form.imagenUrl || null); setCropOpen(true); }}>Editar imagen</Button>
                 )}

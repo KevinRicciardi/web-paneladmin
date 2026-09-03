@@ -429,6 +429,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   };
 
   const abrirEditorDeRecorte = (file: File, tipo: "logo" | "banner") => {
+    if (tipo === "banner" && file.type === "image/gif") {
+      void handleUpload(file, tipo);
+      return;
+    }
+
     const url = URL.createObjectURL(file);
     if (tipo === "logo" && originalLogoSource?.startsWith("blob:")) URL.revokeObjectURL(originalLogoSource);
     if (tipo === "banner" && originalBannerSource?.startsWith("blob:")) URL.revokeObjectURL(originalBannerSource);
@@ -777,7 +782,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Logo */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="image">Logo de la Marca</CardHeader>
+              <CardHeader icon="image">Logo de la Marca · Tamaño recomendado: 512x512px o más</CardHeader>
               <input ref={logoInputRef} type="file" accept="image/png,image/svg+xml,image/jpeg" hidden
                 onChange={(e) => handleFileChange(e, "logo")} />
               <Box
@@ -802,9 +807,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     </Box>
                     <Typography variant="body1">Arrastrá y soltá tu logo aquí</Typography>
                     <Typography variant="body2" color="text.secondary">PNG, SVG o JPG (máx. 2MB)</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={ { display: "block", mt: 0.5 } }>
-                      Tamaño recomendado: 512x512px o más, formato cuadrado para mejor visualización.
-                    </Typography>
                     <Button variant="outlined" size="small" sx={ { mt: 1 } }
                       onClick={(e) => { e.stopPropagation(); logoInputRef.current?.click(); } }>Buscar Archivos</Button>
                   </>
@@ -942,7 +944,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Banner */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="photo_size_select_large">Banners de Cabecera</CardHeader>
+              <CardHeader icon="photo_size_select_large">Banners de Cabecera · Tamaño recomendado: 1920x320px</CardHeader>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
                 Se aceptan varios banners. Pueden rotar automáticamente o mantenerse fijos. Los GIF/animaciones también pueden cargarse si el formato lo permite.
               </Typography>
@@ -988,7 +990,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   } }
                 >
                   <Box sx={ { py: 2, textAlign: "center" } }>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>Tamaño recomendado: 1920x320px</Typography>
                     <Typography variant="caption" color="text.secondary" sx={ { display: "block", mb: 1 } }>
                       Ideal para banner de cabecera: formato panorámico y resolución alta.
                     </Typography>
