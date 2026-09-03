@@ -51,6 +51,7 @@ export interface BrandingPayload {
   twitterUrl?: string;
   linkedinUrl?: string;
   whatsappUrl?: string;
+  supportEmail?: string;
 
   colorPrimario?: string;
   colorSecundario?: string;

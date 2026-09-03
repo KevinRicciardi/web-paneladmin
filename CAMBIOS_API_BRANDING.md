@@ -19,6 +19,7 @@ Ahora el usuario puede agregar **múltiples enlaces personalizados** con nombre 
 -- Si no existe, agregar las columnas
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS website_url VARCHAR(255);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS other_content_json JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS support_email VARCHAR(255);
 
 -- Opcional: eliminar la columna vieja si existe
 -- ALTER TABLE tenants DROP COLUMN IF NOT EXISTS other_content;
@@ -63,6 +64,7 @@ export class UpdateBrandingDto {
   twitterUrl?: string;
   linkedinUrl?: string;
   whatsappUrl?: string;
+  supportEmail?: string;
   
   // Colores
   colorPrimario?: string;
@@ -99,6 +101,7 @@ model Tenant {
   websiteUrl            String?   // Nuevo: enlace del sitio web
   socialMediasJson      String?   // Redes sociales seleccionadas (JSON string)
   otherContentJson      String?   @default("[]") // Nuevo: enlaces personalizados (JSON string)
+  supportEmail          String?   @map("support_email") // Correo adicional de Soporte
   
   // ... relaciones ...
 }
@@ -108,6 +111,9 @@ Luego ejecutar:
 ```bash
 npx prisma migrate dev --name add_branding_fields
 ```
+
+El endpoint debe permitir `supportEmail` y mantener la autorización para que solo
+`SUPER_ADMIN` y `MEGA_ADMIN` puedan actualizar o eliminar (`null`) los contactos.
 
 ### 3. Actualizar el servicio/controlador que guarda branding
 
@@ -131,6 +137,7 @@ async updateTenantBranding(tenantId: number, data: UpdateBrandingDto) {
       twitterUrl: data.twitterUrl,
       linkedinUrl: data.linkedinUrl,
       whatsappUrl: data.whatsappUrl,
+      supportEmail: data.supportEmail,
       
       // Colores
       colorPrimario: data.colorPrimario,
