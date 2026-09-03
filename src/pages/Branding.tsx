@@ -198,7 +198,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     facebookUrl: t?.facebookUrl ?? "",
     twitterUrl: t?.twitterUrl ?? "",
     linkedinUrl: t?.linkedinUrl ?? "",
-    whatsappUrl: t?.whatsappUrl ?? "",
     fontFamily: t?.fontFamily ?? "system-ui",
     colores: {
       fondo: t?.colorFondo ?? "#000000",
@@ -241,7 +240,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [facebookUrl, setFacebookUrl] = useState(inicial.facebookUrl);
   const [twitterUrl, setTwitterUrl] = useState(inicial.twitterUrl);
   const [linkedinUrl, setLinkedinUrl] = useState(inicial.linkedinUrl);
-  const [whatsappUrl, setWhatsappUrl] = useState(inicial.whatsappUrl);
   const [fontFamily, setFontFamily] = useState(inicial.fontFamily);  const [colores, setColores] = useState<Colores>(inicial.colores);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -483,7 +481,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setFacebookUrl(ultimoGuardado.facebookUrl);
     setTwitterUrl(ultimoGuardado.twitterUrl);
     setLinkedinUrl(ultimoGuardado.linkedinUrl);
-    setWhatsappUrl(ultimoGuardado.whatsappUrl);
     setFontFamily(ultimoGuardado.fontFamily);
     setColores(ultimoGuardado.colores);
     setWebsiteUrl((ultimoGuardado as any).websiteUrl ?? "");
@@ -529,7 +526,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           facebookUrl,
           twitterUrl,
           linkedinUrl,
-          whatsappUrl,
           colorFondo: colores.fondo,
           colorCabecera: colores.cabecera,
           colorTexto: colores.texto,
@@ -567,7 +563,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         facebookUrl,
         twitterUrl,
         linkedinUrl,
-        whatsappUrl,
         fontFamily,
         colores,
       } as any);
@@ -584,7 +579,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             facebookUrl,
             twitterUrl,
             linkedinUrl,
-            whatsappUrl,
             colorFondo: colores.fondo,
             colorCabecera: colores.cabecera,
             colorTexto: colores.texto,
@@ -654,7 +648,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   { key: "facebookUrl", label: "Facebook", value: facebookUrl, setter: setFacebookUrl },
                   { key: "twitterUrl", label: "X / Twitter", value: twitterUrl, setter: setTwitterUrl },
                   { key: "linkedinUrl", label: "LinkedIn", value: linkedinUrl, setter: setLinkedinUrl },
-                  { key: "whatsappUrl", label: "WhatsApp", value: whatsappUrl, setter: setWhatsappUrl },
                 ].map(({ key, label, value, setter }) => (
                   <TextField
                     key={key}
