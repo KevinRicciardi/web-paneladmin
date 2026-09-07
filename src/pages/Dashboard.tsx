@@ -86,7 +86,11 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
 
       try {
         setLoadingStream(true);
-        const data = await getStreamData(streamUrl, streamProvider, perfil.tenant?.youtubeChannelId);
+        const data = await getStreamData(
+          streamUrl,
+          streamProvider,
+          perfil.tenant?.slug,
+        );
         if (!active) return;
 
         setStreamData(data);
@@ -117,7 +121,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
       active = false;
       if (streamInterval) clearInterval(streamInterval);
     };
-  }, [perfil.tenant?.youtubeChannelId, sourceLabel, streamProvider, streamUrl]);
+  }, [perfil.tenant?.slug, perfil.tenant?.youtubeChannelId, sourceLabel, streamProvider, streamUrl]);
 
   return (
     <Box>

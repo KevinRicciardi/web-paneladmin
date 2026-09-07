@@ -4,7 +4,7 @@ import type { KickStreamData } from "./kick.service";
 export type StreamProvider = "kick" | "youtube" | "twitch" | null;
 export type StreamData = KickStreamData;
 
-const YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 export function detectStreamProvider(url: string): StreamProvider {
   try {
@@ -44,59 +44,74 @@ export function extractTwitchChannelName(url: string): string | null {
   }
 }
 
-async function getYoutubeStreamData(url: string, channelId: string | null | undefined): Promise<StreamData | null> {
-  const apiKey = import.meta.env.VITE_YOUTUBE_API_KEY as string | undefined;
-  if (!apiKey) return null;
+async function getTwitchStreamData(tenantSlug: string): Promise<StreamData | null> {
+  const response = await fetch(
+    `${API_URL}/tenants/${encodeURIComponent(tenantSlug)}/stream-info`,
+    { cache: "no-store" },
+  );
 
-  const params = new URLSearchParams({
-    part: "snippet,liveStreamingDetails",
-    key: apiKey,
-  });
-  const videoId = extractYoutubeVideoId(url);
-
-  if (videoId) {
-    params.set("id", videoId);
-  } else if (channelId) {
-    params.set("channelId", channelId);
-    params.set("eventType", "live");
-    params.set("type", "video");
-    params.set("maxResults", "1");
-  } else {
-    return null;
-  }
-
-  const response = await fetch(`${YOUTUBE_API_URL}/${videoId ? "videos" : "search"}?${params}`);
-  if (!response.ok) throw new Error(`YouTube API error: ${response.status}`);
-  const data = await response.json() as { items?: Array<{ id?: { videoId?: string }; snippet?: { title?: string; liveBroadcastContent?: string }; liveStreamingDetails?: { actualStartTime?: string; concurrentViewers?: string } }> };
-  const item = data.items?.[0];
-  if (!item) return { isLive: false, viewerCount: 0, duration: 0, title: "", thumbnail: "" };
-
-  const details = item.liveStreamingDetails;
-  const isLive = item.snippet?.liveBroadcastContent === "live" && Boolean(details?.actualStartTime);
-  const duration = isLive && details?.actualStartTime
-    ? Math.max(0, Math.floor((Date.now() - Date.parse(details.actualStartTime)) / 1000))
+  if (!response.ok) throw new Error(`Stream API error: ${response.status}`);
+  const data = await response.json() as {
+    isLive?: boolean;
+    viewers?: number | null;
+    title?: string | null;
+    thumbnail?: string | null;
+    startedAt?: string | null;
+  };
+  const duration = data.isLive && data.startedAt
+    ? Math.max(0, Math.floor((Date.now() - Date.parse(data.startedAt)) / 1000))
     : 0;
 
   return {
-    isLive,
-    viewerCount: Number(details?.concurrentViewers ?? 0),
+    isLive: Boolean(data.isLive),
+    viewerCount: data.viewers ?? 0,
     duration,
-    title: item.snippet?.title ?? "",
-    thumbnail: "",
+    title: data.title ?? "",
+    thumbnail: data.thumbnail ?? "",
+  };
+}
+
+async function getYoutubeStreamData(tenantSlug: string): Promise<StreamData | null> {
+  const response = await fetch(
+    `${API_URL}/tenants/${encodeURIComponent(tenantSlug)}/stream-info`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) throw new Error(`Stream API error: ${response.status}`);
+
+  const data = await response.json() as {
+    isLive?: boolean;
+    viewers?: number | null;
+    title?: string | null;
+    thumbnail?: string | null;
+    startedAt?: string | null;
+  };
+  const duration = data.isLive && data.startedAt
+    ? Math.max(0, Math.floor((Date.now() - Date.parse(data.startedAt)) / 1000))
+    : 0;
+
+  return {
+    isLive: Boolean(data.isLive),
+    viewerCount: data.viewers ?? 0,
+    duration,
+    title: data.title ?? "",
+    thumbnail: data.thumbnail ?? "",
   };
 }
 
 export async function getStreamData(
   url: string,
   provider: StreamProvider,
-  youtubeChannelId?: string | null,
+  tenantSlug?: string,
 ): Promise<StreamData | null> {
   if (provider === "kick") {
     const channelName = extractKickChannelName(url);
     return channelName ? getKickStreamData(channelName) : null;
   }
-  if (provider === "youtube") return getYoutubeStreamData(url, youtubeChannelId);
+  if (provider === "youtube") return tenantSlug ? getYoutubeStreamData(tenantSlug) : null;
 
-  // Twitch requiere Client-ID y token; debe resolverse en el backend, nunca en el navegador.
+  if (provider === "twitch") {
+    return tenantSlug ? getTwitchStreamData(tenantSlug) : null;
+  }
+
   return null;
 }
