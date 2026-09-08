@@ -24,6 +24,7 @@ export interface Tenant {
   twitterUrl?: string | null;
   linkedinUrl?: string | null;
   whatsappUrl?: string | null;
+  supportEmail?: string | null;
 
   colorPrimario?: string | null;
   colorSecundario?: string | null;

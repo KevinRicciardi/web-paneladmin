@@ -691,10 +691,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 </Box>
                 <Box sx={ { flexGrow: 1, minWidth: 0 } }>
                   <Typography sx={ { fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", mb: 0.5 } }>
-                    Imagen de Portada
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={ { display: "block", mb: 1 } }>
-                    Recomendado: 1920x1080px (JPG/PNG)
+                    Imagen de Portada · Recomendado: 1920x1080px
                   </Typography>
                   <input ref={portadaInputRef} type="file" accept="image/*" hidden onChange={handlePortada} />
                   <Box sx={ { display: "flex", gap: 1 } }>

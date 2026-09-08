@@ -198,7 +198,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     facebookUrl: t?.facebookUrl ?? "",
     twitterUrl: t?.twitterUrl ?? "",
     linkedinUrl: t?.linkedinUrl ?? "",
-    whatsappUrl: t?.whatsappUrl ?? "",
     fontFamily: t?.fontFamily ?? "system-ui",
     colores: {
       fondo: t?.colorFondo ?? "#000000",
@@ -241,7 +240,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [facebookUrl, setFacebookUrl] = useState(inicial.facebookUrl);
   const [twitterUrl, setTwitterUrl] = useState(inicial.twitterUrl);
   const [linkedinUrl, setLinkedinUrl] = useState(inicial.linkedinUrl);
-  const [whatsappUrl, setWhatsappUrl] = useState(inicial.whatsappUrl);
   const [fontFamily, setFontFamily] = useState(inicial.fontFamily);  const [colores, setColores] = useState<Colores>(inicial.colores);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -429,6 +427,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   };
 
   const abrirEditorDeRecorte = (file: File, tipo: "logo" | "banner") => {
+    if (tipo === "banner" && file.type === "image/gif") {
+      void handleUpload(file, tipo);
+      return;
+    }
+
     const url = URL.createObjectURL(file);
     if (tipo === "logo" && originalLogoSource?.startsWith("blob:")) URL.revokeObjectURL(originalLogoSource);
     if (tipo === "banner" && originalBannerSource?.startsWith("blob:")) URL.revokeObjectURL(originalBannerSource);
@@ -483,7 +486,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setFacebookUrl(ultimoGuardado.facebookUrl);
     setTwitterUrl(ultimoGuardado.twitterUrl);
     setLinkedinUrl(ultimoGuardado.linkedinUrl);
-    setWhatsappUrl(ultimoGuardado.whatsappUrl);
     setFontFamily(ultimoGuardado.fontFamily);
     setColores(ultimoGuardado.colores);
     setWebsiteUrl((ultimoGuardado as any).websiteUrl ?? "");
@@ -529,7 +531,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           facebookUrl,
           twitterUrl,
           linkedinUrl,
-          whatsappUrl,
           colorFondo: colores.fondo,
           colorCabecera: colores.cabecera,
           colorTexto: colores.texto,
@@ -567,7 +568,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         facebookUrl,
         twitterUrl,
         linkedinUrl,
-        whatsappUrl,
         fontFamily,
         colores,
       } as any);
@@ -584,7 +584,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             facebookUrl,
             twitterUrl,
             linkedinUrl,
-            whatsappUrl,
             colorFondo: colores.fondo,
             colorCabecera: colores.cabecera,
             colorTexto: colores.texto,
@@ -654,7 +653,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   { key: "facebookUrl", label: "Facebook", value: facebookUrl, setter: setFacebookUrl },
                   { key: "twitterUrl", label: "X / Twitter", value: twitterUrl, setter: setTwitterUrl },
                   { key: "linkedinUrl", label: "LinkedIn", value: linkedinUrl, setter: setLinkedinUrl },
-                  { key: "whatsappUrl", label: "WhatsApp", value: whatsappUrl, setter: setWhatsappUrl },
                 ].map(({ key, label, value, setter }) => (
                   <TextField
                     key={key}
@@ -777,7 +775,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Logo */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="image">Logo de la Marca</CardHeader>
+              <CardHeader icon="image">Logo de la Marca · Tamaño recomendado: 512x512px o más</CardHeader>
               <input ref={logoInputRef} type="file" accept="image/png,image/svg+xml,image/jpeg" hidden
                 onChange={(e) => handleFileChange(e, "logo")} />
               <Box
@@ -802,9 +800,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     </Box>
                     <Typography variant="body1">Arrastrá y soltá tu logo aquí</Typography>
                     <Typography variant="body2" color="text.secondary">PNG, SVG o JPG (máx. 2MB)</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={ { display: "block", mt: 0.5 } }>
-                      Tamaño recomendado: 512x512px o más, formato cuadrado para mejor visualización.
-                    </Typography>
                     <Button variant="outlined" size="small" sx={ { mt: 1 } }
                       onClick={(e) => { e.stopPropagation(); logoInputRef.current?.click(); } }>Buscar Archivos</Button>
                   </>
@@ -942,7 +937,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Banner */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="photo_size_select_large">Banners de Cabecera</CardHeader>
+              <CardHeader icon="photo_size_select_large">Banners de Cabecera · Tamaño recomendado: 1920x320px</CardHeader>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
                 Se aceptan varios banners. Pueden rotar automáticamente o mantenerse fijos. Los GIF/animaciones también pueden cargarse si el formato lo permite.
               </Typography>
@@ -988,7 +983,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   } }
                 >
                   <Box sx={ { py: 2, textAlign: "center" } }>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>Tamaño recomendado: 1920x320px</Typography>
                     <Typography variant="caption" color="text.secondary" sx={ { display: "block", mb: 1 } }>
                       Ideal para banner de cabecera: formato panorámico y resolución alta.
                     </Typography>
