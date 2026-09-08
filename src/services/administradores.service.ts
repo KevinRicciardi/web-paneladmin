@@ -56,7 +56,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
 export async function listarAdministradores(): Promise<Administrador[]> {
   const headers = await getAuthHeaders();
 
-  const res = await fetch(`${API_URL}/users?rol=ADMIN`, {
+  const res = await fetch(`${API_URL}/users/administradores`, {
     headers,
   });
 
