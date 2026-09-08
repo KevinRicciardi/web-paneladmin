@@ -36,8 +36,11 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
   const etiquetaCargo = perfil.rol === "ADMIN" && perfil.cargo ? ` ${perfil.cargo}` : "";
   const subtitulo = `${nombreUsuario} - ${etiquetaRol}${etiquetaCargo}`;
   const navItemsVisibles = navItemsBase.filter((item) => puedeVerSeccion(perfil, item.seccion));
+  // TEMP: mientras haya cuentas MEGA_ADMIN mal asignadas por el bug de
+  // /auth/register, dejamos que MEGA_ADMIN también vea "Administradores".
+  // Corregir esto en regla (solo SUPER_ADMIN) una vez reclasificadas.
   const navItems =
-    perfil.rol === "SUPER_ADMIN"
+    perfil.rol === "SUPER_ADMIN" || perfil.rol === "MEGA_ADMIN"
       ? [...navItemsVisibles, itemAdministradores]
       : navItemsVisibles;
 
