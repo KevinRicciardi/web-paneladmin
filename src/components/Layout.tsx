@@ -21,6 +21,10 @@ const navItemsBase = [
 // administradores internos.
 const itemAdministradores = { to: "/administradores", label: "Administradores", icon: "group" };
 
+// Exclusivo de MEGA_ADMIN: cola de solicitudes de generación/publicación
+// de apps de todos los tenants.
+const itemSolicitudesApps = { to: "/solicitudes-apps", label: "Solicitudes de Apps", icon: "rocket_launch" };
+
 const footerItems = [
   { to: "/configuracion", label: "Configuración", icon: "settings" },
   { to: "/soporte", label: "Soporte", icon: "help" },
@@ -43,6 +47,9 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
     perfil.rol === "SUPER_ADMIN" || perfil.rol === "MEGA_ADMIN"
       ? [...navItemsVisibles, itemAdministradores]
       : navItemsVisibles;
+  if (perfil.rol === "MEGA_ADMIN") {
+    navItems.push(itemSolicitudesApps);
+  }
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
