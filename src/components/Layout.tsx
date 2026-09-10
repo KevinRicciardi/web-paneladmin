@@ -13,6 +13,7 @@ const navItemsBase = [
   { to: "/streaming", label: "Streaming", icon: "sensors", seccion: "streaming" },
   { to: "/programacion", label: "Programación", icon: "calendar_month", seccion: "programacion" },
   { to: "/noticias", label: "Noticias", icon: "newspaper", seccion: "noticias" },
+  { to: "/podcast", label: "Podcast", icon: "podcasts", seccion: "podcast" },
   { to: "/estadisticas", label: "Estadísticas", icon: "monitoring", seccion: "estadisticas" },
   { to: "/generar-app", label: "Generar App", icon: "phone_android", seccion: "soloDueno" },
 ];

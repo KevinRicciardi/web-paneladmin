@@ -16,6 +16,9 @@ export interface Tenant {
   youtubeChannelId?: string | null;
   tipoTransmision?: string;
   imagenPortada?: string;
+  podcastUrl?: string | null;
+  podcastProvider?: string | null;
+  podcastImagenPortada?: string | null;
 
   instagramUrl?: string | null;
   youtubeUrl?: string | null;
@@ -84,6 +87,34 @@ export interface NewsPayload {
   content: string;
   contentFormat: "markdown";
   status: NewsStatus;
+}
+
+export type PodcastEpisodeStatus = "draft" | "published";
+
+export interface PodcastEpisode {
+  id: number;
+  tenantId: number;
+  title: string;
+  description: string;
+  podcastName: string;
+  coverImageUrl?: string | null;
+  audioUrl: string;
+  duration?: string | null;
+  publishedAt?: string | null;
+  status: PodcastEpisodeStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PodcastEpisodePayload {
+  title: string;
+  description: string;
+  podcastName: string;
+  coverImageUrl?: string;
+  audioUrl: string;
+  duration?: string;
+  publishedAt?: string;
+  status: PodcastEpisodeStatus;
 }
 
 export type DiasSemana = "LUN_VIE" | "SABADOS" | "DOMINGOS" | "TODOS" | "PERSONALIZADO" | "FECHA_ESPECIFICA";
@@ -167,7 +198,7 @@ export const CARGOS_ADMINISTRADOR = [
 // realmente aplica los permisos, esto es nada más para la UI.
 export const SECCIONES_POR_CARGO: Record<string, string[]> = {
   "Operador de Streaming": ["streaming", "programacion"],
-  "Editor de Contenido": ["noticias", "programacion"],
+  "Editor de Contenido": ["noticias", "programacion", "podcast"],
   Programador: ["programacion"],
   Analista: ["estadisticas"],
   "Diseñador/Branding": ["branding"],
