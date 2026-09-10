@@ -71,7 +71,6 @@ const FORM_VACIO: ProgramaPayload = {
   dias: "PERSONALIZADO",
   horaInicio: "09:00",
   horaFin: "12:00",
-  orden: 0,
   activo: true,
 };
 
@@ -161,14 +160,12 @@ const ProgramaTableRow = memo(function ProgramaTableRow({
   onEditar,
   onEliminar,
   onDuplicar,
-  onMover,
   onAbrirDetalle,
 }: {
   programa: Programa;
   onEditar: (p: Programa) => void;
   onEliminar: (p: Programa) => void;
   onDuplicar: (p: Programa) => void;
-  onMover: (p: Programa, direccion: -1 | 1) => void;
   onAbrirDetalle: (p: Programa) => void;
 }) {
   return (
@@ -214,12 +211,6 @@ const ProgramaTableRow = memo(function ProgramaTableRow({
         </Button>
         <Button size="small" onClick={() => onDuplicar(programa)}>
           Duplicar
-        </Button>
-        <Button size="small" onClick={() => onMover(programa, -1)} title="Subir programa">
-          ↑
-        </Button>
-        <Button size="small" onClick={() => onMover(programa, 1)} title="Bajar programa">
-          ↓
         </Button>
         <Button size="small" color="error" onClick={() => onEliminar(programa)}>
           Eliminar
@@ -593,35 +584,6 @@ export default function Programacion() {
     setAbierto(true);
   };
 
-  const moverPrograma = async (programa: Programa, direccion: -1 | 1) => {
-    const ordenados = [...programas].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
-    const indice = ordenados.findIndex((item) => item.id === programa.id);
-    const destino = indice + direccion;
-
-    if (indice < 0 || destino < 0 || destino >= ordenados.length) return;
-
-    const siguiente = [...ordenados];
-    [siguiente[indice], siguiente[destino]] = [siguiente[destino], siguiente[indice]];
-    const actualizados = siguiente.map((item, index) => ({ ...item, orden: index }));
-
-    setProgramas(actualizados);
-    try {
-      sessionStorage.setItem("programacion_cache", JSON.stringify(actualizados));
-    } catch {}
-
-    try {
-      await Promise.all(
-        actualizados.map((item) => actualizarPrograma(item.id, { orden: item.orden })),
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo actualizar el orden");
-      void listarMiProgramacion().then((data) => {
-        setProgramas(data);
-        try { sessionStorage.setItem("programacion_cache", JSON.stringify(data)); } catch {}
-      });
-    }
-  };
-
   const abrirEdicion = (p: Programa) => {
     prepararFormularioEdicion(p);
     setAbierto(true);
@@ -667,7 +629,6 @@ export default function Programacion() {
       dias: diasParaForm,
       horaInicio: p.horaInicio,
       horaFin: p.horaFin,
-      orden: p.orden,
       activo: p.activo,
     });
     setDiasSeleccionados(esFechaEspecifica ? [] : obtenerSeleccionDesdeDias(p.dias, p.diasPersonalizados));
@@ -839,7 +800,6 @@ export default function Programacion() {
         imagenUrl: form.imagenUrl || undefined,
         horaInicio: form.horaInicio,
         horaFin: form.horaFin,
-        orden: form.orden,
         activo: form.activo,
         dias: diasPayload,
         diasPersonalizados:
@@ -975,9 +935,12 @@ export default function Programacion() {
   const programasOrdenados = useMemo(
     () =>
       [...programas].sort((a, b) => {
-        const ordenA = a.orden ?? 0;
-        const ordenB = b.orden ?? 0;
-        if (ordenA !== ordenB) return ordenA - ordenB;
+        const fechaA = a.fechaInicio ?? "";
+        const fechaB = b.fechaInicio ?? "";
+        if (fechaA !== fechaB) return fechaA.localeCompare(fechaB);
+        const horaA = a.horaInicio ?? "";
+        const horaB = b.horaInicio ?? "";
+        if (horaA !== horaB) return horaA.localeCompare(horaB);
         return (a.titulo ?? "").localeCompare(b.titulo ?? "");
       }),
     [programas],
@@ -1080,7 +1043,6 @@ export default function Programacion() {
                   onEditar={abrirEdicion}
                   onEliminar={borrar}
                   onDuplicar={duplicarPrograma}
-                  onMover={moverPrograma}
                   onAbrirDetalle={setFechaModalPrograma}
                 />
               ))}
@@ -1490,13 +1452,6 @@ export default function Programacion() {
                 )}
               </Alert>
             )}
-            <TextField
-              label="Orden"
-              type="number"
-              value={form.orden}
-              onChange={(e) => setForm({ ...form, orden: Number(e.target.value) })}
-              fullWidth
-            />
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <Switch
                 checked={form.activo ?? true}
