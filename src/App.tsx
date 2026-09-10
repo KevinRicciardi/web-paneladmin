@@ -15,6 +15,7 @@ import Noticias from "./pages/Noticias";
 import Estadisticas from "./pages/Estadisticas";
 import Administradores from "./pages/Administradores";
 import GenerarApp from "./pages/GenerarApp";
+import SolicitudesApps from "./pages/SolicitudesApps";
 import Activate from "./pages/Activate";
 import type { Perfil } from "./types";
 
@@ -113,6 +114,7 @@ function App() {
                   <Route path="/estadisticas" element={<Estadisticas />} />
                   <Route path="/administradores" element={<Administradores />} />
                   <Route path="/generar-app" element={<GenerarApp perfil={perfil} />} />
+                  <Route path="/solicitudes-apps" element={<SolicitudesApps />} />
                   <Route path="/configuracion" element={<Configuracion perfil={perfil} />} />
                   <Route path="/soporte" element={<Soporte perfil={perfil} />} />
                 </Route>

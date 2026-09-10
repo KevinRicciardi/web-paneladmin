@@ -184,3 +184,67 @@ export interface Administrador {
   tenantId: number;
   createdAt: string;
 }
+
+export type BuildRequestType = "SELF_EXPORT" | "PINNACLE_PUBLISH";
+
+export type BuildRequestStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "WAITING_CLIENT"
+  | "BUILDING"
+  | "COMPLETED"
+  | "FAILED"
+  | "PUBLISHED"
+  | "CANCELLED";
+
+export interface BuildRequestPublishInfo {
+  developerName: string;
+  contactEmail: string;
+  supportEmail: string;
+  websiteUrl?: string | null;
+  privacyPolicyUrl: string;
+  shortDescription: string;
+  appDescription: string;
+  category: string;
+  containsAds: boolean;
+  targetAudience?: string | null;
+  additionalNotes?: string | null;
+}
+
+export type BuildRequestPublishInfoPayload = {
+  developerName: string;
+  contactEmail: string;
+  supportEmail: string;
+  websiteUrl?: string;
+  privacyPolicyUrl: string;
+  shortDescription: string;
+  appDescription: string;
+  category: string;
+  containsAds?: boolean;
+  targetAudience?: string;
+  additionalNotes?: string;
+};
+
+interface PersonaResumen {
+  id: number;
+  email: string;
+  name?: string | null;
+}
+
+export interface BuildRequest {
+  id: number;
+  tenantId: number;
+  requestedById: number;
+  reviewedById?: number | null;
+  type: BuildRequestType;
+  status: BuildRequestStatus;
+  notes?: string | null;
+  internalNotes?: string | null;
+  publishInfo?: BuildRequestPublishInfo | null;
+  createdAt: string;
+  updatedAt: string;
+  // Solo presentes en las respuestas del listado/detalle de MEGA_ADMIN.
+  tenant?: { id: number; nombre: string; slug: string };
+  requestedBy?: PersonaResumen;
+  reviewedBy?: PersonaResumen | null;
+}
