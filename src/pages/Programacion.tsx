@@ -792,18 +792,33 @@ export default function Programacion() {
     if (!programaAEliminar) return;
     if (eliminando) return;
 
+    const programa = programaAEliminar;
+    const indiceOriginal = programas.findIndex((p) => p.id === programa.id);
+
     try {
       setEliminando(true);
-      await eliminarPrograma(programaAEliminar.id);
-      setProgramas((actual) => actual.filter((p) => p.id !== programaAEliminar.id));
+      setProgramaAEliminar(null);
+
+      const restantes = programas.filter((p) => p.id !== programa.id);
+      setProgramas(restantes);
       try {
-        const nuevos = programas.filter((p) => p.id !== programaAEliminar.id);
-        sessionStorage.setItem("programacion_cache", JSON.stringify(nuevos));
+        sessionStorage.setItem("programacion_cache", JSON.stringify(restantes));
       } catch {}
-      setProgramaAEliminar(null);
+
+      await eliminarPrograma(programa.id);
     } catch (e) {
+      setProgramas((actual) => {
+        if (actual.some((p) => p.id === programa.id)) return actual;
+
+        const restaurados = [...actual];
+        const indice = indiceOriginal < 0 ? restaurados.length : indiceOriginal;
+        restaurados.splice(indice, 0, programa);
+        try {
+          sessionStorage.setItem("programacion_cache", JSON.stringify(restaurados));
+        } catch {}
+        return restaurados;
+      });
       setError(e instanceof Error ? e.message : "Error al eliminar");
-      setProgramaAEliminar(null);
     } finally {
       setEliminando(false);
     }
