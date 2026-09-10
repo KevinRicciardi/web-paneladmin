@@ -27,6 +27,7 @@ import {
   despublicarNoticia,
   eliminarNoticia,
   listarMisNoticias,
+  obtenerMiNoticia,
   publicarNoticia,
 } from "../services/news.service";
 
@@ -89,6 +90,15 @@ export default function Noticias() {
   const [success, setSuccess] = useState("");
   const [redactorExpandido, setRedactorExpandido] = useState(false);
 
+  const abrirEditor = async (news: News) => {
+    try {
+      const detail = await obtenerMiNoticia(news.id);
+      setEditando(detail);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo abrir la noticia");
+    }
+  };
+
   const filteredNews = useMemo(() => {
     const term = search.trim().toLowerCase();
 
@@ -97,7 +107,7 @@ export default function Noticias() {
     return noticias.filter((item) => {
       return (
         item.title.toLowerCase().includes(term) ||
-        item.content.toLowerCase().includes(term) ||
+        item.content?.toLowerCase().includes(term) ||
         (item.excerpt ?? "").toLowerCase().includes(term)
       );
     });
@@ -208,25 +218,31 @@ export default function Noticias() {
     if (!noticiaAEliminar) return;
     if (eliminando) return;
 
+    const noticia = noticiaAEliminar;
     setEliminando(true);
-    setSaving(true);
     setError("");
+    setNoticiaAEliminar(null);
+
+    setNoticias((prev) => {
+      const nuevos = prev.filter((item) => item.id !== noticia.id);
+      try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
+      return nuevos;
+    });
 
     try {
-      await eliminarNoticia(noticiaAEliminar.id);
-
-      setNoticias((prev) => {
-        const nuevos = prev.filter((item) => item.id !== noticiaAEliminar.id);
-        try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
-        return nuevos;
-      });
+      await eliminarNoticia(noticia.id);
       setSuccess("Noticia eliminada.");
-      setNoticiaAEliminar(null);
     } catch (err) {
       console.error(err);
+      setNoticias((prev) => {
+        const restauradas = prev.some((item) => item.id === noticia.id)
+          ? prev
+          : [noticia, ...prev];
+        try { sessionStorage.setItem("noticias_cache", JSON.stringify(restauradas)); } catch {}
+        return restauradas;
+      });
       setError(err instanceof Error ? err.message : "No se pudo eliminar la noticia");
     } finally {
-      setSaving(false);
       setEliminando(false);
     }
   };
@@ -370,6 +386,7 @@ export default function Noticias() {
                             component="img"
                             src={news.coverImageUrl}
                             alt=""
+                            loading="lazy"
                             sx={{ width: "100%", height: "100%", objectFit: "cover" }}
                           />
                         ) : (
@@ -423,7 +440,7 @@ export default function Noticias() {
                       </Box>
 
                       <Stack direction={{ xs: "row", sm: "column" }} spacing={1}>
-                        <Button variant="outlined" size="small" onClick={() => setEditando(news)}>
+                        <Button variant="outlined" size="small" onClick={() => void abrirEditor(news)}>
                           Editar
                         </Button>
 
