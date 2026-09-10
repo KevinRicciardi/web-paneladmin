@@ -56,12 +56,25 @@ export default function Administradores() {
   const [cancelando, setCancelando] = useState(false);
 
   const cargar = async () => {
-    setLoading(true);
+    let hasCache = false;
+    try {
+      const cached = sessionStorage.getItem("administradores_cache");
+      if (cached) {
+        const parsed = JSON.parse(cached) as Administrador[];
+        setAdministradores(parsed);
+        hasCache = true;
+      }
+    } catch {
+      // Una caché inválida no debe impedir la carga desde la API.
+    }
+
+    setLoading(!hasCache);
     setError("");
 
     try {
       const data = await listarAdministradores();
       setAdministradores(data);
+      try { sessionStorage.setItem("administradores_cache", JSON.stringify(data)); } catch {}
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron cargar los administradores");
     } finally {

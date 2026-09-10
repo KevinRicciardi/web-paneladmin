@@ -70,7 +70,7 @@ export interface News {
   title: string;
   excerpt?: string | null;
   coverImageUrl?: string | null;
-  content: string;
+  content?: string;
   contentFormat: string;
   status: NewsStatus;
   publishedAt?: string | null;
