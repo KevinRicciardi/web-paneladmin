@@ -119,13 +119,24 @@ export default function Estadisticas() {
 
   useEffect(() => {
     let activo = true;
+    const cacheKey = `estadisticas_cache_${periodo}`;
+
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) setDatos(JSON.parse(cached) as EstadisticasData);
+    } catch {
+      // Una caché inválida no debe impedir la carga desde la API.
+    }
 
     setLoading(true);
     setError("");
 
     obtenerEstadisticas(periodo)
       .then((res) => {
-        if (activo) setDatos(res);
+        if (activo) {
+          setDatos(res);
+          try { sessionStorage.setItem(cacheKey, JSON.stringify(res)); } catch {}
+        }
       })
       .catch((err) => {
         if (activo) {
