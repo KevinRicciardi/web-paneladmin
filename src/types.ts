@@ -100,7 +100,6 @@ export interface Programa {
   fechaFin?: string | null;
   horaInicio: string;
   horaFin: string;
-  orden: number;
   activo: boolean;
   createdAt: string;
   updatedAt: string;
@@ -116,7 +115,6 @@ export interface ProgramaPayload {
   fechaFin?: string;
   horaInicio: string;
   horaFin: string;
-  orden?: number;
   activo?: boolean;
 }
 
