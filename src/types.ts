@@ -185,7 +185,11 @@ export interface Administrador {
   createdAt: string;
 }
 
-export type BuildRequestType = "SELF_EXPORT" | "PINNACLE_PUBLISH";
+// Único valor por ahora: el cliente no autopublica, siempre lo hace
+// Pinnacle. Se deja como tipo aparte (no un literal hardcodeado en
+// BuildRequest) para no tener que tocar esto si el día de mañana
+// aparece otra modalidad.
+export type BuildRequestType = "PINNACLE_PUBLISH";
 
 export type BuildRequestStatus =
   | "PENDING"
