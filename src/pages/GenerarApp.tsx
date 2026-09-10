@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Card,
-  CardActionArea,
   CardContent,
   Checkbox,
   Chip,
@@ -22,7 +21,6 @@ import type {
   BuildRequest,
   BuildRequestPublishInfoPayload,
   BuildRequestStatus,
-  BuildRequestType,
   Perfil,
 } from "../types";
 import {
@@ -33,30 +31,19 @@ import {
 
 // Estados en los que ya no tiene sentido seguir operando sobre la
 // solicitud — igual que en el backend (src/build-requests/build-requests.service.ts).
-const ESTADOS_FINALES: Record<BuildRequestType, BuildRequestStatus[]> = {
-  SELF_EXPORT: ["COMPLETED", "FAILED", "CANCELLED"],
-  PINNACLE_PUBLISH: ["PUBLISHED", "FAILED", "CANCELLED"],
-};
+const ESTADOS_FINALES: BuildRequestStatus[] = ["PUBLISHED", "FAILED", "CANCELLED"];
 
 function esActiva(solicitud: BuildRequest) {
-  return !ESTADOS_FINALES[solicitud.type].includes(solicitud.status);
+  return !ESTADOS_FINALES.includes(solicitud.status);
 }
 
-const PASOS: Record<BuildRequestType, { status: BuildRequestStatus; label: string }[]> = {
-  SELF_EXPORT: [
-    { status: "PENDING", label: "Solicitud enviada" },
-    { status: "IN_PROGRESS", label: "En revisión" },
-    { status: "BUILDING", label: "Compilando" },
-    { status: "COMPLETED", label: "Lista para descargar" },
-  ],
-  PINNACLE_PUBLISH: [
-    { status: "PENDING", label: "Solicitud enviada" },
-    { status: "IN_PROGRESS", label: "En revisión" },
-    { status: "BUILDING", label: "Compilando" },
-    { status: "COMPLETED", label: "Compilación lista" },
-    { status: "PUBLISHED", label: "Publicada en Google Play" },
-  ],
-};
+const PASOS: { status: BuildRequestStatus; label: string }[] = [
+  { status: "PENDING", label: "Solicitud enviada" },
+  { status: "IN_PROGRESS", label: "En revisión" },
+  { status: "BUILDING", label: "Compilando" },
+  { status: "COMPLETED", label: "Compilación lista" },
+  { status: "PUBLISHED", label: "Publicada en Google Play" },
+];
 
 function statusLabel(status: BuildRequestStatus) {
   const labels: Record<BuildRequestStatus, string> = {
@@ -150,8 +137,8 @@ export default function GenerarApp({ perfil }: { perfil: Perfil }) {
         Generar App
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3, maxWidth: 640 }}>
-        Cuando tu aplicación esté lista, solicitá acá la generación del archivo para
-        distribuirlo o pedile a nuestro equipo que lo publique por vos.
+        Cuando tu aplicación esté lista, solicitá acá que el equipo de Pinnacle la
+        publique en Google Play.
       </Typography>
 
       {error && (
@@ -178,9 +165,7 @@ export default function GenerarApp({ perfil }: { perfil: Perfil }) {
               {historial.map((s) => (
                 <Box key={s.id} sx={{ py: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
                   <Box>
-                    <Typography sx={{ fontWeight: 700 }}>
-                      {s.type === "SELF_EXPORT" ? "Generar archivo" : "Publicación por Pinnacle"}
-                    </Typography>
+                    <Typography sx={{ fontWeight: 700 }}>Publicación por Pinnacle</Typography>
                     <Typography variant="body2" color="text.secondary">
                       {formatFecha(s.createdAt)}
                     </Typography>
@@ -203,17 +188,14 @@ function EstadoEnVivo({
   solicitud: BuildRequest;
   onActualizada: () => void;
 }) {
-  const pasos = PASOS[solicitud.type];
-  const pasoActivo = pasos.findIndex((p) => p.status === solicitud.status);
+  const pasoActivo = PASOS.findIndex((p) => p.status === solicitud.status);
 
   return (
     <Card variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.03)", borderColor: "divider" }}>
       <CardContent>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3, gap: 2, flexWrap: "wrap" }}>
           <Box>
-            <Typography sx={{ fontWeight: 800 }}>
-              {solicitud.type === "SELF_EXPORT" ? "Generar archivo" : "Publicación por Pinnacle"}
-            </Typography>
+            <Typography sx={{ fontWeight: 800 }}>Publicación por Pinnacle</Typography>
             <Typography variant="body2" color="text.secondary">
               Solicitada el {formatFecha(solicitud.createdAt)}
             </Typography>
@@ -226,19 +208,12 @@ function EstadoEnVivo({
         ) : (
           <>
             <Stepper activeStep={pasoActivo} alternativeLabel sx={{ mb: 1 }}>
-              {pasos.map((p) => (
+              {PASOS.map((p) => (
                 <Step key={p.status}>
                   <StepLabel>{p.label}</StepLabel>
                 </Step>
               ))}
             </Stepper>
-
-            {solicitud.status === "COMPLETED" && solicitud.type === "SELF_EXPORT" && (
-              <Alert severity="success" sx={{ mt: 2 }}>
-                La compilación está lista. Nuestro equipo se va a poner en contacto para
-                hacerte llegar el archivo .aab.
-              </Alert>
-            )}
 
             {solicitud.status === "PUBLISHED" && (
               <Alert severity="success" sx={{ mt: 2 }}>
@@ -279,10 +254,7 @@ function ReenvioSolicitud({
     setError("");
 
     try {
-      await editarSolicitud(solicitud.id, {
-        notes,
-        publishInfo: solicitud.type === "PINNACLE_PUBLISH" ? publishInfo : undefined,
-      });
+      await editarSolicitud(solicitud.id, { notes, publishInfo });
       onActualizada();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo reenviar la solicitud");
@@ -309,9 +281,7 @@ function ReenvioSolicitud({
         fullWidth
       />
 
-      {solicitud.type === "PINNACLE_PUBLISH" && (
-        <FormularioPublishInfo value={publishInfo} onChange={setPublishInfo} />
-      )}
+      <FormularioPublishInfo value={publishInfo} onChange={setPublishInfo} />
 
       <Button variant="contained" onClick={reenviar} disabled={enviando} sx={{ alignSelf: "flex-start" }}>
         {enviando ? "Reenviando..." : "Reenviar solicitud"}
@@ -321,24 +291,17 @@ function ReenvioSolicitud({
 }
 
 function NuevaSolicitud({ onCreada }: { onCreada: () => void }) {
-  const [type, setType] = useState<BuildRequestType | null>(null);
   const [notes, setNotes] = useState("");
   const [publishInfo, setPublishInfo] = useState<BuildRequestPublishInfoPayload>(EMPTY_PUBLISH_INFO);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
 
   const enviar = async () => {
-    if (!type) return;
-
     setEnviando(true);
     setError("");
 
     try {
-      await crearSolicitud({
-        type,
-        notes: notes || undefined,
-        publishInfo: type === "PINNACLE_PUBLISH" ? publishInfo : undefined,
-      });
+      await crearSolicitud({ notes: notes || undefined, publishInfo });
       onCreada();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo enviar la solicitud");
@@ -350,58 +313,31 @@ function NuevaSolicitud({ onCreada }: { onCreada: () => void }) {
   return (
     <Card variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.03)", borderColor: "divider" }}>
       <CardContent>
-        <Typography sx={{ fontWeight: 800, mb: 2 }}>¿Qué necesitás?</Typography>
+        <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Solicitar publicación</Typography>
+        <Typography color="text.secondary" sx={{ mb: 3 }}>
+          Completá los datos para que el equipo de Pinnacle publique tu app en Google Play.
+        </Typography>
 
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2, mb: 3 }}>
-          <Card
-            variant="outlined"
-            sx={{ borderColor: type === "SELF_EXPORT" ? "primary.main" : "divider", bgcolor: type === "SELF_EXPORT" ? "rgba(25,118,210,0.08)" : "transparent" }}
-          >
-            <CardActionArea onClick={() => setType("SELF_EXPORT")} sx={{ p: 2.5 }}>
-              <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Generar archivo</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Quiero solo el archivo .aab para publicarlo yo mismo.
-              </Typography>
-            </CardActionArea>
-          </Card>
+        <Stack spacing={2.5}>
+          {error && <Alert severity="error">{error}</Alert>}
 
-          <Card
-            variant="outlined"
-            sx={{ borderColor: type === "PINNACLE_PUBLISH" ? "primary.main" : "divider", bgcolor: type === "PINNACLE_PUBLISH" ? "rgba(25,118,210,0.08)" : "transparent" }}
-          >
-            <CardActionArea onClick={() => setType("PINNACLE_PUBLISH")} sx={{ p: 2.5 }}>
-              <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Publicación por Pinnacle</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Quiero que el equipo de Pinnacle publique la app en Google Play.
-              </Typography>
-            </CardActionArea>
-          </Card>
-        </Box>
+          <TextField
+            label="Mensaje para el equipo de Pinnacle (opcional)"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            multiline
+            minRows={2}
+            fullWidth
+          />
 
-        {type && (
-          <Stack spacing={2.5}>
-            {error && <Alert severity="error">{error}</Alert>}
+          <FormularioPublishInfo value={publishInfo} onChange={setPublishInfo} />
 
-            <TextField
-              label="Mensaje para el equipo de Pinnacle (opcional)"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              multiline
-              minRows={2}
-              fullWidth
-            />
+          <Divider />
 
-            {type === "PINNACLE_PUBLISH" && (
-              <FormularioPublishInfo value={publishInfo} onChange={setPublishInfo} />
-            )}
-
-            <Divider />
-
-            <Button variant="contained" onClick={enviar} disabled={enviando} sx={{ alignSelf: "flex-start" }}>
-              {enviando ? "Enviando..." : "Enviar solicitud"}
-            </Button>
-          </Stack>
-        )}
+          <Button variant="contained" onClick={enviar} disabled={enviando} sx={{ alignSelf: "flex-start" }}>
+            {enviando ? "Enviando..." : "Enviar solicitud"}
+          </Button>
+        </Stack>
       </CardContent>
     </Card>
   );

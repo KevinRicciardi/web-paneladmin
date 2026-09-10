@@ -167,10 +167,7 @@ export default function SolicitudesApps() {
                   }}
                 >
                   <Box sx={{ minWidth: 0 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5, flexWrap: "wrap" }}>
-                      <Typography sx={{ fontWeight: 800 }}>{s.tenant?.nombre ?? `Tenant #${s.tenantId}`}</Typography>
-                      <Chip size="small" label={s.type === "SELF_EXPORT" ? "Generar archivo" : "Publicación Pinnacle"} />
-                    </Box>
+                    <Typography sx={{ fontWeight: 800, mb: 0.5 }}>{s.tenant?.nombre ?? `Tenant #${s.tenantId}`}</Typography>
                     <Typography color="text.secondary" variant="body2">
                       {s.requestedBy?.email ?? "—"} · {formatFecha(s.createdAt)}
                     </Typography>
@@ -216,9 +213,7 @@ function DetalleSolicitud({
 
   if (!solicitud) return null;
 
-  const transicionesDisponibles = TRANSICIONES[solicitud.status].filter(
-    (status) => status !== "PUBLISHED" || solicitud.type === "PINNACLE_PUBLISH",
-  );
+  const transicionesDisponibles = TRANSICIONES[solicitud.status];
 
   const aplicar = async (status: BuildRequestStatus) => {
     setAplicando(status);
@@ -244,7 +239,6 @@ function DetalleSolicitud({
           {error && <Alert severity="error">{error}</Alert>}
 
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-            <Chip size="small" label={solicitud.type === "SELF_EXPORT" ? "Generar archivo" : "Publicación Pinnacle"} />
             <Chip size="small" label={statusLabel(solicitud.status)} color={statusColor(solicitud.status)} />
           </Box>
 

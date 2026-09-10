@@ -1,5 +1,5 @@
 import { auth } from "../firebase";
-import type { BuildRequest, BuildRequestPublishInfoPayload, BuildRequestType } from "../types";
+import type { BuildRequest, BuildRequestPublishInfoPayload } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -54,9 +54,8 @@ async function parseResponse<T>(res: Response): Promise<T> {
 }
 
 export type CrearSolicitudPayload = {
-  type: BuildRequestType;
   notes?: string;
-  publishInfo?: BuildRequestPublishInfoPayload;
+  publishInfo: BuildRequestPublishInfoPayload;
 };
 
 export type EditarSolicitudPayload = {
