@@ -4,7 +4,7 @@ import {
   DialogTitle, IconButton, InputAdornment, TextField, Tooltip, Typography, Select, MenuItem,
   alpha,
 } from "@mui/material";
-import { auth } from "../firebase";
+import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 
@@ -347,7 +347,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     localStorage.setItem("branding-temas-personalizados", payload);
 
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
       if (!token) throw new Error("No hay una sesión autenticada.");
       if (!token) return;
 
@@ -575,7 +575,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setSuccess(false);
     setError("");
     try {
-      const token = await auth.currentUser?.getIdToken(true);
+      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
       if (!token) throw new Error("No hay una sesión autenticada.");
       const bannerParaGuardar = serializarBanners(bannerUrls);
 

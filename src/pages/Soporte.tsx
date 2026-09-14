@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Box, Button, Card, CardContent, IconButton, Link, Stack, TextField, Typography } from "@mui/material";
-import { auth } from "../firebase";
+import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import { Link as RouterLink } from "react-router-dom";
 import type { Perfil } from "../types";
 
@@ -30,7 +30,7 @@ export default function Soporte({ perfil }: { perfil: Perfil }) {
       setGuardandoWhatsapp(true);
       setErrorWhatsapp("");
       setSuccessWhatsapp("");
-      const token = await auth.currentUser?.getIdToken();
+      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
       if (emailContacto && !/^\S+@\S+\.\S+$/.test(emailContacto)) {
         throw new Error("Ingresá un correo electrónico válido.");
       }
@@ -74,7 +74,7 @@ export default function Soporte({ perfil }: { perfil: Perfil }) {
       if (campo === "whatsappUrl") setWhatsapp("");
       if (campo === "supportEmail") setEmailContacto("");
 
-      const token = await auth.currentUser?.getIdToken();
+      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

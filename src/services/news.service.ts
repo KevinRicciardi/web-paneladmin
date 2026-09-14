@@ -5,6 +5,9 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 let tokenCache: { value: string; expiresAt: number } | null = null;
 let tokenRequest: Promise<string> | null = null;
+let noticiasCache: { data: News[]; expiresAt: number } | null = null;
+let noticiasRequest: Promise<News[]> | null = null;
+const DURACION_CACHE_NOTICIAS = 30_000;
 
 async function getAuthHeaders() {
   const now = Date.now();
@@ -54,13 +57,31 @@ async function parseResponse<T>(res: Response): Promise<T> {
 }
 
 export async function listarMisNoticias(): Promise<News[]> {
-  const headers = await getAuthHeaders();
+  if (noticiasCache && noticiasCache.expiresAt > Date.now()) {
+    return noticiasCache.data;
+  }
 
-  const res = await fetch(`${API_URL}/news/mi-tenant`, {
-    headers,
-  });
+  if (noticiasRequest) {
+    return noticiasRequest;
+  }
 
-  return parseResponse<News[]>(res);
+  noticiasRequest = (async () => {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/news/mi-tenant`, { headers });
+    const data = await parseResponse<News[]>(res);
+    noticiasCache = { data, expiresAt: Date.now() + DURACION_CACHE_NOTICIAS };
+    return data;
+  })();
+
+  try {
+    return await noticiasRequest;
+  } finally {
+    noticiasRequest = null;
+  }
+}
+
+function invalidarCacheNoticias() {
+  noticiasCache = null;
 }
 
 export async function obtenerMiNoticia(id: number): Promise<News> {
@@ -70,7 +91,9 @@ export async function obtenerMiNoticia(id: number): Promise<News> {
     headers,
   });
 
-  return parseResponse<News>(res);
+  const data = await parseResponse<News>(res);
+  invalidarCacheNoticias();
+  return data;
 }
 
 export async function crearNoticia(payload: NewsPayload): Promise<News> {
@@ -82,7 +105,9 @@ export async function crearNoticia(payload: NewsPayload): Promise<News> {
     body: JSON.stringify(payload),
   });
 
-  return parseResponse<News>(res);
+  const data = await parseResponse<News>(res);
+  invalidarCacheNoticias();
+  return data;
 }
 
 export async function actualizarNoticia(
@@ -97,7 +122,9 @@ export async function actualizarNoticia(
     body: JSON.stringify(payload),
   });
 
-  return parseResponse<News>(res);
+  const data = await parseResponse<News>(res);
+  invalidarCacheNoticias();
+  return data;
 }
 
 export async function publicarNoticia(id: number): Promise<News> {
@@ -108,7 +135,9 @@ export async function publicarNoticia(id: number): Promise<News> {
     headers,
   });
 
-  return parseResponse<News>(res);
+  const data = await parseResponse<News>(res);
+  invalidarCacheNoticias();
+  return data;
 }
 
 export async function despublicarNoticia(id: number): Promise<News> {
@@ -119,7 +148,9 @@ export async function despublicarNoticia(id: number): Promise<News> {
     headers,
   });
 
-  return parseResponse<News>(res);
+  const data = await parseResponse<News>(res);
+  invalidarCacheNoticias();
+  return data;
 }
 
 export async function eliminarNoticia(
@@ -132,5 +163,7 @@ export async function eliminarNoticia(
     headers,
   });
 
-  return parseResponse<{ deleted: boolean; id: number }>(res);
+  const data = await parseResponse<{ deleted: boolean; id: number }>(res);
+  invalidarCacheNoticias();
+  return data;
 }

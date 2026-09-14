@@ -11,6 +11,7 @@ import {
 } from "@mui/material";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
+import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import type { Perfil, Tenant } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -75,7 +76,7 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
       setError("");
       setSuccess("");
 
-      const token = await auth.currentUser?.getIdToken();
+      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
       const payload = {
         nombre: formData.nombre.trim(),
         slug: formData.slug.trim(),

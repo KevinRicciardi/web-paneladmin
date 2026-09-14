@@ -8,7 +8,7 @@ import type { Perfil, PodcastEpisode, PodcastEpisodePayload, PodcastEpisodeStatu
 import {
   actualizarPodcast, crearPodcast, eliminarPodcast, listarMisPodcasts,
 } from "../services/podcast.service";
-import { auth } from "../firebase";
+import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import { extractKickChannelName, getKickAudioUrl } from "../services/kick.service";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -153,7 +153,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
     setLiveSaving(true);
     setError("");
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
       const response = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
