@@ -1,24 +1,25 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Box, CircularProgress } from "@mui/material";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Branding from "./pages/Branding";
-import Configuracion from "./pages/Configuracion";
-import Soporte from "./pages/Soporte";
-import Streaming from "./pages/Streaming";
-import Programacion from "./pages/Programacion";
-import Noticias from "./pages/Noticias";
-import Podcast from "./pages/Podcast";
-import Estadisticas from "./pages/Estadisticas";
-import Administradores from "./pages/Administradores";
-import GenerarApp from "./pages/GenerarApp";
-import SolicitudesApps from "./pages/SolicitudesApps";
-import Activate from "./pages/Activate";
 import type { Perfil } from "./types";
+
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Branding = lazy(() => import("./pages/Branding"));
+const Configuracion = lazy(() => import("./pages/Configuracion"));
+const Soporte = lazy(() => import("./pages/Soporte"));
+const Streaming = lazy(() => import("./pages/Streaming"));
+const Programacion = lazy(() => import("./pages/Programacion"));
+const Noticias = lazy(() => import("./pages/Noticias"));
+const Podcast = lazy(() => import("./pages/Podcast"));
+const Estadisticas = lazy(() => import("./pages/Estadisticas"));
+const Administradores = lazy(() => import("./pages/Administradores"));
+const GenerarApp = lazy(() => import("./pages/GenerarApp"));
+const SolicitudesApps = lazy(() => import("./pages/SolicitudesApps"));
+const Activate = lazy(() => import("./pages/Activate"));
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const ROLES_ADMIN = ["MEGA_ADMIN", "SUPER_ADMIN", "ADMIN"];
@@ -90,7 +91,8 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
+      <Suspense fallback={<Box sx={{ display: "flex", justifyContent: "center", mt: 10 }}><CircularProgress /></Box>}>
+        <Routes>
         {/* Pública: se llega acá sin sesión iniciada, desde el link del
             email de invitación. */}
         <Route path="/activate" element={<Activate />} />
@@ -124,7 +126,8 @@ function App() {
             )
           }
         />
-      </Routes>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

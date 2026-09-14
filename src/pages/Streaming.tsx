@@ -10,7 +10,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { auth } from "../firebase";
+import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";
@@ -498,7 +498,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     setSuccess(false);
     setError("");
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
         headers: {
