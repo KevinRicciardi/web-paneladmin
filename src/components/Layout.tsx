@@ -169,8 +169,24 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
         </Box>
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-        <Outlet />
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", p: 3 }}>
+        <Box sx={{ flex: 1 }}>
+          <Outlet />
+        </Box>
+        <Box
+          component="footer"
+          sx={{
+            mt: 4,
+            pt: 2,
+            borderTop: "1px solid",
+            borderColor: "divider",
+            textAlign: "center",
+          }}
+        >
+          <Typography variant="caption" color="text.secondary">
+            Hecho por Pinnacle Group
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );
