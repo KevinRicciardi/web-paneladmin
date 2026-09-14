@@ -105,7 +105,6 @@ export async function crearPrograma(
 ): Promise<Programa> {
   const headers = await getAuthHeaders();
   const body = JSON.stringify(payload);
-  console.log("schedule.service crearPrograma body", body);
 
   const res = await fetch(`${API_URL}/programacion/mi-tenant`, {
     method: "POST",
@@ -124,7 +123,6 @@ export async function actualizarPrograma(
 ): Promise<Programa> {
   const headers = await getAuthHeaders();
   const body = JSON.stringify(payload);
-  console.log("schedule.service actualizarPrograma body", body);
 
   const res = await fetch(`${API_URL}/programacion/mi-tenant/${id}`, {
     method: "PATCH",

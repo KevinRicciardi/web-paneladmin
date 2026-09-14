@@ -26,16 +26,6 @@ const FUENTES_DISPONIBLES = [
   { valor: "Oswald", etiqueta: "Oswald" },
 ];
 
-// Redes sociales disponibles (6 opciones)
-const REDES_SOCIALES_DISPONIBLES = [
-  { valor: "instagram", etiqueta: "Instagram", icono: "🔗" },
-  { valor: "youtube", etiqueta: "YouTube", icono: "🎥" },
-  { valor: "tiktok", etiqueta: "TikTok", icono: "🎵" },
-  { valor: "facebook", etiqueta: "Facebook", icono: "📘" },
-  { valor: "twitter", etiqueta: "X / Twitter", icono: "𝕏" },
-  { valor: "linkedin", etiqueta: "LinkedIn", icono: "💼" },
-];
-
 type Colores = {
   fondo: string;
   cabecera: string;
