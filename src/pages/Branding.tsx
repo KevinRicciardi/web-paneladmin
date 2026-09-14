@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { memo, useRef, useState, useEffect } from "react";
 import {
   Alert, Box, Button, Card, CardContent, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, IconButton, InputAdornment, TextField, Tooltip, Typography, Select, MenuItem,
@@ -70,6 +70,70 @@ const CAMPOS: { key: keyof Colores; label: string }[] = [
   { key: "cardFondo",  label: "Color de Fondo de Cards" },
   { key: "iconos",     label: "Color de Iconos" },
 ];
+
+const EditorColor = memo(function EditorColor({
+  value,
+  onChange,
+  onCopy,
+  copied,
+  colorInputSx,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onCopy: () => void;
+  copied: boolean;
+  colorInputSx: Record<string, unknown>;
+}) {
+  const [valueLocal, setValueLocal] = useState(value);
+
+  useEffect(() => {
+    setValueLocal(value);
+  }, [value]);
+
+  const confirmar = () => {
+    if (valueLocal !== value) onChange(valueLocal);
+  };
+
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+      <Box
+        component="input"
+        type="color"
+        value={valueLocal}
+        onChange={(event: React.ChangeEvent<HTMLInputElement>) => setValueLocal(event.target.value)}
+        onBlur={confirmar}
+        sx={colorInputSx}
+      />
+      <TextField
+        value={valueLocal}
+        size="small"
+        fullWidth
+        onChange={(event) => setValueLocal(event.target.value)}
+        onBlur={confirmar}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            confirmar();
+          }
+        }}
+        slotProps={{
+          htmlInput: { maxLength: 7, style: { fontFamily: "monospace" } },
+          input: {
+            endAdornment: (
+              <InputAdornment position="end">
+                <Tooltip title={copied ? "¡Copiado!" : "Copiar"}>
+                  <IconButton size="small" onClick={onCopy}>
+                    {copied ? "✓" : <span className="material-symbols-outlined">content_copy</span>}
+                  </IconButton>
+                </Tooltip>
+              </InputAdornment>
+            ),
+          },
+        }}
+      />
+    </Box>
+  );
+});
 
 // Devuelve negro o blanco según qué contraste mejor con el color de fondo
 function contraste(hex: string): string {
@@ -303,8 +367,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
-
-  const TF: any = TextField;
 
   useEffect(() => {
     setUltimoGuardado(inicial);
@@ -907,28 +969,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               {CAMPOS.map(({ key, label }) => (
                 <Box key={key} sx={ { mb: 2, "&:last-child": { mb: 0 } } }>
                   <Typography variant="body2" color="text.secondary" gutterBottom>{label}</Typography>
-                  <Box sx={ { display: "flex", alignItems: "center", gap: 1.5 } }>
-                    <Box component="input" type="color" value={colores[key]}
-                      onChange={(e) => setColor(key, e.target.value)} sx={colorInputSx} />
-                    <TF
-                      value={colores[key]} size="small" fullWidth
-                      onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setColor(key, e.target.value)}
-                      slotProps={{
-      htmlInput: { maxLength: 7, style: { fontFamily: "monospace" } },
-    input: {
-     endAdornment: (
-      <InputAdornment position="end">
-        <Tooltip title={copiado === key ? "¡Copiado!" : "Copiar"}>
-          <IconButton size="small" onClick={() => copiar(colores[key], key)}>
-            {copiado === key ? "✓" : <span className="material-symbols-outlined">content_copy</span>}
-          </IconButton>
-        </Tooltip>
-      </InputAdornment>
-    ),
-  },   // ✅ cierra el objeto  input: { ... }
-}}     // ✅ cierra el objeto de slotProps + la expresión JSX
-/>
-                  </Box>
+                  <EditorColor
+                    value={colores[key]}
+                    onChange={(value) => setColor(key, value)}
+                    onCopy={() => copiar(colores[key], key)}
+                    copied={copiado === key}
+                    colorInputSx={colorInputSx}
+                  />
                 </Box>
               ))}
             </CardContent>
