@@ -41,106 +41,20 @@ export function extractKickChannelName(url: string): string | null {
 /**
  * Obtiene datos del stream de Kick desde la API pública de Kick
  */
-export async function getKickStreamData(channelName: string): Promise<KickStreamData | null> {
+export async function getKickStreamData(channelName: string, token?: string): Promise<KickStreamData | null> {
   if (!channelName) return null;
 
   try {
-    const kickUrl = `https://kick.com/api/v1/channels/${channelName}`;
-
-    let response: Response;
-    try {
-      response = await fetch(kickUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-        mode: 'cors',
-        cache: 'no-cache',
-      });
-    } catch (error) {
-      console.warn('Kick API request failed:', error);
-      return null;
-    }
-
-    if (!response.ok) {
-      console.warn(`Kick API error: ${response.status}`);
-      return null;
-    }
-
-    const data = await response.json();
-    console.log("Kick API response:", data);
-    
-    const livestream = data.livestream;
-    console.log("Livestream object:", livestream);
-    console.log("Livestream keys:", livestream ? Object.keys(livestream) : "null/undefined");
-    
-    // Si no hay livestream o no está en vivo
-    if (!livestream || !livestream.is_live) {
-      console.log("Stream is not live or no livestream data");
-      return {
-        isLive: false,
-        viewerCount: 0,
-        duration: 0,
-        title: data.name || '',
-        thumbnail: data.profile_pic || '',
-      };
-    }
-
-    // Stream activo - calcular duración
-    let durationSec = 0;
-    
-    // Intentar obtener duration de start_time (cuando duration es 0 o no disponible)
-    if (livestream.start_time) {
-      try {
-        console.log("Raw start_time value:", livestream.start_time, "Type:", typeof livestream.start_time);
-        let startTime: Date;
-        
-        // start_time viene como string "YYYY-MM-DD HH:MM:SS" - convertir a ISO formato asumiendo UTC
-        if (typeof livestream.start_time === 'string') {
-          // Convertir "2026-08-10 10:45:16" a "2026-08-10T10:45:16Z"
-          const isoString = livestream.start_time.replace(' ', 'T') + 'Z';
-          startTime = new Date(isoString);
-          console.log("Converted to ISO:", isoString, "Parsed Date:", startTime.toISOString());
-        } else if (typeof livestream.start_time === 'number') {
-          startTime = new Date(livestream.start_time * (livestream.start_time > 10000000000 ? 1 : 1000));
-          console.log("Parsed as number, resulting Date:", startTime.toISOString());
-        } else {
-          throw new Error('Invalid start_time type');
-        }
-        
-        if (!isNaN(startTime.getTime())) {
-          const now = new Date();
-          const durationMs = now.getTime() - startTime.getTime();
-          durationSec = Math.max(0, Math.floor(durationMs / 1000));
-          console.log(`Calculated duration from start_time: ${durationSec}s (started: ${startTime.toISOString()}, now: ${now.toISOString()})`);
-        }
-      } catch (e) {
-        console.warn("Could not parse start_time:", livestream.start_time, e);
-        durationSec = 0;
-      }
-    } else {
-      console.warn("No start_time found in livestream data");
-      durationSec = 0;
-    }
-
-    const result = {
-      isLive: true,
-      viewerCount: livestream.viewer_count || 0,
-      duration: durationSec,
-      title: livestream.session_title || '',
-      thumbnail: livestream.thumbnail || data.profile_pic || '',
-    };
-    
-    console.log("Returning Kick data:", result);
-    return result;
-    
+    const audioUrl = await getKickAudioUrl(channelName, token);
+    return { isLive: Boolean(audioUrl), viewerCount: 0, duration: 0, title: "", thumbnail: "" };
   } catch (error) {
-    console.error('Error fetching Kick stream data:', error);
+    console.error("Error fetching Kick stream data:", error);
     return null;
   }
 }
 
 const AUDIO_URL_PATTERN = /(\.mp3|\.aac|\.m4a|\.ogg|\.wav|\.flac|\.opus|\.m3u8)(?:[?#].*)?$/i;
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 function isAudioUrl(value: unknown): value is string {
   if (typeof value !== 'string' || value.length === 0) return false;
@@ -156,85 +70,25 @@ function isAudioUrl(value: unknown): value is string {
   }
 }
 
-function extractUrlsFromObject(value: unknown, results: string[] = []): string[] {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      results.push(trimmed);
-    }
-    return results;
-  }
-
-  if (Array.isArray(value)) {
-    for (const item of value) extractUrlsFromObject(item, results);
-    return results;
-  }
-
-  if (typeof value === 'object' && value !== null) {
-    for (const key of Object.keys(value)) {
-      extractUrlsFromObject((value as any)[key], results);
-    }
-  }
-
-  return results;
-}
-
-export async function getKickAudioUrl(channelName: string): Promise<string | null> {
+export async function getKickAudioUrl(channelName: string, token?: string): Promise<string | null> {
   if (!channelName) return null;
 
-  try {
-    const kickUrl = `https://kick.com/api/v1/channels/${channelName}`;
-
-    let response: Response;
-    try {
-      response = await fetch(kickUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-        mode: 'cors',
-        cache: 'no-cache',
-      });
-    } catch (error) {
-      console.warn('Kick API request failed:', error);
-      return null;
-    }
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json() as any;
-    const livestream = data?.livestream;
-
-    const candidates = [
-      livestream?.playback_url,
-      livestream?.hls_url,
-      livestream?.source?.url,
-      livestream?.source?.playback_url,
-      livestream?.source?.stream_url,
-      livestream?.media?.source?.url,
-      livestream?.media?.source?.playback_url,
-      livestream?.media?.url,
-      data?.playback_url,
-      data?.playbackUrl,
-      data?.stream_url,
-      data?.hls_url,
-      data?.m3u8_url,
-    ];
-
-    const audioUrl = candidates.find((value) => isAudioUrl(value)) as string | undefined;
-    if (audioUrl) {
-      return audioUrl;
-    }
-
-    const urls = extractUrlsFromObject(data);
-    const fallback = urls.find((value) => isAudioUrl(value));
-    return fallback ?? null;
-  } catch (error) {
-    console.error('Error fetching Kick audio URL:', error);
-    return null;
+  const response = await fetch(
+    `${API_URL}/streams/kick-audio?channel=${encodeURIComponent(channelName)}`,
+    {
+      headers: { Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      cache: "no-store",
+    },
+  );
+  let data: { audioUrl?: unknown; code?: string; message?: string } = {};
+  try { data = await response.json() as typeof data; } catch { /* Respuesta sin JSON. */ }
+  if (!response.ok) {
+    const error = new Error(data.message || "No se pudo obtener la señal de Kick.");
+    (error as Error & { status?: number; code?: string }).status = response.status;
+    (error as Error & { status?: number; code?: string }).code = data.code;
+    throw error;
   }
+  return typeof data.audioUrl === "string" && isAudioUrl(data.audioUrl) ? data.audioUrl : null;
 }
 
 /**
