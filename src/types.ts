@@ -125,6 +125,7 @@ export interface Programa {
   titulo: string;
   descripcion?: string | null;
   imagenUrl?: string | null;
+  color?: string | null;
   dias: DiasSemana;
   diasPersonalizados?: string[] | null;
   fechaInicio?: string | null;
@@ -140,6 +141,7 @@ export interface ProgramaPayload {
   titulo: string;
   descripcion?: string;
   imagenUrl?: string;
+  color?: string;
   dias: DiasSemana;
   diasPersonalizados?: string[];
   fechaInicio?: string;

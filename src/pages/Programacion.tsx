@@ -64,10 +64,20 @@ const DIAS_SEMANA = [
   { value: "DOM", label: "Dom" },
 ];
 
+const COLORES_EVENTOS_CALENDARIO = [
+  { fondo: "rgba(66, 133, 244, 0.18)", borde: "#4285f4" },
+  { fondo: "rgba(15, 157, 88, 0.18)", borde: "#0f9d58" },
+  { fondo: "rgba(251, 188, 4, 0.2)", borde: "#fbbc04" },
+  { fondo: "rgba(234, 67, 53, 0.18)", borde: "#ea4335" },
+];
+
+const COLORES_DISPONIBLES = ["#4285f4", "#0f9d58", "#fbbc04", "#ea4335", "#a142f4", "#00acc1"];
+
 const FORM_VACIO: ProgramaPayload = {
   titulo: "",
   descripcion: "",
   imagenUrl: "",
+  color: COLORES_DISPONIBLES[0],
   dias: "PERSONALIZADO",
   horaInicio: "09:00",
   horaFin: "12:00",
@@ -105,7 +115,7 @@ function obtenerDiasDesdeSeleccion(seleccionados: string[]): DiasSemana {
     return "LUN_VIE";
   }
 
-  if (seleccionados.length === 7 || seleccionados.every((dia) => todos.includes(dia))) {
+  if (seleccionados.length === 7 && seleccionados.every((dia) => todos.includes(dia))) {
     return "TODOS";
   }
 
@@ -261,6 +271,14 @@ function descripcionPrograma(programa: Programa) {
   return `${programa.titulo} — ${diasTexto}`;
 }
 
+function colorCalendarioPrograma(programa: Programa) {
+  const colorAutomatico = COLORES_EVENTOS_CALENDARIO[programa.id % COLORES_EVENTOS_CALENDARIO.length];
+  return {
+    borde: programa.color || colorAutomatico.borde,
+    fondo: programa.color ? `${programa.color}22` : colorAutomatico.fondo,
+  };
+}
+
 function formatearFechaInput(fecha: Date) {
   const año = fecha.getFullYear();
   const mes = `${fecha.getMonth() + 1}`.padStart(2, "0");
@@ -343,18 +361,22 @@ function aplicaProgramaADia(programa: Programa, fechaReferencia: string | null |
     }
 
     if (!programa.fechaFin) {
-      return programa.fechaInicio === fechaReferencia;
+      return formatearFechaInput(inicio) === fechaReferencia;
     }
 
     const fin = parsearFechaInput(programa.fechaFin);
     if (!fin) {
-      return programa.fechaInicio === fechaReferencia;
+      return formatearFechaInput(inicio) === fechaReferencia;
     }
 
     return referencia >= inicio && referencia <= fin;
   }
 
   const personalizados = programa.diasPersonalizados ?? [];
+
+  if (personalizados.length > 0) {
+    return personalizados.includes(codigoDia);
+  }
 
   switch (programa.dias) {
     case "TODOS":
@@ -366,7 +388,7 @@ function aplicaProgramaADia(programa: Programa, fechaReferencia: string | null |
     case "DOMINGOS":
       return codigoDia === "DOM";
     case "PERSONALIZADO":
-      return personalizados.includes(codigoDia);
+      return false;
     default:
       return false;
   }
@@ -394,6 +416,10 @@ function obtenerCodigosDiasParaPrograma(programa: Programa) {
   }
 
   // Si no tiene fecha específica, derivar de la propiedad dias/diasPersonalizados
+  if (programa.diasPersonalizados?.length) {
+    return programa.diasPersonalizados;
+  }
+
   switch (programa.dias) {
     case "TODOS":
       return DIAS_SEMANA.map((d) => d.value);
@@ -404,7 +430,7 @@ function obtenerCodigosDiasParaPrograma(programa: Programa) {
     case "DOMINGOS":
       return ["DOM"];
     case "PERSONALIZADO":
-      return programa.diasPersonalizados ?? [];
+      return [];
     default:
       return [];
   }
@@ -477,6 +503,7 @@ export default function Programacion() {
   const [programaAEliminar, setProgramaAEliminar] = useState<Programa | null>(null);
   const [eliminando, setEliminando] = useState(false);
   const [vista, setVista] = useState<"tabla" | "calendario">("tabla");
+  const [mesCalendario, setMesCalendario] = useState(() => new Date());
   const [cropOpen, setCropOpen] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
   const [originalImageSource, setOriginalImageSource] = useState<string | null>(null);
@@ -626,6 +653,7 @@ export default function Programacion() {
       titulo: p.titulo,
       descripcion: p.descripcion ?? "",
       imagenUrl: p.imagenUrl ?? "",
+      color: p.color ?? COLORES_DISPONIBLES[p.id % COLORES_DISPONIBLES.length],
       dias: diasParaForm,
       horaInicio: p.horaInicio,
       horaFin: p.horaFin,
@@ -798,12 +826,13 @@ export default function Programacion() {
         titulo: form.titulo,
         descripcion: form.descripcion,
         imagenUrl: form.imagenUrl || undefined,
+        color: form.color,
         horaInicio: form.horaInicio,
         horaFin: form.horaFin,
         activo: form.activo,
         dias: diasPayload,
         diasPersonalizados:
-          modoDias === "PERSONALIZADO" ? diasSeleccionados : undefined,
+          modoDias === "PERSONALIZADO" ? diasSeleccionados : [],
         fechaInicio: fechaInicioPayload,
         fechaFin: fechaFinPayload,
       };
@@ -946,6 +975,13 @@ export default function Programacion() {
     [programas],
   );
 
+  const cambiarMesCalendario = (delta: number) => {
+    setMesCalendario((actual) => new Date(actual.getFullYear(), actual.getMonth() + delta, 1));
+  };
+
+  const diasMesCalendario = obtenerDiasCalendario(mesCalendario);
+  const añosCalendario = Array.from({ length: 11 }, (_, indice) => mesCalendario.getFullYear() - 5 + indice);
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" sx={{ fontWeight: 700 }}>
@@ -957,7 +993,55 @@ export default function Programacion() {
 
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 2 }}>
-          <Typography variant="h6">Grilla Semanal</Typography>
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+            <Typography variant="h6">Grilla Semanal</Typography>
+            {vista === "calendario" && (
+              <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => cambiarMesCalendario(-1)}
+                  aria-label="Mes anterior"
+                  sx={{ minWidth: 30, width: 30, height: 30, p: 0, fontSize: 15, lineHeight: 1 }}
+                >
+                  ‹
+                </Button>
+                <Select
+                  size="small"
+                  value={mesCalendario.getMonth()}
+                  onChange={(event) => setMesCalendario(new Date(mesCalendario.getFullYear(), Number(event.target.value), 1))}
+                  aria-label="Mes del calendario"
+                  sx={{ minWidth: 122, height: 30, fontWeight: 700 }}
+                >
+                  {Array.from({ length: 12 }, (_, mes) => (
+                    <MenuItem key={mes} value={mes}>
+                      {new Date(2020, mes, 1).toLocaleDateString("es-ES", { month: "long" })}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <Select
+                  size="small"
+                  value={mesCalendario.getFullYear()}
+                  onChange={(event) => setMesCalendario(new Date(Number(event.target.value), mesCalendario.getMonth(), 1))}
+                  aria-label="Año del calendario"
+                  sx={{ minWidth: 84, height: 30, fontWeight: 700 }}
+                >
+                  {añosCalendario.map((año) => (
+                    <MenuItem key={año} value={año}>{año}</MenuItem>
+                  ))}
+                </Select>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => cambiarMesCalendario(1)}
+                  aria-label="Mes siguiente"
+                  sx={{ minWidth: 30, width: 30, height: 30, p: 0, fontSize: 15, lineHeight: 1 }}
+                >
+                  ›
+                </Button>
+              </Stack>
+            )}
+          </Stack>
           <Stack direction="row" spacing={1}>
             <Button
               size="small"
@@ -988,43 +1072,115 @@ export default function Programacion() {
             Todavía no cargaste programación.
           </Typography>
         ) : vista === "calendario" ? (
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
-              gap: 1.5,
-            }}
-          >
-            {DIAS_SEMANA.map((dia) => {
-              const delDia = programasOrdenados.filter((programa) =>
-                obtenerCodigosDiasParaPrograma(programa).includes(dia.value),
-              );
+          <Stack spacing={2}>
+            <Box sx={{ overflowX: "auto" }}>
+              <Box sx={{ minWidth: { xs: 620, md: 0 } }}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                    borderTop: "1px solid",
+                    borderLeft: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  {DIAS_SEMANA.map((dia) => (
+                    <Box key={dia.value} sx={{ px: 1, py: 1, bgcolor: "action.hover", borderRight: "1px solid", borderBottom: "1px solid", borderColor: "divider" }}>
+                      <Typography variant="caption" sx={{ fontWeight: 800, color: "text.secondary" }}>{dia.label}</Typography>
+                    </Box>
+                  ))}
+                  {diasMesCalendario.map((dia, index) => {
+                    const programasDelDia = dia
+                      ? programasOrdenados.filter((programa) => aplicaProgramaADia(programa, formatearFechaInput(dia)))
+                      : [];
+                    const esHoy = dia && formatearFechaInput(dia) === formatearFechaInput(new Date());
 
-              return (
-                <Box key={dia.value} sx={{ minHeight: 180, p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.25 }}>
-                    {dia.label}
-                  </Typography>
-                  <Stack spacing={1}>
-                    {delDia.length === 0 ? (
-                      <Typography variant="caption" color="text.secondary">Sin programas</Typography>
-                    ) : delDia.map((programa) => (
+                    return (
                       <Box
-                        key={programa.id}
-                        onClick={() => abrirEdicion(programa)}
-                        sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover", cursor: "pointer", opacity: programa.activo ? 1 : 0.5 }}
+                        key={dia ? formatearFechaInput(dia) : `vacio-${index}`}
+                        sx={{
+                          minHeight: { xs: 104, sm: 122 },
+                          p: { xs: 0.75, sm: 1 },
+                          bgcolor: dia ? "background.paper" : "action.hover",
+                          borderRight: "1px solid",
+                          borderBottom: "1px solid",
+                          borderColor: "divider",
+                        }}
                       >
-                        <Typography variant="body2" sx={{ fontWeight: 800 }}>{programa.titulo}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {programa.horaInicio} - {programa.horaFin}
-                        </Typography>
+                        {dia && (
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: 28,
+                              height: 28,
+                              mb: 0.75,
+                              borderRadius: "50%",
+                              fontWeight: 800,
+                              bgcolor: esHoy ? "primary.main" : "transparent",
+                              color: esHoy ? "primary.contrastText" : "text.primary",
+                            }}
+                          >
+                            {dia.getDate()}
+                          </Typography>
+                        )}
+                        <Stack spacing={0.5}>
+                          {programasDelDia.map((programa) => (
+                            (() => {
+                              const color = colorCalendarioPrograma(programa);
+
+                              return (
+                                <Box
+                                  key={programa.id}
+                                  component="button"
+                                  type="button"
+                                  onClick={() => abrirEdicion(programa)}
+                                  title={`${programa.titulo} · ${programa.horaInicio} - ${programa.horaFin}`}
+                                  sx={{
+                                    display: "block",
+                                    width: "100%",
+                                    minWidth: 0,
+                                    p: "3px 6px",
+                                    border: 0,
+                                    borderLeft: `3px solid ${color.borde}`,
+                                    borderRadius: "3px",
+                                    bgcolor: color.fondo,
+                                    color: "text.primary",
+                                    textAlign: "left",
+                                    cursor: "pointer",
+                                    opacity: programa.activo ? 1 : 0.5,
+                                    overflow: "hidden",
+                                    '&:hover': { filter: "brightness(1.12)" },
+                                  }}
+                                >
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      display: "block",
+                                      fontSize: "0.7rem",
+                                      lineHeight: 1.35,
+                                      fontWeight: 700,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {programa.horaInicio} · {programa.titulo}
+                                  </Typography>
+                                </Box>
+                              );
+                            })()
+                          ))}
+                        </Stack>
                       </Box>
-                    ))}
-                  </Stack>
+                    );
+                  })}
                 </Box>
-              );
-            })}
-          </Box>
+              </Box>
+            </Box>
+          </Stack>
         ) : (
           <Table size="small">
             <TableHead>
@@ -1099,6 +1255,40 @@ export default function Programacion() {
               multiline
               rows={2}
             />
+            <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                Color del programa en el calendario
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 1 }}>
+                {COLORES_DISPONIBLES.map((color) => (
+                  <Button
+                    key={color}
+                    type="button"
+                    aria-label={`Elegir color ${color}`}
+                    aria-pressed={form.color === color}
+                    onClick={() => setForm({ ...form, color })}
+                    sx={{
+                      minWidth: 28,
+                      width: 28,
+                      height: 28,
+                      p: 0,
+                      borderRadius: "50%",
+                      bgcolor: color,
+                      border: form.color === color ? "3px solid #ffffff" : "2px solid transparent",
+                      boxShadow: form.color === color ? `0 0 0 1px ${color}` : "none",
+                      '&:hover': { bgcolor: color, opacity: 0.82 },
+                    }}
+                  />
+                ))}
+                <TextField
+                  type="color"
+                  value={form.color || COLORES_DISPONIBLES[0]}
+                  onChange={(e) => setForm({ ...form, color: e.target.value })}
+                  inputProps={{ "aria-label": "Elegir otro color" }}
+                  sx={{ width: 58, '& input': { height: 28, p: 0.25, cursor: "pointer" } }}
+                />
+              </Stack>
+            </Box>
 
             <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
