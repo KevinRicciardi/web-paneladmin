@@ -35,6 +35,23 @@ function canPlayHlsNatively() {
   return audio.canPlayType("application/vnd.apple.mpegurl") !== "";
 }
 
+function isDirectAudioUrl(url: string) {
+  const normalized = url.trim().toLowerCase().split(/[?#]/)[0];
+  return /\.(mp3|aac|m4a|ogg|wav|flac|opus|m3u8)$/.test(normalized)
+    || /\/(stream|audio|live|playback)$/.test(normalized);
+}
+
+function getPlaybackError(error: unknown) {
+  const typedError = error as { status?: number; code?: string; message?: string };
+  if (typedError.status === 400) return "La URL de audio no es válida.";
+  if (typedError.status === 401) return "Tu sesión expiró. Volvé a iniciar sesión.";
+  if (typedError.status === 404 && typedError.code === "STREAM_OFFLINE") return "El canal de Kick no está transmitiendo actualmente.";
+  if (typedError.status === 404 && typedError.code === "CHANNEL_NOT_FOUND") return "No se encontró el canal de Kick.";
+  if (typedError.status === 502 && typedError.code === "PLAYBACK_URL_UNAVAILABLE") return "Kick no proporcionó una URL de reproducción disponible.";
+  if (typedError.status === 503) return "Kick no está disponible en este momento.";
+  return typedError.message || "No se pudo reproducir el audio.";
+}
+
 export default function Podcast({ perfil }: { perfil: Perfil }) {
   const tenantId = perfil.tenantId;
   const [liveUrl, setLiveUrl] = useState(perfil.tenant.podcastUrl ?? "");
@@ -47,6 +64,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   const [liveReady, setLiveReady] = useState(false);
   const liveAudioRef = useRef<HTMLAudioElement>(null);
   const liveHlsRef = useRef<any>(null);
+  const livePlayRequestedRef = useRef(false);
   const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -62,6 +80,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [playbackError, setPlaybackError] = useState("");
+  const liveKickChannel = extractKickChannelName(liveUrl);
 
   const loadEpisodes = async () => {
     setLoading(true);
@@ -80,25 +99,9 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   }, [perfil.tenant.podcastUrl, perfil.tenant.podcastProvider, perfil.tenant.podcastImagenPortada]);
 
   useEffect(() => {
-    let canceled = false;
-    const resolveLiveAudio = async () => {
-      const channelName = extractKickChannelName(liveUrl);
-      if (!channelName) {
-        setLiveResolvedUrl(liveUrl.trim());
-        return;
-      }
-
-      setLiveLoading(true);
-      setLiveResolvedUrl("");
-      const resolvedUrl = await getKickAudioUrl(channelName);
-      if (!canceled) {
-        setLiveResolvedUrl(resolvedUrl ?? "");
-        setLiveLoading(false);
-      }
-    };
-
-    void resolveLiveAudio();
-    return () => { canceled = true; };
+    const channelName = extractKickChannelName(liveUrl);
+    setLiveResolvedUrl(channelName ? "" : liveUrl.trim());
+    setLiveReady(Boolean(!channelName && isDirectAudioUrl(liveUrl)));
   }, [liveUrl]);
 
   useEffect(() => {
@@ -117,7 +120,13 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
       if (!isHlsUrl(liveResolvedUrl) || canPlayHlsNatively()) {
         audio.src = liveResolvedUrl;
         audio.load();
-        if (!canceled) setLiveReady(true);
+        if (!canceled) {
+          setLiveReady(true);
+          if (livePlayRequestedRef.current) {
+            livePlayRequestedRef.current = false;
+            void audio.play().then(() => setLivePlaying(true)).catch(() => setError("No se pudo reproducir el audio."));
+          }
+        }
         return;
       }
 
@@ -133,8 +142,16 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
         liveHlsRef.current = hls;
         hls.attachMedia(audio);
         hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(liveResolvedUrl));
-        hls.on(Hls.Events.MANIFEST_PARSED, () => { if (!canceled) setLiveReady(true); });
-        hls.on(Hls.Events.ERROR, () => { if (!canceled) setError("No se pudo cargar la señal en vivo de Kick."); });
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (!canceled) {
+            setLiveReady(true);
+            if (livePlayRequestedRef.current) {
+              livePlayRequestedRef.current = false;
+              void audio.play().then(() => setLivePlaying(true)).catch(() => setError("No se pudo reproducir el audio."));
+            }
+          }
+        });
+        hls.on(Hls.Events.ERROR, () => { if (!canceled) setError("No se pudo reproducir el audio."); });
       } catch {
         if (!canceled) setError("No se pudo preparar el audio en vivo.");
       }
@@ -170,16 +187,40 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
 
   const toggleLivePreview = async () => {
     const audio = liveAudioRef.current;
-    if (!audio || !liveResolvedUrl || !liveReady) {
-      setError(liveLoading ? "Esperá mientras se conecta la señal en vivo." : "No se encontró una señal de audio activa para este canal.");
+    if (!audio) return;
+    if (livePlaying) {
+      livePlayRequestedRef.current = false;
+      audio.pause();
+      setLivePlaying(false);
       return;
     }
-    if (livePlaying) { audio.pause(); setLivePlaying(false); return; }
+    if (liveKickChannel) {
+      setLiveLoading(true);
+      setError("");
+      livePlayRequestedRef.current = true;
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const resolvedUrl = await getKickAudioUrl(liveKickChannel, token);
+        if (!resolvedUrl) throw new Error("No se obtuvo una URL de audio válida.");
+        setLiveResolvedUrl(resolvedUrl);
+      } catch (resolveError) {
+        livePlayRequestedRef.current = false;
+        setError(getPlaybackError(resolveError));
+      } finally { setLiveLoading(false); }
+      return;
+    }
+    if (!isDirectAudioUrl(liveUrl)) {
+      setError("La URL de audio no es válida.");
+      return;
+    }
+    if (!liveResolvedUrl || !liveReady) {
+      setError("No se pudo preparar el audio.");
+      return;
+    }
     audioRef.current?.pause();
     setPlaying(false);
-    audio.src = liveResolvedUrl;
     try { await audio.play(); setLivePlaying(true); }
-    catch { setError("No se pudo reproducir la señal en vivo. Verificá que el canal esté transmitiendo."); setLivePlaying(false); }
+    catch { setError("No se pudo reproducir el audio."); setLivePlaying(false); }
   };
 
   const openCreate = () => { setEditing(null); setForm(emptyForm); setError(""); };
@@ -266,7 +307,6 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2, mb: 3, flexWrap: "wrap" }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 800, mb: 0.75 }}>Podcast</Typography>
-          <Typography color="text.secondary">Gestioná episodios de audio para tu aplicación.</Typography>
         </Box>
         <Button variant="contained" startIcon={<span className="material-symbols-outlined">add</span>} onClick={openCreate}>Nuevo episodio</Button>
       </Box>
@@ -308,7 +348,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
           <CardContent>
             <Box sx={{ position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider", bgcolor: "action.hover", backgroundImage: liveCover ? `url(${liveCover})` : undefined, backgroundSize: "cover", backgroundPosition: "center", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Box sx={{ position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,0.35)" }} />
-              <Button variant="contained" onClick={() => void toggleLivePreview()} disabled={!liveReady || liveLoading} startIcon={<span className="material-symbols-outlined">{livePlaying ? "pause" : "play_arrow"}</span>} sx={{ zIndex: 1 }}>{liveLoading ? "Conectando..." : livePlaying ? "Pausar señal" : "Reproducir señal"}</Button>
+              <Button variant="contained" onClick={() => void toggleLivePreview()} disabled={liveLoading} startIcon={<span className="material-symbols-outlined">{livePlaying ? "pause" : "play_arrow"}</span>} sx={{ zIndex: 1 }}>{liveLoading ? "Conectando..." : livePlaying ? "Pausar señal" : "Reproducir señal"}</Button>
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>La vista previa reproduce solamente audio.</Typography>
           </CardContent>
@@ -369,7 +409,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
           <TextField label="URL directa del audio" placeholder="https://.../episodio.mp3" value={form.audioUrl} onChange={(event) => updateField("audioUrl", event.target.value)} required helperText="Usá una URL directa MP3, M4A, WAV u otro formato compatible." />
           <TextField label="URL de portada" value={form.coverImageUrl} onChange={(event) => updateField("coverImageUrl", event.target.value)} />
           <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}><TextField label="Duración" placeholder="12:30" value={form.duration} onChange={(event) => updateField("duration", event.target.value)} /><TextField label="Fecha de publicación" type="date" value={form.publishedAt ? form.publishedAt.slice(0, 10) : ""} onChange={(event) => updateField("publishedAt", event.target.value)} slotProps={{ inputLabel: { shrink: true } }} /></Box>
-          <TextField select label="Estado" value={form.status} onChange={(event) => updateField("status", event.target.value as PodcastEpisodeStatus)} SelectProps={{ native: true }}><option value="draft">Borrador</option><option value="published">Publicado</option></TextField>
+          <TextField select label="Estado" value={form.status} onChange={(event) => updateField("status", event.target.value as PodcastEpisodeStatus)} slotProps={{ select: { native: true } }}><option value="draft">Borrador</option><option value="published">Publicado</option></TextField>
         </Stack></DialogContent>
         <DialogActions><Button onClick={closeForm}>Cancelar</Button><Button variant="contained" onClick={() => void saveEpisode()} disabled={saving}>{saving ? "Guardando..." : "Guardar"}</Button></DialogActions>
       </Dialog>

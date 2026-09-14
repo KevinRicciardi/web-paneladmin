@@ -245,7 +245,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       if (!channelName || streamProvider !== "kick") return;
 
       try {
-        const data = await getKickStreamData(channelName);
+        const token = await auth.currentUser?.getIdToken();
+        const data = await getKickStreamData(channelName, token);
         if (!active) return;
         setKickData(data);
 
@@ -278,7 +279,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       }
 
       try {
-        const audioUrl = await getKickAudioUrl(channelName);
+        const token = await auth.currentUser?.getIdToken();
+        const audioUrl = await getKickAudioUrl(channelName, token);
         setKickAudioUrl(audioUrl);
       } catch (error) {
         console.error("Error fetching Kick audio url:", error);
