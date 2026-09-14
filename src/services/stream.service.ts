@@ -1,10 +1,22 @@
-import { getKickStreamData, extractKickChannelName } from "./kick.service";
 import type { KickStreamData } from "./kick.service";
 
 export type StreamProvider = "kick" | "youtube" | "twitch" | null;
 export type StreamData = KickStreamData;
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+
+function calcularDuracionStream(isLive: boolean | undefined, startedAt?: string | null) {
+  if (!isLive || !startedAt) return 0;
+
+  const fechaNormalizada = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(startedAt)
+    ? startedAt
+    : `${startedAt.replace(" ", "T")}Z`;
+  const timestamp = Date.parse(fechaNormalizada);
+
+  return Number.isNaN(timestamp)
+    ? 0
+    : Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+}
 
 export function detectStreamProvider(url: string): StreamProvider {
   try {
@@ -58,9 +70,7 @@ async function getTwitchStreamData(tenantSlug: string): Promise<StreamData | nul
     thumbnail?: string | null;
     startedAt?: string | null;
   };
-  const duration = data.isLive && data.startedAt
-    ? Math.max(0, Math.floor((Date.now() - Date.parse(data.startedAt)) / 1000))
-    : 0;
+  const duration = calcularDuracionStream(data.isLive, data.startedAt);
 
   return {
     isLive: Boolean(data.isLive),
@@ -85,9 +95,32 @@ async function getYoutubeStreamData(tenantSlug: string): Promise<StreamData | nu
     thumbnail?: string | null;
     startedAt?: string | null;
   };
-  const duration = data.isLive && data.startedAt
-    ? Math.max(0, Math.floor((Date.now() - Date.parse(data.startedAt)) / 1000))
-    : 0;
+  const duration = calcularDuracionStream(data.isLive, data.startedAt);
+
+  return {
+    isLive: Boolean(data.isLive),
+    viewerCount: data.viewers ?? 0,
+    duration,
+    title: data.title ?? "",
+    thumbnail: data.thumbnail ?? "",
+  };
+}
+
+async function getTenantStreamData(tenantSlug: string): Promise<StreamData | null> {
+  const response = await fetch(
+    `${API_URL}/tenants/${encodeURIComponent(tenantSlug)}/stream-info`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) throw new Error(`Stream API error: ${response.status}`);
+
+  const data = await response.json() as {
+    isLive?: boolean;
+    viewers?: number | null;
+    title?: string | null;
+    thumbnail?: string | null;
+    startedAt?: string | null;
+  };
+  const duration = calcularDuracionStream(data.isLive, data.startedAt);
 
   return {
     isLive: Boolean(data.isLive),
@@ -104,8 +137,7 @@ export async function getStreamData(
   tenantSlug?: string,
 ): Promise<StreamData | null> {
   if (provider === "kick") {
-    const channelName = extractKickChannelName(url);
-    return channelName ? getKickStreamData(channelName) : null;
+    return tenantSlug ? getTenantStreamData(tenantSlug) : null;
   }
   if (provider === "youtube") return tenantSlug ? getYoutubeStreamData(tenantSlug) : null;
 
