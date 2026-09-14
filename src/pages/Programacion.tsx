@@ -95,6 +95,58 @@ const OPCIONES_HORAS = Array.from({ length: 48 }, (_, index) => {
   return `${horas}:${minutos}`;
 });
 
+const SelectorColorPrograma = memo(function SelectorColorPrograma({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (color: string) => void;
+}) {
+  const [colorLocal, setColorLocal] = useState(value);
+
+  const confirmarColor = () => {
+    if (colorLocal !== value) {
+      onChange(colorLocal);
+    }
+  };
+
+  return (
+    <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 1 }}>
+      {COLORES_DISPONIBLES.map((color) => (
+        <Button
+          key={color}
+          type="button"
+          aria-label={`Elegir color ${color}`}
+          aria-pressed={colorLocal === color}
+          onClick={() => {
+            setColorLocal(color);
+            onChange(color);
+          }}
+          sx={{
+            minWidth: 28,
+            width: 28,
+            height: 28,
+            p: 0,
+            borderRadius: "50%",
+            bgcolor: color,
+            border: colorLocal === color ? "3px solid #ffffff" : "2px solid transparent",
+            boxShadow: colorLocal === color ? `0 0 0 1px ${color}` : "none",
+            '&:hover': { bgcolor: color, opacity: 0.82 },
+          }}
+        />
+      ))}
+      <TextField
+        type="color"
+        value={colorLocal}
+        onChange={(event) => setColorLocal(event.target.value)}
+        onBlur={confirmarColor}
+        inputProps={{ "aria-label": "Elegir otro color" }}
+        sx={{ width: 58, '& input': { height: 28, p: 0.25, cursor: "pointer" } }}
+      />
+    </Stack>
+  );
+});
+
 function etiquetaDias(dias: DiasSemana, seleccionados?: string[] | null) {
   if (dias === "PERSONALIZADO" && seleccionados && seleccionados.length > 0) {
     return seleccionados.map((dia) => DIAS_SEMANA.find((item) => item.value === dia)?.label ?? dia).join(", ");
@@ -1259,35 +1311,11 @@ export default function Programacion() {
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
                 Color del programa en el calendario
               </Typography>
-              <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 1 }}>
-                {COLORES_DISPONIBLES.map((color) => (
-                  <Button
-                    key={color}
-                    type="button"
-                    aria-label={`Elegir color ${color}`}
-                    aria-pressed={form.color === color}
-                    onClick={() => setForm({ ...form, color })}
-                    sx={{
-                      minWidth: 28,
-                      width: 28,
-                      height: 28,
-                      p: 0,
-                      borderRadius: "50%",
-                      bgcolor: color,
-                      border: form.color === color ? "3px solid #ffffff" : "2px solid transparent",
-                      boxShadow: form.color === color ? `0 0 0 1px ${color}` : "none",
-                      '&:hover': { bgcolor: color, opacity: 0.82 },
-                    }}
-                  />
-                ))}
-                <TextField
-                  type="color"
-                  value={form.color || COLORES_DISPONIBLES[0]}
-                  onChange={(e) => setForm({ ...form, color: e.target.value })}
-                  inputProps={{ "aria-label": "Elegir otro color" }}
-                  sx={{ width: 58, '& input': { height: 28, p: 0.25, cursor: "pointer" } }}
-                />
-              </Stack>
+              <SelectorColorPrograma
+                key={editandoId ?? "nuevo"}
+                value={form.color || COLORES_DISPONIBLES[0]}
+                onChange={(color) => setForm((actual) => ({ ...actual, color }))}
+              />
             </Box>
 
             <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
