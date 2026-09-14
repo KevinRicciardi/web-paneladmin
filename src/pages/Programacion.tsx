@@ -34,6 +34,8 @@ import {
   eliminarPrograma,
 } from "../services/schedule.service";
 
+// Lista completa: se usa para traducir a texto el campo "dias" de programas
+// ya guardados (incluye opciones viejas que ya no se pueden crear desde acá).
 const OPCIONES_DIAS: { value: DiasSemana; label: string }[] = [
   { value: "LUN_VIE", label: "Lunes a Viernes" },
   { value: "SABADOS", label: "Sábados" },
@@ -42,6 +44,15 @@ const OPCIONES_DIAS: { value: DiasSemana; label: string }[] = [
   { value: "PERSONALIZADO", label: "Días específicos" },
   { value: "FECHA_ESPECIFICA", label: "Fecha específica" },
 ];
+
+// Únicas opciones elegibles al crear/editar un programa desde el modal.
+const OPCIONES_DIAS_MODAL = OPCIONES_DIAS.filter(
+  (opcion) => opcion.value === "PERSONALIZADO" || opcion.value === "FECHA_ESPECIFICA",
+);
+
+// Valores viejos que ya no se pueden elegir, pero pueden seguir existiendo
+// en programas creados antes de este cambio.
+const DIAS_LEGACY: DiasSemana[] = ["LUN_VIE", "SABADOS", "DOMINGOS", "TODOS"];
 
 const DIAS_SEMANA = [
   { value: "LUN", label: "Lun" },
@@ -57,12 +68,14 @@ const FORM_VACIO: ProgramaPayload = {
   titulo: "",
   descripcion: "",
   imagenUrl: "",
-  dias: "LUN_VIE",
+  dias: "PERSONALIZADO",
   horaInicio: "09:00",
   horaFin: "12:00",
-  orden: 0,
   activo: true,
 };
+
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined;
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
 
 const OPCIONES_HORAS = Array.from({ length: 48 }, (_, index) => {
   const horas = Math.floor(index / 2)
@@ -146,11 +159,13 @@ const ProgramaTableRow = memo(function ProgramaTableRow({
   programa,
   onEditar,
   onEliminar,
+  onDuplicar,
   onAbrirDetalle,
 }: {
   programa: Programa;
   onEditar: (p: Programa) => void;
   onEliminar: (p: Programa) => void;
+  onDuplicar: (p: Programa) => void;
   onAbrirDetalle: (p: Programa) => void;
 }) {
   return (
@@ -193,6 +208,9 @@ const ProgramaTableRow = memo(function ProgramaTableRow({
       <TableCell align="right">
         <Button size="small" onClick={() => onEditar(programa)}>
           Editar
+        </Button>
+        <Button size="small" onClick={() => onDuplicar(programa)}>
+          Duplicar
         </Button>
         <Button size="small" color="error" onClick={() => onEliminar(programa)}>
           Eliminar
@@ -448,8 +466,9 @@ export default function Programacion() {
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [form, setForm] = useState<ProgramaPayload>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
   const [diasSeleccionados, setDiasSeleccionados] = useState<string[]>(["LUN", "MAR", "MIE", "JUE", "VIE"]);
-  const [modoDias, setModoDias] = useState<DiasSemana>("LUN_VIE");
+  const [modoDias, setModoDias] = useState<DiasSemana>("PERSONALIZADO");
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
   const [imagenPreview, setImagenPreview] = useState<string | null>(null);
@@ -457,6 +476,7 @@ export default function Programacion() {
   const [modoFecha, setModoFecha] = useState<"NINGUNO" | "ESPECIFICA" | "RANGO">("NINGUNO");
   const [programaAEliminar, setProgramaAEliminar] = useState<Programa | null>(null);
   const [eliminando, setEliminando] = useState(false);
+  const [vista, setVista] = useState<"tabla" | "calendario">("tabla");
   const [cropOpen, setCropOpen] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
   const [originalImageSource, setOriginalImageSource] = useState<string | null>(null);
@@ -550,11 +570,17 @@ export default function Programacion() {
     setEditandoId(null);
     setForm({ ...FORM_VACIO });
     setDiasSeleccionados(["LUN", "MAR", "MIE", "JUE", "VIE"]);
-    setModoDias("LUN_VIE");
+    setModoDias("PERSONALIZADO");
     setFechaInicio("");
     setFechaFin("");
     setImagenPreview(null);
     setModoFecha("NINGUNO");
+    setAbierto(true);
+  };
+
+  const duplicarPrograma = (programa: Programa) => {
+    prepararFormularioEdicion(programa);
+    setEditandoId(null);
     setAbierto(true);
   };
 
@@ -584,7 +610,16 @@ export default function Programacion() {
     const fechaFinNormalizada = fechaFinDate ? formatearFechaInput(fechaFinDate) : "";
 
     const esFechaEspecifica = p.fechaInicio != null && p.fechaInicio !== "";
-    const diasParaForm = esFechaEspecifica ? "FECHA_ESPECIFICA" : p.dias;
+    // Los valores viejos (Lunes a Viernes, Sábados, etc.) ya no se pueden
+    // elegir desde el modal, pero un programa creado antes de este cambio
+    // puede seguir teniéndolos guardados: los tratamos como "Días
+    // específicos" con esos días ya marcados, para que el modal los muestre
+    // de forma consistente con las opciones disponibles hoy.
+    const diasParaForm = esFechaEspecifica
+      ? "FECHA_ESPECIFICA"
+      : DIAS_LEGACY.includes(p.dias)
+        ? "PERSONALIZADO"
+        : p.dias;
 
     setEditandoId(p.id);
     setForm({
@@ -594,7 +629,6 @@ export default function Programacion() {
       dias: diasParaForm,
       horaInicio: p.horaInicio,
       horaFin: p.horaFin,
-      orden: p.orden,
       activo: p.activo,
     });
     setDiasSeleccionados(esFechaEspecifica ? [] : obtenerSeleccionDesdeDias(p.dias, p.diasPersonalizados));
@@ -680,18 +714,53 @@ export default function Programacion() {
     event.target.value = "";
   };
 
-  const aplicarImagenRecortada = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const resultado = typeof reader.result === "string" ? reader.result : "";
-      setForm((actual) => ({ ...actual, imagenUrl: resultado }));
-      setImagenPreview(resultado);
-    };
-    reader.readAsDataURL(file);
+  const aplicarImagenRecortada = async (file: File) => {
+    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+      setError("Faltan las credenciales de Cloudinary para subir la imagen.");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setImagenPreview(previewUrl);
+    setSubiendoImagen(true);
+
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("upload_preset", UPLOAD_PRESET);
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+        { method: "POST", body },
+      );
+
+      if (!response.ok) {
+        throw new Error("No se pudo subir la imagen a Cloudinary");
+      }
+
+      const data = (await response.json()) as { secure_url?: string };
+      if (!data.secure_url) {
+        throw new Error("Cloudinary no devolvió la URL de la imagen");
+      }
+
+      setForm((actual) => ({ ...actual, imagenUrl: data.secure_url! }));
+      setImagenPreview(data.secure_url);
+      URL.revokeObjectURL(previewUrl);
+    } catch (e) {
+      URL.revokeObjectURL(previewUrl);
+      setImagenPreview(null);
+      setError(e instanceof Error ? e.message : "No se pudo subir la imagen");
+    } finally {
+      setSubiendoImagen(false);
+    }
   };
 
   const guardar = async () => {
     if (guardando) return;
+    if (subiendoImagen) {
+      setError("Esperá a que termine de subir la imagen.");
+      return;
+    }
 
     try {
       setGuardando(true);
@@ -731,7 +800,6 @@ export default function Programacion() {
         imagenUrl: form.imagenUrl || undefined,
         horaInicio: form.horaInicio,
         horaFin: form.horaFin,
-        orden: form.orden,
         activo: form.activo,
         dias: diasPayload,
         diasPersonalizados:
@@ -772,18 +840,33 @@ export default function Programacion() {
     if (!programaAEliminar) return;
     if (eliminando) return;
 
+    const programa = programaAEliminar;
+    const indiceOriginal = programas.findIndex((p) => p.id === programa.id);
+
     try {
       setEliminando(true);
-      await eliminarPrograma(programaAEliminar.id);
-      setProgramas((actual) => actual.filter((p) => p.id !== programaAEliminar.id));
+      setProgramaAEliminar(null);
+
+      const restantes = programas.filter((p) => p.id !== programa.id);
+      setProgramas(restantes);
       try {
-        const nuevos = programas.filter((p) => p.id !== programaAEliminar.id);
-        sessionStorage.setItem("programacion_cache", JSON.stringify(nuevos));
+        sessionStorage.setItem("programacion_cache", JSON.stringify(restantes));
       } catch {}
-      setProgramaAEliminar(null);
+
+      await eliminarPrograma(programa.id);
     } catch (e) {
+      setProgramas((actual) => {
+        if (actual.some((p) => p.id === programa.id)) return actual;
+
+        const restaurados = [...actual];
+        const indice = indiceOriginal < 0 ? restaurados.length : indiceOriginal;
+        restaurados.splice(indice, 0, programa);
+        try {
+          sessionStorage.setItem("programacion_cache", JSON.stringify(restaurados));
+        } catch {}
+        return restaurados;
+      });
       setError(e instanceof Error ? e.message : "Error al eliminar");
-      setProgramaAEliminar(null);
     } finally {
       setEliminando(false);
     }
@@ -852,9 +935,12 @@ export default function Programacion() {
   const programasOrdenados = useMemo(
     () =>
       [...programas].sort((a, b) => {
-        const ordenA = a.orden ?? 0;
-        const ordenB = b.orden ?? 0;
-        if (ordenA !== ordenB) return ordenA - ordenB;
+        const fechaA = a.fechaInicio ?? "";
+        const fechaB = b.fechaInicio ?? "";
+        if (fechaA !== fechaB) return fechaA.localeCompare(fechaB);
+        const horaA = a.horaInicio ?? "";
+        const horaB = b.horaInicio ?? "";
+        if (horaA !== horaB) return horaA.localeCompare(horaB);
         return (a.titulo ?? "").localeCompare(b.titulo ?? "");
       }),
     [programas],
@@ -872,9 +958,25 @@ export default function Programacion() {
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 2 }}>
           <Typography variant="h6">Grilla Semanal</Typography>
-          <Button variant="contained" onClick={abrirNuevo}>
-            + Agregar
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button
+              size="small"
+              variant={vista === "tabla" ? "contained" : "outlined"}
+              onClick={() => setVista("tabla")}
+            >
+              Tabla
+            </Button>
+            <Button
+              size="small"
+              variant={vista === "calendario" ? "contained" : "outlined"}
+              onClick={() => setVista("calendario")}
+            >
+              Calendario
+            </Button>
+            <Button variant="contained" onClick={abrirNuevo}>
+              + Agregar
+            </Button>
+          </Stack>
         </Box>
 
         {cargando ? (
@@ -885,6 +987,44 @@ export default function Programacion() {
           <Typography color="text.secondary" sx={{ py: 4 }} align="center">
             Todavía no cargaste programación.
           </Typography>
+        ) : vista === "calendario" ? (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
+              gap: 1.5,
+            }}
+          >
+            {DIAS_SEMANA.map((dia) => {
+              const delDia = programasOrdenados.filter((programa) =>
+                obtenerCodigosDiasParaPrograma(programa).includes(dia.value),
+              );
+
+              return (
+                <Box key={dia.value} sx={{ minHeight: 180, p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 1.5 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.25 }}>
+                    {dia.label}
+                  </Typography>
+                  <Stack spacing={1}>
+                    {delDia.length === 0 ? (
+                      <Typography variant="caption" color="text.secondary">Sin programas</Typography>
+                    ) : delDia.map((programa) => (
+                      <Box
+                        key={programa.id}
+                        onClick={() => abrirEdicion(programa)}
+                        sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover", cursor: "pointer", opacity: programa.activo ? 1 : 0.5 }}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: 800 }}>{programa.titulo}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {programa.horaInicio} - {programa.horaFin}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Box>
         ) : (
           <Table size="small">
             <TableHead>
@@ -902,6 +1042,7 @@ export default function Programacion() {
                   programa={p}
                   onEditar={abrirEdicion}
                   onEliminar={borrar}
+                  onDuplicar={duplicarPrograma}
                   onAbrirDetalle={setFechaModalPrograma}
                 />
               ))}
@@ -922,7 +1063,7 @@ export default function Programacion() {
         onConfirm={(file) => {
           setCropImageUrl(null);
           setCropOpen(false);
-          aplicarImagenRecortada(file);
+          void aplicarImagenRecortada(file);
         }}
       />
 
@@ -961,16 +1102,13 @@ export default function Programacion() {
 
             <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                Imagen del evento
+                Imagen del evento · Tamaño recomendado: 1200x675px o más
               </Typography>
               <Stack spacing={1.5}>
-                <Button component="label" variant="outlined" sx={{ alignSelf: "flex-start" }}>
-                  Adjuntar imagen
+                <Button component="label" variant="outlined" disabled={subiendoImagen} sx={{ alignSelf: "flex-start" }}>
+                  {subiendoImagen ? "Subiendo imagen..." : "Adjuntar imagen"}
                   <input hidden accept="image/*" type="file" onChange={manejarArchivo} />
                 </Button>
-                <Typography variant="caption" color="text.secondary">
-                  Tamaño recomendado: 1200x675px o más, ideal para portada del evento en formato 16:9.
-                </Typography>
                 {form.imagenUrl && (
                   <Button size="small" variant="outlined" onClick={() => { setCropImageUrl(originalImageSource || form.imagenUrl || null); setCropOpen(true); }}>Editar imagen</Button>
                 )}
@@ -993,10 +1131,10 @@ export default function Programacion() {
                 Días de la semana
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: "block" }}>
-                Elige si el programa se repite por semana, por días específicos o todos los días.
+                Elige los días específicos en los que se repite, o una fecha puntual.
               </Typography>
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 1, mb: 2 }}>
-                {OPCIONES_DIAS.map((opcion) => (
+                {OPCIONES_DIAS_MODAL.map((opcion) => (
                   <Button
                     key={opcion.value}
                     size="small"
@@ -1314,13 +1452,6 @@ export default function Programacion() {
                 )}
               </Alert>
             )}
-            <TextField
-              label="Orden"
-              type="number"
-              value={form.orden}
-              onChange={(e) => setForm({ ...form, orden: Number(e.target.value) })}
-              fullWidth
-            />
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <Switch
                 checked={form.activo ?? true}
