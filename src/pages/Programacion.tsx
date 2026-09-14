@@ -135,13 +135,23 @@ const SelectorColorPrograma = memo(function SelectorColorPrograma({
           }}
         />
       ))}
-      <TextField
+      <Box
+        component="input"
         type="color"
         value={colorLocal}
-        onChange={(event) => setColorLocal(event.target.value)}
+        onChange={(event: React.ChangeEvent<HTMLInputElement>) => setColorLocal(event.target.value)}
         onBlur={confirmarColor}
-        inputProps={{ "aria-label": "Elegir otro color" }}
-        sx={{ width: 58, '& input': { height: 28, p: 0.25, cursor: "pointer" } }}
+        aria-label="Elegir otro color"
+        sx={{
+          width: 42,
+          height: 32,
+          p: 0.25,
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 1,
+          bgcolor: "transparent",
+          cursor: "pointer",
+        }}
       />
     </Stack>
   );
