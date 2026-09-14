@@ -1,18 +1,30 @@
 ﻿import { Box, Divider, Drawer, List, ListItemButton, ListItemText, Typography } from "@mui/material";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { Perfil } from "../types";
+import { puedeVerSeccion } from "../utils/permisos";
 
 const drawerWidth = 280;
 
-const navItems = [
-  { to: "/", label: "Dashboard", icon: "dashboard" },
-  { to: "/branding", label: "Branding", icon: "palette" },
-  { to: "/streaming", label: "Streaming", icon: "sensors" },
-  { to: "/programacion", label: "Programación", icon: "calendar_month" },
-  { to: "/noticias", label: "Noticias", icon: "newspaper" },
-  { to: "/estadisticas", label: "Estadísticas", icon: "monitoring" },
-  { to: "/generar-app", label: "Generar App", icon: "phone_android" },
+// "seccion: null" = todos los admins la ven, sin importar cargo.
+// "seccion: 'soloDueno'" = solo el dueño del tenant (SUPER_ADMIN/MEGA_ADMIN).
+const navItemsBase = [
+  { to: "/", label: "Dashboard", icon: "dashboard", seccion: null as string | null },
+  { to: "/branding", label: "Branding", icon: "palette", seccion: "branding" },
+  { to: "/streaming", label: "Streaming", icon: "sensors", seccion: "streaming" },
+  { to: "/programacion", label: "Programación", icon: "calendar_month", seccion: "programacion" },
+  { to: "/noticias", label: "Noticias", icon: "newspaper", seccion: "noticias" },
+  { to: "/podcast", label: "Podcast", icon: "podcasts", seccion: "podcast" },
+  { to: "/estadisticas", label: "Estadísticas", icon: "monitoring", seccion: "estadisticas" },
+  { to: "/generar-app", label: "Generar App", icon: "phone_android", seccion: "soloDueno" },
 ];
+
+// Solo el dueño del tenant (SUPER_ADMIN) puede invitar/gestionar
+// administradores internos.
+const itemAdministradores = { to: "/administradores", label: "Administradores", icon: "group" };
+
+// Exclusivo de MEGA_ADMIN: cola de solicitudes de generación/publicación
+// de apps de todos los tenants.
+const itemSolicitudesApps = { to: "/solicitudes-apps", label: "Solicitudes de Apps", icon: "rocket_launch" };
 
 const footerItems = [
   { to: "/configuracion", label: "Configuración", icon: "settings" },
@@ -23,6 +35,22 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
   const navigate = useNavigate();
   const location = useLocation();
   const brandName = perfil.tenant?.nombre || "StreamManager";
+  const nombreUsuario = perfil.name?.trim() || perfil.email.split("@")[0];
+  const etiquetaRol =
+    perfil.rol === "MEGA_ADMIN" ? "MegaAdmin" : perfil.rol === "SUPER_ADMIN" ? "SuperAdmin" : "Admin";
+  const etiquetaCargo = perfil.rol === "ADMIN" && perfil.cargo ? ` ${perfil.cargo}` : "";
+  const subtitulo = `${nombreUsuario} - ${etiquetaRol}${etiquetaCargo}`;
+  const navItemsVisibles = navItemsBase.filter((item) => puedeVerSeccion(perfil, item.seccion));
+  // TEMP: mientras haya cuentas MEGA_ADMIN mal asignadas por el bug de
+  // /auth/register, dejamos que MEGA_ADMIN también vea "Administradores".
+  // Corregir esto en regla (solo SUPER_ADMIN) una vez reclasificadas.
+  const navItems =
+    perfil.rol === "SUPER_ADMIN" || perfil.rol === "MEGA_ADMIN"
+      ? [...navItemsVisibles, itemAdministradores]
+      : navItemsVisibles;
+  if (perfil.rol === "MEGA_ADMIN") {
+    navItems.push(itemSolicitudesApps);
+  }
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
@@ -67,8 +95,8 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
             <Typography variant="h6" sx={{ fontWeight: 900, mb: 0.5 }}>
               {brandName}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Admin de Marca
+            <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "break-word" }}>
+              {subtitulo}
             </Typography>
           </Box>
 

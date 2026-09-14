@@ -16,6 +16,9 @@ export interface Tenant {
   youtubeChannelId?: string | null;
   tipoTransmision?: string;
   imagenPortada?: string;
+  podcastUrl?: string | null;
+  podcastProvider?: string | null;
+  podcastImagenPortada?: string | null;
 
   instagramUrl?: string | null;
   youtubeUrl?: string | null;
@@ -24,6 +27,7 @@ export interface Tenant {
   twitterUrl?: string | null;
   linkedinUrl?: string | null;
   whatsappUrl?: string | null;
+  supportEmail?: string | null;
 
   colorPrimario?: string | null;
   colorSecundario?: string | null;
@@ -39,12 +43,24 @@ export interface Tenant {
   admins?: AdminUser[];
   fontFamily?: string | null; // Fuente personalizada (ej: "Roboto", "Montserrat", etc.)
   temasPersonalizados?: string | null;
+  
+  // Nuevos campos para Branding
+  websiteUrl?: string | null; // Enlace del sitio web
+  socialMediasJson?: string | null; // JSON con redes sociales seleccionadas
+  otherContentJson?: string | null; // JSON array con objetos {nombre, enlace}
+}
+
+export interface OtherContentItem {
+  nombre: string;
+  enlace: string;
 }
 
 export interface Perfil {
   id: number;
   email: string;
+  name?: string | null;
   rol: string;
+  cargo?: string | null;
   tenantId: number;
   tenant: Tenant;
 }
@@ -57,7 +73,7 @@ export interface News {
   title: string;
   excerpt?: string | null;
   coverImageUrl?: string | null;
-  content: string;
+  content?: string;
   contentFormat: string;
   status: NewsStatus;
   publishedAt?: string | null;
@@ -71,6 +87,34 @@ export interface NewsPayload {
   content: string;
   contentFormat: "markdown";
   status: NewsStatus;
+}
+
+export type PodcastEpisodeStatus = "draft" | "published";
+
+export interface PodcastEpisode {
+  id: number;
+  tenantId: number;
+  title: string;
+  description: string;
+  podcastName: string;
+  coverImageUrl?: string | null;
+  audioUrl: string;
+  duration?: string | null;
+  publishedAt?: string | null;
+  status: PodcastEpisodeStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PodcastEpisodePayload {
+  title: string;
+  description: string;
+  podcastName: string;
+  coverImageUrl?: string;
+  audioUrl: string;
+  duration?: string;
+  publishedAt?: string;
+  status: PodcastEpisodeStatus;
 }
 
 export type DiasSemana = "LUN_VIE" | "SABADOS" | "DOMINGOS" | "TODOS" | "PERSONALIZADO" | "FECHA_ESPECIFICA";
@@ -87,7 +131,6 @@ export interface Programa {
   fechaFin?: string | null;
   horaInicio: string;
   horaFin: string;
-  orden: number;
   activo: boolean;
   createdAt: string;
   updatedAt: string;
@@ -103,7 +146,6 @@ export interface ProgramaPayload {
   fechaFin?: string;
   horaInicio: string;
   horaFin: string;
-  orden?: number;
   activo?: boolean;
 }
 
@@ -138,4 +180,104 @@ export interface Estadisticas {
   descargasEnElTiempo: EstadisticasBucket[];
   paises: EstadisticasPais[];
   ciudades: EstadisticasCiudad[];
+}
+
+export type EstadoAdministrador = "PENDING_ACTIVATION" | "ACTIVE";
+
+export const CARGOS_ADMINISTRADOR = [
+  "Operador de Streaming",
+  "Editor de Contenido",
+  "Programador",
+  "Moderador",
+  "Analista",
+  "Diseñador/Branding",
+] as const;
+
+// Espejo del mapeo de permisos del backend (src/common/cargo-permissions.ts),
+// solo para mostrar/ocultar secciones en el panel — el backend es quien
+// realmente aplica los permisos, esto es nada más para la UI.
+export const SECCIONES_POR_CARGO: Record<string, string[]> = {
+  "Operador de Streaming": ["streaming", "programacion"],
+  "Editor de Contenido": ["noticias", "programacion", "podcast"],
+  Programador: ["programacion"],
+  Analista: ["estadisticas"],
+  "Diseñador/Branding": ["branding"],
+  Moderador: [],
+};
+
+export interface Administrador {
+  id: number;
+  email: string;
+  cargo?: string | null;
+  status: EstadoAdministrador;
+  tenantId: number;
+  createdAt: string;
+}
+
+// Único valor por ahora: el cliente no autopublica, siempre lo hace
+// Pinnacle. Se deja como tipo aparte (no un literal hardcodeado en
+// BuildRequest) para no tener que tocar esto si el día de mañana
+// aparece otra modalidad.
+export type BuildRequestType = "PINNACLE_PUBLISH";
+
+export type BuildRequestStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "WAITING_CLIENT"
+  | "BUILDING"
+  | "COMPLETED"
+  | "FAILED"
+  | "PUBLISHED"
+  | "CANCELLED";
+
+export interface BuildRequestPublishInfo {
+  developerName: string;
+  contactEmail: string;
+  supportEmail: string;
+  websiteUrl?: string | null;
+  privacyPolicyUrl: string;
+  shortDescription: string;
+  appDescription: string;
+  category: string;
+  containsAds: boolean;
+  targetAudience?: string | null;
+  additionalNotes?: string | null;
+}
+
+export type BuildRequestPublishInfoPayload = {
+  developerName: string;
+  contactEmail: string;
+  supportEmail: string;
+  websiteUrl?: string;
+  privacyPolicyUrl: string;
+  shortDescription: string;
+  appDescription: string;
+  category: string;
+  containsAds?: boolean;
+  targetAudience?: string;
+  additionalNotes?: string;
+};
+
+interface PersonaResumen {
+  id: number;
+  email: string;
+  name?: string | null;
+}
+
+export interface BuildRequest {
+  id: number;
+  tenantId: number;
+  requestedById: number;
+  reviewedById?: number | null;
+  type: BuildRequestType;
+  status: BuildRequestStatus;
+  notes?: string | null;
+  internalNotes?: string | null;
+  publishInfo?: BuildRequestPublishInfo | null;
+  createdAt: string;
+  updatedAt: string;
+  // Solo presentes en las respuestas del listado/detalle de MEGA_ADMIN.
+  tenant?: { id: number; nombre: string; slug: string };
+  requestedBy?: PersonaResumen;
+  reviewedBy?: PersonaResumen | null;
 }

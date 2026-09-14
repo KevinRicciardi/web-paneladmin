@@ -26,6 +26,16 @@ const FUENTES_DISPONIBLES = [
   { valor: "Oswald", etiqueta: "Oswald" },
 ];
 
+// Redes sociales disponibles (6 opciones)
+const REDES_SOCIALES_DISPONIBLES = [
+  { valor: "instagram", etiqueta: "Instagram", icono: "🔗" },
+  { valor: "youtube", etiqueta: "YouTube", icono: "🎥" },
+  { valor: "tiktok", etiqueta: "TikTok", icono: "🎵" },
+  { valor: "facebook", etiqueta: "Facebook", icono: "📘" },
+  { valor: "twitter", etiqueta: "X / Twitter", icono: "𝕏" },
+  { valor: "linkedin", etiqueta: "LinkedIn", icono: "💼" },
+];
+
 type Colores = {
   fondo: string;
   cabecera: string;
@@ -188,7 +198,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     facebookUrl: t?.facebookUrl ?? "",
     twitterUrl: t?.twitterUrl ?? "",
     linkedinUrl: t?.linkedinUrl ?? "",
-    whatsappUrl: t?.whatsappUrl ?? "",
     fontFamily: t?.fontFamily ?? "system-ui",
     colores: {
       fondo: t?.colorFondo ?? "#000000",
@@ -231,7 +240,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [facebookUrl, setFacebookUrl] = useState(inicial.facebookUrl);
   const [twitterUrl, setTwitterUrl] = useState(inicial.twitterUrl);
   const [linkedinUrl, setLinkedinUrl] = useState(inicial.linkedinUrl);
-  const [whatsappUrl, setWhatsappUrl] = useState(inicial.whatsappUrl);
   const [fontFamily, setFontFamily] = useState(inicial.fontFamily);  const [colores, setColores] = useState<Colores>(inicial.colores);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -247,8 +255,28 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [cropDialogSource, setCropDialogSource] = useState<string | null>(null);
   const [cropDialogType, setCropDialogType] = useState<"logo" | "banner">("logo");
   const [cropDialogFileName, setCropDialogFileName] = useState("imagen");
+  const [editingBannerIndex, setEditingBannerIndex] = useState<number | null>(null);
   const [originalLogoSource, setOriginalLogoSource] = useState<string | null>(null);
   const [originalBannerSource, setOriginalBannerSource] = useState<string | null>(null);
+  
+  // Nuevos estados para Branding
+  const [websiteUrl, setWebsiteUrl] = useState(t?.websiteUrl ?? "");
+  const [selectedSocialMedias, setSelectedSocialMedias] = useState<string[]>(() => {
+    try {
+      const parsed = JSON.parse(t?.socialMediasJson ?? "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [otherContentList, setOtherContentList] = useState<Array<{ nombre: string; enlace: string }>>(() => {
+    try {
+      const parsed = JSON.parse(t?.otherContentJson ?? "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
 
   const guardarTemasEnBase = async (temas: { nombre: string; colores: Colores }[]) => {
     const payload = JSON.stringify(temas);
@@ -256,6 +284,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
     try {
       const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("No hay una sesión autenticada.");
       if (!token) return;
 
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
@@ -351,7 +380,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   };
   const aplicarPreset = (c: Partial<Colores>) => { setColores(ensureColores(c)); setSuccess(false); };
 
-  const handleUpload = async (file: File, tipo: "logo" | "banner") => {
+  const handleUpload = async (file: File, tipo: "logo" | "banner", replaceIndex?: number) => {
     tipo === "logo" ? setUploadingLogo(true) : setUploadingBanner(true);
     setError("");
     try {
@@ -360,7 +389,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         setLogoUrl(url);
       } else {
         setBannerUrls((prev) => {
-          const next = [...prev, url];
+          const next = [...prev];
+          if (typeof replaceIndex === "number" && replaceIndex >= 0 && replaceIndex < next.length) {
+            next[replaceIndex] = url;
+            setBannerActivoIndex(replaceIndex);
+            return next;
+          }
+          next.push(url);
           setBannerActivoIndex(next.length - 1);
           return next;
         });
@@ -392,6 +427,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   };
 
   const abrirEditorDeRecorte = (file: File, tipo: "logo" | "banner") => {
+    if (tipo === "banner" && file.type === "image/gif") {
+      void handleUpload(file, tipo);
+      return;
+    }
+
     const url = URL.createObjectURL(file);
     if (tipo === "logo" && originalLogoSource?.startsWith("blob:")) URL.revokeObjectURL(originalLogoSource);
     if (tipo === "banner" && originalBannerSource?.startsWith("blob:")) URL.revokeObjectURL(originalBannerSource);
@@ -408,6 +448,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setCropDialogSource(tipo === "logo" ? originalLogoSource || url : originalBannerSource || url);
     setCropDialogType(tipo);
     setCropDialogFileName(`${tipo}.jpg`);
+    if (tipo === "banner") setEditingBannerIndex(bannerActivoIndex);
+    else setEditingBannerIndex(null);
     setCropModalOpen(true);
   };
 
@@ -415,6 +457,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setCropModalOpen(false);
     if (cropDialogSource?.startsWith("blob:") && cropDialogSource !== originalLogoSource && cropDialogSource !== originalBannerSource) URL.revokeObjectURL(cropDialogSource);
     setCropDialogSource(null);
+    setEditingBannerIndex(null);
   };
 
   const handleDrop = (e: React.DragEvent, tipo: "logo" | "banner") => {
@@ -443,9 +486,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setFacebookUrl(ultimoGuardado.facebookUrl);
     setTwitterUrl(ultimoGuardado.twitterUrl);
     setLinkedinUrl(ultimoGuardado.linkedinUrl);
-    setWhatsappUrl(ultimoGuardado.whatsappUrl);
     setFontFamily(ultimoGuardado.fontFamily);
     setColores(ultimoGuardado.colores);
+    setWebsiteUrl((ultimoGuardado as any).websiteUrl ?? "");
+    setSelectedSocialMedias((ultimoGuardado as any).selectedSocialMedias ?? []);
+    setOtherContentList((ultimoGuardado as any).otherContentList ?? []);
     setSuccess(false);
     setError("");
   };
@@ -468,7 +513,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setSuccess(false);
     setError("");
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await auth.currentUser?.getIdToken(true);
+      if (!token) throw new Error("No hay una sesión autenticada.");
       const bannerParaGuardar = serializarBanners(bannerUrls);
 
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
@@ -485,7 +531,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           facebookUrl,
           twitterUrl,
           linkedinUrl,
-          whatsappUrl,
           colorFondo: colores.fondo,
           colorCabecera: colores.cabecera,
           colorTexto: colores.texto,
@@ -495,9 +540,23 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           colorBotones: colores.botones,
           colorCardFondo: colores.cardFondo,
           colorIconos: colores.iconos,
+          websiteUrl,
+          socialMediasJson: JSON.stringify(selectedSocialMedias),
+          otherContentJson: JSON.stringify(otherContentList),
         }),
       });
-      if (!res.ok) throw new Error("Error");
+      if (!res.ok) {
+        let message = `Error ${res.status} al guardar la configuración.`;
+        try {
+          const data = await res.json();
+          if (typeof data?.message === "string" && data.message.trim()) {
+            message = data.message;
+          }
+        } catch {
+          // La API puede responder sin un cuerpo JSON.
+        }
+        throw new Error(message);
+      }
       setSuccess(true);
       setUltimoGuardado({
         nombre,
@@ -509,10 +568,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         facebookUrl,
         twitterUrl,
         linkedinUrl,
-        whatsappUrl,
         fontFamily,
         colores,
-      });
+      } as any);
       try {
         window.dispatchEvent(new CustomEvent("tenantUpdated", {
           detail: {
@@ -526,7 +584,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             facebookUrl,
             twitterUrl,
             linkedinUrl,
-            whatsappUrl,
             colorFondo: colores.fondo,
             colorCabecera: colores.cabecera,
             colorTexto: colores.texto,
@@ -536,13 +593,16 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             colorBotones: colores.botones,
             colorCardFondo: colores.cardFondo,
             colorIconos: colores.iconos,
+            websiteUrl,
+            socialMediasJson: JSON.stringify(selectedSocialMedias),
+            otherContentJson: JSON.stringify(otherContentList),
           },
         }));
       } catch {
         // Ignoramos si el evento no se puede despachar
       }
-    } catch {
-      setError("No se pudo guardar. Intentá de nuevo.");
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "No se pudo guardar. Intentá de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -593,7 +653,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   { key: "facebookUrl", label: "Facebook", value: facebookUrl, setter: setFacebookUrl },
                   { key: "twitterUrl", label: "X / Twitter", value: twitterUrl, setter: setTwitterUrl },
                   { key: "linkedinUrl", label: "LinkedIn", value: linkedinUrl, setter: setLinkedinUrl },
-                  { key: "whatsappUrl", label: "WhatsApp", value: whatsappUrl, setter: setWhatsappUrl },
                 ].map(({ key, label, value, setter }) => (
                   <TextField
                     key={key}
@@ -612,10 +671,111 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             </CardContent>
           </Card>
 
+          {/* Página Web */}
+          <Card variant="outlined">
+            <CardContent>
+              <CardHeader icon="public">Página Web</CardHeader>
+              <TextField
+                fullWidth
+                label="URL del Sitio Web"
+                value={websiteUrl}
+                placeholder="https://ejemplo.com"
+                onChange={(e) => {
+                  setWebsiteUrl(e.target.value);
+                  setSuccess(false);
+                }}
+                size="small"
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                Enlace a tu sitio web oficial
+              </Typography>
+            </CardContent>
+          </Card>
+
+          {/* Contenido Personalizado */}
+          <Card variant="outlined">
+            <CardContent>
+              <CardHeader icon="add_box">Contenido Personalizado</CardHeader>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
+                Agrega múltiples enlaces o información adicional (ej: WhatsApp, Tienda online, etc.)
+              </Typography>
+
+              {/* Lista de elementos */}
+              <Box sx={{ display: "grid", gap: 2, mb: 2 }}>
+                {otherContentList.map((item, idx) => (
+                  <Box
+                    key={`other-content-${idx}`}
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr auto" },
+                      gap: 1,
+                      alignItems: "flex-end",
+                      p: 1.5,
+                      borderRadius: 1,
+                      bgcolor: alpha(colores.texto, 0.03),
+                      border: "1px solid",
+                      borderColor: alpha(colores.texto, 0.1),
+                    }}
+                  >
+                    <TextField
+                      size="small"
+                      label="Nombre"
+                      placeholder="WhatsApp, Tienda online, etc."
+                      value={item.nombre}
+                      onChange={(e) => {
+                        const updated = [...otherContentList];
+                        updated[idx].nombre = e.target.value;
+                        setOtherContentList(updated);
+                        setSuccess(false);
+                      }}
+                    />
+                    <TextField
+                      size="small"
+                      label="Enlace"
+                      placeholder="https://ejemplo.com"
+                      value={item.enlace}
+                      onChange={(e) => {
+                        const updated = [...otherContentList];
+                        updated[idx].enlace = e.target.value;
+                        setOtherContentList(updated);
+                        setSuccess(false);
+                      }}
+                    />
+                    <Button
+                      color="error"
+                      size="small"
+                      onClick={() => {
+                        setOtherContentList(otherContentList.filter((_, i) => i !== idx));
+                        setSuccess(false);
+                      }}
+                      startIcon={<span className="material-symbols-outlined">delete</span>}
+                    >
+                      Eliminar
+                    </Button>
+                  </Box>
+                ))}
+              </Box>
+
+              {/* Botón para agregar */}
+              <Button
+                variant="outlined"
+                size="small"
+                fullWidth
+                onClick={() => {
+                  setOtherContentList([...otherContentList, { nombre: "", enlace: "" }]);
+                  setSuccess(false);
+                }}
+                startIcon={<span className="material-symbols-outlined">add</span>}
+              >
+                Agregar Enlace
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Logo */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="image">Logo de la Marca</CardHeader>
+              <CardHeader icon="image">Logo de la Marca · Tamaño recomendado: 512x512px o más</CardHeader>
               <input ref={logoInputRef} type="file" accept="image/png,image/svg+xml,image/jpeg" hidden
                 onChange={(e) => handleFileChange(e, "logo")} />
               <Box
@@ -640,9 +800,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     </Box>
                     <Typography variant="body1">Arrastrá y soltá tu logo aquí</Typography>
                     <Typography variant="body2" color="text.secondary">PNG, SVG o JPG (máx. 2MB)</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={ { display: "block", mt: 0.5 } }>
-                      Tamaño recomendado: 512x512px o más, formato cuadrado para mejor visualización.
-                    </Typography>
                     <Button variant="outlined" size="small" sx={ { mt: 1 } }
                       onClick={(e) => { e.stopPropagation(); logoInputRef.current?.click(); } }>Buscar Archivos</Button>
                   </>
@@ -716,10 +873,10 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               <CardContent>
                 <CardHeader icon="favorite">Temas Personalizados</CardHeader>
                 <Box sx={ { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 1.5 } }>
-                  {temasPersonalizados.map((p) => {
+                  {temasPersonalizados.map((p, idx) => {
                     const activo = presetActivo(p.colores);
                     return (
-                      <Box key={p.nombre} onClick={() => aplicarPreset(p.colores)}
+                      <Box key={`custom-theme-${idx}`} onClick={() => aplicarPreset(p.colores)}
                         sx={ {
                           cursor: "pointer", border: "2px solid",
                           borderColor: activo ? "primary.main" : alpha(colores.texto, 0.08),
@@ -780,7 +937,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           {/* Banner */}
           <Card variant="outlined">
             <CardContent>
-              <CardHeader icon="photo_size_select_large">Banners de Cabecera</CardHeader>
+              <CardHeader icon="photo_size_select_large">Banners de Cabecera · Tamaño recomendado: 1920x320px</CardHeader>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
                 Se aceptan varios banners. Pueden rotar automáticamente o mantenerse fijos. Los GIF/animaciones también pueden cargarse si el formato lo permite.
               </Typography>
@@ -826,7 +983,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   } }
                 >
                   <Box sx={ { py: 2, textAlign: "center" } }>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>Tamaño recomendado: 1920x320px</Typography>
                     <Typography variant="caption" color="text.secondary" sx={ { display: "block", mb: 1 } }>
                       Ideal para banner de cabecera: formato panorámico y resolución alta.
                     </Typography>
@@ -849,9 +1005,14 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                             e.preventDefault();
                             e.stopPropagation();
                             setBannerActivoIndex(index);
+                            setEditingBannerIndex(index);
+                            setCropDialogSource(bannerUrl);
+                            setCropDialogType("banner");
+                            setCropDialogFileName(`banner-${index + 1}.jpg`);
+                            setCropModalOpen(true);
                           }}
                         >
-                          Ver
+                          Editar
                         </Button>
                         <Button size="small" variant="outlined" color="error" sx={{ minWidth: 0, px: 1, fontSize: 10 }} onClick={(e) => {
                           e.preventDefault();
@@ -988,7 +1149,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         onConfirm={(file) => {
           setCropDialogSource(null);
           setCropModalOpen(false);
-          void handleUpload(file, cropDialogType);
+          const replaceIndex = cropDialogType === "banner" ? editingBannerIndex : undefined;
+          void handleUpload(file, cropDialogType, replaceIndex);
+          setEditingBannerIndex(null);
         }}
       />
 
