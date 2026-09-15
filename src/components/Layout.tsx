@@ -31,6 +31,25 @@ const footerItems = [
   { to: "/soporte", label: "Soporte", icon: "help" },
 ];
 
+const routePreloaders: Record<string, () => Promise<unknown>> = {
+  "/": () => import("../pages/Dashboard"),
+  "/branding": () => import("../pages/Branding"),
+  "/streaming": () => import("../pages/Streaming"),
+  "/programacion": () => import("../pages/Programacion"),
+  "/noticias": () => import("../pages/Noticias"),
+  "/podcast": () => import("../pages/Podcast"),
+  "/estadisticas": () => import("../pages/Estadisticas"),
+  "/administradores": () => import("../pages/Administradores"),
+  "/generar-app": () => import("../pages/GenerarApp"),
+  "/solicitudes-apps": () => import("../pages/SolicitudesApps"),
+  "/configuracion": () => import("../pages/Configuracion"),
+  "/soporte": () => import("../pages/Soporte"),
+};
+
+function preloadRoute(path: string) {
+  void routePreloaders[path]?.();
+}
+
 export default function Layout({ perfil }: { perfil: Perfil }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -108,6 +127,8 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
                   key={item.to}
                   selected={selected}
                   onClick={() => navigate(item.to)}
+                  onMouseEnter={() => preloadRoute(item.to)}
+                  onFocus={() => preloadRoute(item.to)}
                   sx={{
                     borderRadius: 2,
                     mb: 1,
@@ -142,6 +163,8 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
                   key={item.label}
                   selected={selected}
                   onClick={() => navigate(item.to)}
+                  onMouseEnter={() => preloadRoute(item.to)}
+                  onFocus={() => preloadRoute(item.to)}
                   sx={{
                     borderRadius: 2,
                     mb: 1,

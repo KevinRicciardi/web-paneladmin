@@ -5,6 +5,7 @@ import { Box, CircularProgress } from "@mui/material";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import type { Perfil } from "./types";
+import { getCachedAuthHeaders } from "./services/authenticatedFetch";
 
 const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -38,9 +39,9 @@ function App() {
         return;
       }
       try {
-        const token = await currentUser.getIdToken();
+        const { Authorization } = await getCachedAuthHeaders();
         const res = await fetch(`${API_URL}/me`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization },
         });
         if (!res.ok) throw new Error("No se pudo validar el usuario");
         const data: Perfil = await res.json();
