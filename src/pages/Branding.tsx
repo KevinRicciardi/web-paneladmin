@@ -304,7 +304,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [ultimoGuardado, setUltimoGuardado] = useState(inicial);
   const [showGuardarTema, setShowGuardarTema] = useState(false);
   const [nombreNuevoTema, setNombreNuevoTema] = useState("");
+  const [guardandoTema, setGuardandoTema] = useState(false);
   const [temasPersonalizados, setTemasPersonalizados] = useState<{ nombre: string; colores: Colores }[]>([]);
+  const [temaAEliminar, setTemaAEliminar] = useState<{ nombre: string; colores: Colores } | null>(null);
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropDialogSource, setCropDialogSource] = useState<string | null>(null);
   const [cropDialogType, setCropDialogType] = useState<"logo" | "banner">("logo");
@@ -312,6 +314,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [editingBannerIndex, setEditingBannerIndex] = useState<number | null>(null);
   const [originalLogoSource, setOriginalLogoSource] = useState<string | null>(null);
   const [originalBannerSource, setOriginalBannerSource] = useState<string | null>(null);
+  const guardandoTemaRef = useRef(false);
+  const temasPersonalizadosRef = useRef<{ nombre: string; colores: Colores }[]>([]);
+  const persistenciaTemasRef = useRef(Promise.resolve());
   
   // Nuevos estados para Branding
   const [websiteUrl, setWebsiteUrl] = useState(t?.websiteUrl ?? "");
@@ -334,9 +339,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
   const guardarTemasEnBase = async (temas: { nombre: string; colores: Colores }[]) => {
     const payload = JSON.stringify(temas);
-    localStorage.setItem("branding-temas-personalizados", payload);
-
-    try {
+    const guardar = async () => {
+      try {
       const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
       if (!token) throw new Error("No hay una sesión autenticada.");
       if (!token) return;
@@ -350,9 +354,14 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       if (!res.ok) {
         throw new Error("No se pudo guardar el tema en la base de datos");
       }
-    } catch {
-      // Se mantiene localStorage como respaldo en caso de que la API no esté disponible.
-    }
+      } catch {
+        setError("No se pudo guardar el tema en la base de datos");
+      }
+    };
+
+    const siguienteGuardado = persistenciaTemasRef.current.then(guardar, guardar);
+    persistenciaTemasRef.current = siguienteGuardado;
+    await siguienteGuardado;
   };
 
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -363,14 +372,14 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
     const cargarTemas = async () => {
       const tenantTemas = (perfil.tenant as any)?.temasPersonalizados;
-      const localTemas = localStorage.getItem("branding-temas-personalizados");
-      const raw = tenantTemas || localTemas;
+      const raw = tenantTemas;
 
       if (!raw) return;
 
       try {
         const parsed = JSON.parse(raw) as { nombre: string; colores: Partial<Colores> }[];
         const normalized = parsed.map((t) => ({ nombre: t.nombre, colores: ensureColores(t.colores) }));
+        temasPersonalizadosRef.current = normalized;
         setTemasPersonalizados(normalized);
       } catch (e) {
         console.error("Error cargando temas personalizados", e);
@@ -547,17 +556,39 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setError("");
   };
   const handleGuardarTemaPersonalizado = async () => {
+    if (guardandoTemaRef.current) return;
     if (!nombreNuevoTema.trim()) {
       setError("El nombre del tema no puede estar vacío");
       return;
     }
+
+    guardandoTemaRef.current = true;
+    setGuardandoTema(true);
     const nuevoTema = { nombre: nombreNuevoTema.trim(), colores: ensureColores(colores) };
-    const temasActualizados = [...temasPersonalizados, nuevoTema];
+    const temasActualizados = [...temasPersonalizadosRef.current, nuevoTema];
+    temasPersonalizadosRef.current = temasActualizados;
+    setTemasPersonalizados(temasActualizados);
+    try {
+      await guardarTemasEnBase(temasActualizados);
+      setSuccess(true);
+      setShowGuardarTema(false);
+      setNombreNuevoTema("");
+    } finally {
+      guardandoTemaRef.current = false;
+      setGuardandoTema(false);
+    }
+  };
+
+  const handleEliminarTemaPersonalizado = async () => {
+    const tema = temaAEliminar;
+    if (!tema) return;
+
+    setTemaAEliminar(null);
+    const temasActualizados = temasPersonalizadosRef.current.filter((temaGuardado) => temaGuardado !== tema);
+    temasPersonalizadosRef.current = temasActualizados;
     setTemasPersonalizados(temasActualizados);
     await guardarTemasEnBase(temasActualizados);
     setSuccess(true);
-    setShowGuardarTema(false);
-    setNombreNuevoTema("");
   };
 
   const handleGuardar = async () => {
@@ -595,6 +626,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           websiteUrl,
           socialMediasJson: JSON.stringify(selectedSocialMedias),
           otherContentJson: JSON.stringify(otherContentList),
+          temasPersonalizados: JSON.stringify(temasPersonalizadosRef.current),
         }),
       });
       if (!res.ok) {
@@ -642,6 +674,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             colorTextoCabecera: colores.textoCabecera,
             colorPrimario: colores.primario,
             colorSecundario: colores.secundario,
+            temasPersonalizados: JSON.stringify(temasPersonalizadosRef.current),
             colorBotones: colores.botones,
             colorCardFondo: colores.cardFondo,
             colorIconos: colores.iconos,
@@ -943,7 +976,22 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                             <Box key={i} sx={ { flex: 1, borderRadius: 0.5, bgcolor: c, border: "1px solid", borderColor: borde } } />
                           ))}
                         </Box>
-                        <Typography sx={ { fontSize: 11, fontWeight: 600, textAlign: "center" } }>{p.nombre}</Typography>
+                        <Box sx={ { display: "flex", alignItems: "center", gap: 0.5 } }>
+                          <Typography sx={ { minWidth: 0, flexGrow: 1, fontSize: 11, fontWeight: 600, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }>{p.nombre}</Typography>
+                          <Tooltip title="Eliminar tema">
+                            <IconButton
+                              size="small"
+                              aria-label={`Eliminar tema ${p.nombre}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setTemaAEliminar(p);
+                              }}
+                              sx={ { p: 0.25, color: "error.main" } }
+                            >
+                              <span className="material-symbols-outlined" style={ { fontSize: 16 } }>delete</span>
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </Box>
                     );
                   })}
@@ -968,6 +1016,16 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   />
                 </Box>
               ))}
+              <Box sx={ { display: "flex", justifyContent: "flex-end", pt: 1, mt: 1, borderTop: "1px solid", borderColor: "divider" } }>
+                <Button
+                  variant="outlined"
+                  onClick={() => setShowGuardarTema(true)}
+                  disabled={loading || uploadingLogo || uploadingBanner}
+                  startIcon={<span className="material-symbols-outlined">favorite</span>}
+                >
+                  Guardar como Tema
+                </Button>
+              </Box>
             </CardContent>
           </Card>
 
@@ -1071,10 +1129,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
           <Box sx={ { display: "flex", justifyContent: "flex-end", gap: 1.5, pt: 1, borderTop: "1px solid", borderColor: "divider" } }>
             <Button variant="outlined" onClick={handleDescartar} disabled={loading || uploadingLogo || uploadingBanner}>Descartar Cambios</Button>
-            <Button variant="outlined" onClick={() => setShowGuardarTema(true)} disabled={loading || uploadingLogo || uploadingBanner}
-              startIcon={<span className="material-symbols-outlined">favorite</span>}>
-              Guardar como Tema
-            </Button>
             <Button variant="contained" onClick={handleGuardar} disabled={loading || uploadingLogo || uploadingBanner}
               startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <span className="material-symbols-outlined">save</span>}>
               {loading ? "Guardando..." : "Guardar Configuración"}
@@ -1206,8 +1260,30 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowGuardarTema(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleGuardarTemaPersonalizado}>Guardar tema</Button>
+          <Button onClick={() => setShowGuardarTema(false)} disabled={guardandoTema}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleGuardarTemaPersonalizado}
+            disabled={guardandoTema}
+            startIcon={guardandoTema ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {guardandoTema ? "Guardando..." : "Guardar tema"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(temaAEliminar)} onClose={() => setTemaAEliminar(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Eliminar tema personalizado</DialogTitle>
+        <DialogContent>
+          <Typography>
+            ¿Querés eliminar el tema <strong>{temaAEliminar?.nombre}</strong>?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTemaAEliminar(null)}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={() => void handleEliminarTemaPersonalizado()}>
+            Eliminar
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
