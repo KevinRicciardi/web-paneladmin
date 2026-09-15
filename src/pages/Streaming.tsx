@@ -151,7 +151,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     const valor = t?.tipoTransmision ?? getStoredValue("tipoTransmision");
     return valor || "video";
   });
-  const [imagenPortada, setImagenPortada] = useState<string>(() => t?.imagenPortada ?? getStoredValue("imagenPortada"));
+  const [imagenPortada, setImagenPortada] = useState<string>(() => t?.imagenPortada ?? "");
   const [uploadingPortada, setUploadingPortada] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -228,13 +228,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       else setTipoTransmision("video");
     }
 
-    if (t?.imagenPortada) {
-      setImagenPortada(t.imagenPortada);
-    } else {
-      const storedImagen = getStoredValue("imagenPortada");
-      if (storedImagen) setImagenPortada(storedImagen);
-      else setImagenPortada("");
-    }
+    setImagenPortada(t?.imagenPortada ?? "");
   }, [t?.streamUrl, t?.streamProvider, t?.youtubeChannelId, t?.tipoTransmision, t?.imagenPortada]);
 
   useEffect(() => {
@@ -538,7 +532,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         localStorage.setItem("streamUrl", streamUrl);
         localStorage.setItem("streamProvider", streamProvider);
         localStorage.setItem("tipoTransmision", tipoTransmision);
-        localStorage.setItem("imagenPortada", imagenPortada);
+        localStorage.removeItem("imagenPortada");
       } catch {}
 
       if (payload.streamUrl) {
