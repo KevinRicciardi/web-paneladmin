@@ -667,6 +667,20 @@ export default function Programacion() {
     setAbierto(true);
   };
 
+  const abrirNuevoParaFecha = (dia: Date) => {
+    const fecha = formatearFechaInput(dia);
+    setEditandoId(null);
+    setForm({ ...FORM_VACIO });
+    setDiasSeleccionados([]);
+    setModoDias("FECHA_ESPECIFICA");
+    setFechaInicio(fecha);
+    setFechaFin("");
+    setImagenPreview(null);
+    setModoFecha("ESPECIFICA");
+    setError(null);
+    setAbierto(true);
+  };
+
   const duplicarPrograma = (programa: Programa) => {
     prepararFormularioEdicion(programa);
     setEditandoId(null);
@@ -1129,7 +1143,7 @@ export default function Programacion() {
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress />
           </Box>
-        ) : programas.length === 0 ? (
+        ) : vista !== "calendario" && programas.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 4 }} align="center">
             Todavía no cargaste programación.
           </Typography>
@@ -1167,26 +1181,33 @@ export default function Programacion() {
                           borderRight: "1px solid",
                           borderBottom: "1px solid",
                           borderColor: "divider",
+                          cursor: dia ? "pointer" : "default",
+                          '&:hover': dia ? { bgcolor: "action.hover" } : undefined,
                         }}
+                        onClick={() => dia && abrirNuevoParaFecha(dia)}
                       >
                         {dia && (
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              width: 28,
-                              height: 28,
-                              mb: 0.75,
-                              borderRadius: "50%",
-                              fontWeight: 800,
-                              bgcolor: esHoy ? "primary.main" : "transparent",
-                              color: esHoy ? "primary.contrastText" : "text.primary",
-                            }}
-                          >
-                            {dia.getDate()}
-                          </Typography>
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.75 }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
+                                fontWeight: 800,
+                                bgcolor: esHoy ? "primary.main" : "transparent",
+                                color: esHoy ? "primary.contrastText" : "text.primary",
+                              }}
+                            >
+                              {dia.getDate()}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.7 }}>
+                              +
+                            </Typography>
+                          </Box>
                         )}
                         <Stack spacing={0.5}>
                           {programasDelDia.map((programa) => (
@@ -1198,7 +1219,10 @@ export default function Programacion() {
                                   key={programa.id}
                                   component="button"
                                   type="button"
-                                  onClick={() => abrirEdicion(programa)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    abrirEdicion(programa);
+                                  }}
                                   title={`${programa.titulo} · ${programa.horaInicio} - ${programa.horaFin}`}
                                   sx={{
                                     display: "block",
