@@ -62,6 +62,9 @@ const CAMPOS: { key: keyof Colores; label: string }[] = [
 ];
 
 type SocialMediaKey = "instagramUrl" | "youtubeUrl" | "tiktokUrl" | "facebookUrl" | "twitterUrl" | "linkedinUrl";
+type CustomLinkKey = `custom:${string}`;
+type BrandingLinkKey = SocialMediaKey | "websiteUrl" | CustomLinkKey;
+type OtherContentItem = { id: string; nombre: string; enlace: string };
 
 const SOCIAL_MEDIA_FIELDS: { key: SocialMediaKey; label: string }[] = [
   { key: "instagramUrl", label: "Instagram" },
@@ -72,18 +75,29 @@ const SOCIAL_MEDIA_FIELDS: { key: SocialMediaKey; label: string }[] = [
   { key: "linkedinUrl", label: "LinkedIn" },
 ];
 
-function normalizarOrdenRedes(valor?: string | null): SocialMediaKey[] {
-  const ordenPorDefecto = SOCIAL_MEDIA_FIELDS.map(({ key }) => key);
+function normalizarOrdenRedes(
+  valor?: string | null,
+  incluirSitioWeb = false,
+  redesIniciales: SocialMediaKey[] = SOCIAL_MEDIA_FIELDS.map(({ key }) => key),
+): BrandingLinkKey[] {
+  const ordenPorDefecto: BrandingLinkKey[] = [
+    ...redesIniciales,
+    ...(incluirSitioWeb ? ["websiteUrl" as const] : []),
+  ];
   if (!valor) return ordenPorDefecto;
 
   try {
     const parsed = JSON.parse(valor);
     if (!Array.isArray(parsed)) return ordenPorDefecto;
 
-    const validas = [...new Set(parsed)].filter((key): key is SocialMediaKey =>
-      SOCIAL_MEDIA_FIELDS.some((field) => field.key === key)
+    const validas = [...new Set(parsed)].filter((key): key is BrandingLinkKey =>
+      key === "websiteUrl"
+      || (typeof key === "string" && key.startsWith("custom:"))
+      || SOCIAL_MEDIA_FIELDS.some((field) => field.key === key)
     );
-    return validas.length > 0 ? validas : ordenPorDefecto;
+    return incluirSitioWeb && !validas.includes("websiteUrl")
+      ? [...validas, "websiteUrl"]
+      : validas;
   } catch {
     return ordenPorDefecto;
   }
@@ -348,21 +362,24 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   
   // Nuevos estados para Branding
   const [websiteUrl, setWebsiteUrl] = useState(t?.websiteUrl ?? "");
-  const [selectedSocialMedias, setSelectedSocialMedias] = useState<string[]>(() => {
-    return normalizarOrdenRedes(t?.socialMediasJson);
+  const [selectedSocialMedias, setSelectedSocialMedias] = useState<BrandingLinkKey[]>(() => {
+    const redesConUrl = SOCIAL_MEDIA_FIELDS
+      .filter(({ key }) => Boolean(t?.[key]))
+      .map(({ key }) => key);
+    const contenidoPersonalizado = cargarContenidoPersonalizado(t?.otherContentJson);
+    const orden = normalizarOrdenRedes(t?.socialMediasJson, Boolean(t?.websiteUrl), redesConUrl);
+    const personalizadosEnOrden = contenidoPersonalizado
+      .map((item) => item.id as CustomLinkKey)
+      .filter((key) => !orden.includes(key));
+    return [...orden, ...personalizadosEnOrden];
   });
-  const [socialMediaArrastrada, setSocialMediaArrastrada] = useState<SocialMediaKey | null>(null);
-  const [socialMediaDestino, setSocialMediaDestino] = useState<SocialMediaKey | null>(null);
+  const [socialMediaArrastrada, setSocialMediaArrastrada] = useState<BrandingLinkKey | null>(null);
+  const [socialMediaDestino, setSocialMediaDestino] = useState<BrandingLinkKey | null>(null);
   const [socialMediaPosicion, setSocialMediaPosicion] = useState({ x: 0, y: 0 });
   const socialMediaPreviewRef = useRef<HTMLDivElement | null>(null);
-  const [otherContentList, setOtherContentList] = useState<Array<{ nombre: string; enlace: string }>>(() => {
-    try {
-      const parsed = JSON.parse(t?.otherContentJson ?? "[]");
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
+  const [otherContentList, setOtherContentList] = useState<OtherContentItem[]>(() => cargarContenidoPersonalizado(t?.otherContentJson));
+  const [nuevoContenidoNombre, setNuevoContenidoNombre] = useState("");
+  const [nuevoContenidoEnlace, setNuevoContenidoEnlace] = useState("");
 
   const guardarTemasEnBase = async (temas: { nombre: string; colores: Colores }[]) => {
     const payload = JSON.stringify(temas);
@@ -591,8 +608,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setFontFamily(ultimoGuardado.fontFamily);
     setColores(ultimoGuardado.colores);
     setWebsiteUrl((ultimoGuardado as any).websiteUrl ?? "");
-    setSelectedSocialMedias(normalizarOrdenRedes((ultimoGuardado as any).socialMediasJson));
-    setOtherContentList((ultimoGuardado as any).otherContentList ?? []);
+    setSelectedSocialMedias(normalizarOrdenRedes(
+      (ultimoGuardado as any).socialMediasJson,
+      Boolean((ultimoGuardado as any).websiteUrl)
+    ));
+    setOtherContentList(cargarContenidoPersonalizado((ultimoGuardado as any).otherContentJson));
     setSuccess(false);
     setError("");
   };
@@ -695,7 +715,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         linkedinUrl,
         fontFamily,
         colores,
+        websiteUrl,
         socialMediasJson: JSON.stringify(selectedSocialMedias),
+        otherContentJson: JSON.stringify(otherContentList),
       } as any);
       try {
         window.dispatchEvent(new CustomEvent("tenantUpdated", {
@@ -765,7 +787,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     linkedinUrl: setLinkedinUrl,
   };
 
-  const moverRedSocial = (origen: SocialMediaKey, destino: SocialMediaKey) => {
+  const moverRedSocial = (origen: BrandingLinkKey, destino: BrandingLinkKey) => {
     if (origen === destino) return;
 
     const origenIndex = selectedSocialMedias.indexOf(origen);
@@ -778,6 +800,45 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       nuevoOrden[origenIndex],
     ];
     setSelectedSocialMedias(nuevoOrden);
+    setSuccess(false);
+  };
+
+  const quitarRedSocial = (key: BrandingLinkKey) => {
+    setSelectedSocialMedias((actual) => actual.filter((item) => item !== key));
+    if (key === "websiteUrl") {
+      setWebsiteUrl("");
+    } else if (key.startsWith("custom:")) {
+      setOtherContentList((actual) => actual.filter((item) => item.id !== key));
+    } else {
+      socialMediaSetters[key as SocialMediaKey]("");
+    }
+    setSuccess(false);
+  };
+
+  const brandingLinkLabel = (key: BrandingLinkKey) =>
+    key === "websiteUrl"
+      ? "Página Web"
+      : key.startsWith("custom:")
+        ? otherContentList.find((item) => item.id === key)?.nombre || "Enlace personalizado"
+      : SOCIAL_MEDIA_FIELDS.find((field) => field.key === key)?.label ?? key;
+
+  const actualizarContenidoPersonalizado = (id: string, campo: "nombre" | "enlace", valor: string) => {
+    setOtherContentList((actual) => actual.map((item) => (
+      item.id === id ? { ...item, [campo]: valor } : item
+    )));
+    setSuccess(false);
+  };
+
+  const agregarContenidoPersonalizado = () => {
+    const nombre = nuevoContenidoNombre.trim();
+    const enlace = nuevoContenidoEnlace.trim();
+    if (!nombre || !enlace) return;
+
+    const id: CustomLinkKey = `custom:${Date.now()}`;
+    setOtherContentList((actual) => [...actual, { id, nombre, enlace }]);
+    setSelectedSocialMedias((actual) => [...actual, id]);
+    setNuevoContenidoNombre("");
+    setNuevoContenidoEnlace("");
     setSuccess(false);
   };
 
@@ -806,7 +867,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             transform: "rotate(-3deg)",
           }}
         >
-          {SOCIAL_MEDIA_FIELDS.find((field) => field.key === socialMediaArrastrada)?.label}
+          {brandingLinkLabel(socialMediaArrastrada)}
         </Box>
       )}
       <Typography variant="h4" gutterBottom>Configuración de Marca</Typography>
@@ -838,9 +899,14 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               <Box sx={{ display: "grid", gap: 2 }}>
                 {selectedSocialMedias.map((key) => {
                   const socialMedia = SOCIAL_MEDIA_FIELDS.find((field) => field.key === key);
-                  if (!socialMedia) return null;
-                  const value = socialMediaValues[key as SocialMediaKey];
-                  const setter = socialMediaSetters[key as SocialMediaKey];
+                  const customItem = key.startsWith("custom:")
+                    ? otherContentList.find((item) => item.id === key)
+                    : null;
+                  const value = key === "websiteUrl"
+                    ? websiteUrl
+                    : customItem
+                      ? customItem.enlace
+                      : socialMediaValues[key as SocialMediaKey];
 
                   return (
                   <Box
@@ -856,16 +922,16 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                       event.dataTransfer.setDragImage(imagenArrastre, 0, 0);
                       window.setTimeout(() => imagenArrastre.remove(), 0);
                       setSocialMediaPosicion({ x: event.clientX, y: event.clientY });
-                      setSocialMediaArrastrada(key as SocialMediaKey);
+                      setSocialMediaArrastrada(key);
                     }}
                     onDragOver={(event) => {
                       event.preventDefault();
-                      setSocialMediaDestino(key as SocialMediaKey);
+                      setSocialMediaDestino(key);
                     }}
                     onDrop={(event) => {
                       event.preventDefault();
                       if (socialMediaArrastrada) {
-                        moverRedSocial(socialMediaArrastrada, key as SocialMediaKey);
+                        moverRedSocial(socialMediaArrastrada, key);
                       }
                       setSocialMediaArrastrada(null);
                       setSocialMediaDestino(null);
@@ -901,15 +967,29 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     </span>
                     <TextField
                       fullWidth
-                      label={socialMedia.label}
+                      label={customItem ? customItem.nombre : brandingLinkLabel(key)}
                       value={value}
-                      placeholder={`https://${socialMedia.label.toLowerCase().replace(/\s+\//g, "").replace(/\s+/g, "")}.com/tu-cuenta`}
+                      placeholder={key === "websiteUrl" || customItem ? "https://ejemplo.com" : `https://${socialMedia?.label.toLowerCase().replace(/\s+\//g, "").replace(/\s+/g, "")}.com/tu-cuenta`}
                       onChange={(event) => {
-                        setter(event.target.value);
+                        if (key === "websiteUrl") {
+                          setWebsiteUrl(event.target.value);
+                        } else if (customItem) {
+                          actualizarContenidoPersonalizado(customItem.id, "enlace", event.target.value);
+                        } else {
+                          socialMediaSetters[key as SocialMediaKey](event.target.value);
+                        }
                         setSuccess(false);
                       }}
                       size="small"
                     />
+                    <IconButton
+                      size="small"
+                      color="error"
+                      aria-label={`Eliminar ${brandingLinkLabel(key)}`}
+                      onClick={() => quitarRedSocial(key)}
+                    >
+                      <span className="material-symbols-outlined">delete</span>
+                    </IconButton>
                   </Box>
                   );
                 })}
@@ -932,6 +1012,19 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 }}
                 size="small"
               />
+              <Button
+                variant="outlined"
+                fullWidth
+                sx={{ mt: 1.5 }}
+                disabled={!websiteUrl.trim() || selectedSocialMedias.includes("websiteUrl")}
+                onClick={() => {
+                  setSelectedSocialMedias((actual) => [...actual, "websiteUrl"]);
+                  setSuccess(false);
+                }}
+                startIcon={<span className="material-symbols-outlined">add</span>}
+              >
+                Agregar
+              </Button>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
                 Enlace a tu sitio web oficial
               </Typography>
@@ -946,74 +1039,31 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 Agrega múltiples enlaces o información adicional (ej: WhatsApp, Tienda online, etc.)
               </Typography>
 
-              {/* Lista de elementos */}
-              <Box sx={{ display: "grid", gap: 2, mb: 2 }}>
-                {otherContentList.map((item, idx) => (
-                  <Box
-                    key={`other-content-${idx}`}
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr auto" },
-                      gap: 1,
-                      alignItems: "flex-end",
-                      p: 1.5,
-                      borderRadius: 1,
-                      bgcolor: alpha(colores.texto, 0.03),
-                      border: "1px solid",
-                      borderColor: alpha(colores.texto, 0.1),
-                    }}
-                  >
-                    <TextField
-                      size="small"
-                      label="Nombre"
-                      placeholder="WhatsApp, Tienda online, etc."
-                      value={item.nombre}
-                      onChange={(e) => {
-                        const updated = [...otherContentList];
-                        updated[idx].nombre = e.target.value;
-                        setOtherContentList(updated);
-                        setSuccess(false);
-                      }}
-                    />
-                    <TextField
-                      size="small"
-                      label="Enlace"
-                      placeholder="https://ejemplo.com"
-                      value={item.enlace}
-                      onChange={(e) => {
-                        const updated = [...otherContentList];
-                        updated[idx].enlace = e.target.value;
-                        setOtherContentList(updated);
-                        setSuccess(false);
-                      }}
-                    />
-                    <Button
-                      color="error"
-                      size="small"
-                      onClick={() => {
-                        setOtherContentList(otherContentList.filter((_, i) => i !== idx));
-                        setSuccess(false);
-                      }}
-                      startIcon={<span className="material-symbols-outlined">delete</span>}
-                    >
-                      Eliminar
-                    </Button>
-                  </Box>
-                ))}
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1, mb: 2 }}>
+                <TextField
+                  size="small"
+                  label="Nombre"
+                  placeholder="WhatsApp, Tienda online, etc."
+                  value={nuevoContenidoNombre}
+                  onChange={(event) => setNuevoContenidoNombre(event.target.value)}
+                />
+                <TextField
+                  size="small"
+                  label="Enlace"
+                  placeholder="https://ejemplo.com"
+                  value={nuevoContenidoEnlace}
+                  onChange={(event) => setNuevoContenidoEnlace(event.target.value)}
+                />
               </Box>
-
-              {/* Botón para agregar */}
               <Button
                 variant="outlined"
                 size="small"
                 fullWidth
-                onClick={() => {
-                  setOtherContentList([...otherContentList, { nombre: "", enlace: "" }]);
-                  setSuccess(false);
-                }}
+                disabled={!nuevoContenidoNombre.trim() || !nuevoContenidoEnlace.trim()}
+                onClick={agregarContenidoPersonalizado}
                 startIcon={<span className="material-symbols-outlined">add</span>}
               >
-                Agregar Enlace
+                Agregar
               </Button>
             </CardContent>
           </Card>
@@ -1449,4 +1499,18 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       </Dialog>
     </Box>
   );
+}
+
+function cargarContenidoPersonalizado(valor?: string | null): OtherContentItem[] {
+  try {
+    const parsed = JSON.parse(valor ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item, index) => ({
+      id: typeof item?.id === "string" ? item.id : `custom:${index}`,
+      nombre: typeof item?.nombre === "string" ? item.nombre : "",
+      enlace: typeof item?.enlace === "string" ? item.enlace : "",
+    }));
+  } catch {
+    return [];
+  }
 }
