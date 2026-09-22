@@ -61,6 +61,34 @@ const CAMPOS: { key: keyof Colores; label: string }[] = [
   { key: "iconos",     label: "Color de Iconos" },
 ];
 
+type SocialMediaKey = "instagramUrl" | "youtubeUrl" | "tiktokUrl" | "facebookUrl" | "twitterUrl" | "linkedinUrl";
+
+const SOCIAL_MEDIA_FIELDS: { key: SocialMediaKey; label: string }[] = [
+  { key: "instagramUrl", label: "Instagram" },
+  { key: "youtubeUrl", label: "YouTube" },
+  { key: "tiktokUrl", label: "TikTok" },
+  { key: "facebookUrl", label: "Facebook" },
+  { key: "twitterUrl", label: "X / Twitter" },
+  { key: "linkedinUrl", label: "LinkedIn" },
+];
+
+function normalizarOrdenRedes(valor?: string | null): SocialMediaKey[] {
+  const ordenPorDefecto = SOCIAL_MEDIA_FIELDS.map(({ key }) => key);
+  if (!valor) return ordenPorDefecto;
+
+  try {
+    const parsed = JSON.parse(valor);
+    if (!Array.isArray(parsed)) return ordenPorDefecto;
+
+    const validas = [...new Set(parsed)].filter((key): key is SocialMediaKey =>
+      SOCIAL_MEDIA_FIELDS.some((field) => field.key === key)
+    );
+    return validas.length > 0 ? validas : ordenPorDefecto;
+  } catch {
+    return ordenPorDefecto;
+  }
+}
+
 const EditorColor = memo(function EditorColor({
   value,
   onChange,
@@ -321,13 +349,12 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   // Nuevos estados para Branding
   const [websiteUrl, setWebsiteUrl] = useState(t?.websiteUrl ?? "");
   const [selectedSocialMedias, setSelectedSocialMedias] = useState<string[]>(() => {
-    try {
-      const parsed = JSON.parse(t?.socialMediasJson ?? "[]");
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    return normalizarOrdenRedes(t?.socialMediasJson);
   });
+  const [socialMediaArrastrada, setSocialMediaArrastrada] = useState<SocialMediaKey | null>(null);
+  const [socialMediaDestino, setSocialMediaDestino] = useState<SocialMediaKey | null>(null);
+  const [socialMediaPosicion, setSocialMediaPosicion] = useState({ x: 0, y: 0 });
+  const socialMediaPreviewRef = useRef<HTMLDivElement | null>(null);
   const [otherContentList, setOtherContentList] = useState<Array<{ nombre: string; enlace: string }>>(() => {
     try {
       const parsed = JSON.parse(t?.otherContentJson ?? "[]");
@@ -395,6 +422,20 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       return () => clearTimeout(timer);
     }
   }, [success]);
+
+  useEffect(() => {
+    if (!socialMediaArrastrada) return;
+
+    const actualizarPosicion = (event: DragEvent) => {
+      if (socialMediaPreviewRef.current) {
+        socialMediaPreviewRef.current.style.left = `${event.clientX + 14}px`;
+        socialMediaPreviewRef.current.style.top = `${event.clientY + 14}px`;
+      }
+    };
+
+    window.addEventListener("dragover", actualizarPosicion);
+    return () => window.removeEventListener("dragover", actualizarPosicion);
+  }, [socialMediaArrastrada]);
 
   // onPrimario calculado si se necesita contraste sobre color primario
   const headerTextColor = colores.textoCabecera?.trim() ? colores.textoCabecera : colores.texto;
@@ -550,7 +591,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setFontFamily(ultimoGuardado.fontFamily);
     setColores(ultimoGuardado.colores);
     setWebsiteUrl((ultimoGuardado as any).websiteUrl ?? "");
-    setSelectedSocialMedias((ultimoGuardado as any).selectedSocialMedias ?? []);
+    setSelectedSocialMedias(normalizarOrdenRedes((ultimoGuardado as any).socialMediasJson));
     setOtherContentList((ultimoGuardado as any).otherContentList ?? []);
     setSuccess(false);
     setError("");
@@ -654,6 +695,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         linkedinUrl,
         fontFamily,
         colores,
+        socialMediasJson: JSON.stringify(selectedSocialMedias),
       } as any);
       try {
         window.dispatchEvent(new CustomEvent("tenantUpdated", {
@@ -705,8 +747,62 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const presetActivo = (c: Colores) =>
     (Object.keys(c) as (keyof Colores)[]).every((k) => c[k].toUpperCase() === colores[k].toUpperCase());
 
+  const socialMediaValues: Record<SocialMediaKey, string> = {
+    instagramUrl,
+    youtubeUrl,
+    tiktokUrl,
+    facebookUrl,
+    twitterUrl,
+    linkedinUrl,
+  };
+
+  const socialMediaSetters: Record<SocialMediaKey, (value: string) => void> = {
+    instagramUrl: setInstagramUrl,
+    youtubeUrl: setYoutubeUrl,
+    tiktokUrl: setTiktokUrl,
+    facebookUrl: setFacebookUrl,
+    twitterUrl: setTwitterUrl,
+    linkedinUrl: setLinkedinUrl,
+  };
+
+  const moverRedSocial = (origen: SocialMediaKey, destino: SocialMediaKey) => {
+    if (origen === destino) return;
+
+    const nuevoOrden = selectedSocialMedias.filter((key) => key !== origen);
+    const destinoIndex = nuevoOrden.indexOf(destino);
+    nuevoOrden.splice(destinoIndex, 0, origen);
+    setSelectedSocialMedias(nuevoOrden);
+    setSuccess(false);
+  };
+
   return (
     <Box>
+      {socialMediaArrastrada && (
+        <Box
+          ref={socialMediaPreviewRef}
+          sx={{
+            position: "fixed",
+            left: socialMediaPosicion.x + 14,
+            top: socialMediaPosicion.y + 14,
+            zIndex: 2000,
+            pointerEvents: "none",
+            px: 2,
+            py: 1,
+            bgcolor: colores.cardFondo,
+            color: colores.texto,
+            border: "2px solid",
+            borderColor: "#FFFFFF",
+            borderRadius: 1.5,
+            boxShadow: `0 6px 16px ${alpha("#000000", 0.45)}`,
+            fontSize: 14,
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+            transform: "rotate(-3deg)",
+          }}
+        >
+          {SOCIAL_MEDIA_FIELDS.find((field) => field.key === socialMediaArrastrada)?.label}
+        </Box>
+      )}
       <Typography variant="h4" gutterBottom>Configuración de Marca</Typography>
       <Typography color="text.secondary" sx={ { mb: 4, maxWidth: 640 } }>
         Personalizá la identidad visual de tu aplicación cliente. Los cambios realizados aquí se reflejarán en todas las instancias de transmisión gestionadas.
@@ -730,28 +826,87 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           <Card variant="outlined">
             <CardContent>
               <CardHeader icon="share">Redes Sociales</CardHeader>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
+                Arrastrá los campos para elegir el orden en que aparecerán en tu aplicación.
+              </Typography>
               <Box sx={{ display: "grid", gap: 2 }}>
-                {[
-                  { key: "instagramUrl", label: "Instagram", value: instagramUrl, setter: setInstagramUrl },
-                  { key: "youtubeUrl", label: "YouTube", value: youtubeUrl, setter: setYoutubeUrl },
-                  { key: "tiktokUrl", label: "TikTok", value: tiktokUrl, setter: setTiktokUrl },
-                  { key: "facebookUrl", label: "Facebook", value: facebookUrl, setter: setFacebookUrl },
-                  { key: "twitterUrl", label: "X / Twitter", value: twitterUrl, setter: setTwitterUrl },
-                  { key: "linkedinUrl", label: "LinkedIn", value: linkedinUrl, setter: setLinkedinUrl },
-                ].map(({ key, label, value, setter }) => (
-                  <TextField
+                {selectedSocialMedias.map((key) => {
+                  const socialMedia = SOCIAL_MEDIA_FIELDS.find((field) => field.key === key);
+                  if (!socialMedia) return null;
+                  const value = socialMediaValues[key as SocialMediaKey];
+                  const setter = socialMediaSetters[key as SocialMediaKey];
+
+                  return (
+                  <Box
                     key={key}
-                    fullWidth
-                    label={label}
-                    value={value}
-                    placeholder={label === "WhatsApp" ? "https://wa.me/5491112345678" : `https://${label.toLowerCase().replace(/\s+/g, "")}.com/tu-cuenta`}
-                    onChange={(e) => {
-                      setter(e.target.value);
-                      setSuccess(false);
+                    draggable
+                    onDragStart={(event) => {
+                      const imagenArrastre = document.createElement("div");
+                      imagenArrastre.style.position = "absolute";
+                      imagenArrastre.style.top = "-1000px";
+                      imagenArrastre.style.width = "1px";
+                      imagenArrastre.style.height = "1px";
+                      document.body.appendChild(imagenArrastre);
+                      event.dataTransfer.setDragImage(imagenArrastre, 0, 0);
+                      window.setTimeout(() => imagenArrastre.remove(), 0);
+                      setSocialMediaPosicion({ x: event.clientX, y: event.clientY });
+                      setSocialMediaArrastrada(key as SocialMediaKey);
                     }}
-                    size="small"
-                  />
-                ))}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      setSocialMediaDestino(key as SocialMediaKey);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (socialMediaArrastrada) {
+                        moverRedSocial(socialMediaArrastrada, key as SocialMediaKey);
+                      }
+                      setSocialMediaArrastrada(null);
+                      setSocialMediaDestino(null);
+                    }}
+                    onDragEnd={() => {
+                      setSocialMediaArrastrada(null);
+                      setSocialMediaDestino(null);
+                    }}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      cursor: "grab",
+                      bgcolor: socialMediaDestino === key ? alpha("#FFFFFF", 0.06) : "transparent",
+                      color: "inherit",
+                      borderRadius: 1,
+                      outline: socialMediaArrastrada === key
+                        ? "1px solid #FFFFFF"
+                        : socialMediaDestino === key
+                          ? `1px solid ${alpha("#FFFFFF", 0.45)}`
+                          : "1px solid transparent",
+                      transition: "background-color 0.2s ease",
+                      boxShadow: socialMediaArrastrada === key ? `0 4px 12px ${alpha("#FFFFFF", 0.16)}` : "none",
+                      "&:active": { cursor: "grabbing" },
+                    }}
+                  >
+                    <span
+                      className="material-symbols-outlined"
+                      aria-hidden="true"
+                      style={{ color: colores.texto, opacity: 0.5, cursor: "grab" }}
+                    >
+                      drag_indicator
+                    </span>
+                    <TextField
+                      fullWidth
+                      label={socialMedia.label}
+                      value={value}
+                      placeholder={`https://${socialMedia.label.toLowerCase().replace(/\s+\//g, "").replace(/\s+/g, "")}.com/tu-cuenta`}
+                      onChange={(event) => {
+                        setter(event.target.value);
+                        setSuccess(false);
+                      }}
+                      size="small"
+                    />
+                  </Box>
+                  );
+                })}
               </Box>
             </CardContent>
           </Card>
