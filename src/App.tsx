@@ -3,11 +3,11 @@ import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Box, CircularProgress } from "@mui/material";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import Layout from "./components/Layout";
 import type { Perfil } from "./types";
 import { getCachedAuthHeaders } from "./services/authenticatedFetch";
 
 const Login = lazy(() => import("./pages/Login"));
+const Layout = lazy(() => import("./components/Layout"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Branding = lazy(() => import("./pages/Branding"));
 const Configuracion = lazy(() => import("./pages/Configuracion"));
