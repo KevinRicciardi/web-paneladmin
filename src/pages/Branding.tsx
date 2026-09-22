@@ -768,9 +768,15 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const moverRedSocial = (origen: SocialMediaKey, destino: SocialMediaKey) => {
     if (origen === destino) return;
 
-    const nuevoOrden = selectedSocialMedias.filter((key) => key !== origen);
-    const destinoIndex = nuevoOrden.indexOf(destino);
-    nuevoOrden.splice(destinoIndex, 0, origen);
+    const origenIndex = selectedSocialMedias.indexOf(origen);
+    const destinoIndex = selectedSocialMedias.indexOf(destino);
+    if (origenIndex < 0 || destinoIndex < 0) return;
+
+    const nuevoOrden = [...selectedSocialMedias];
+    [nuevoOrden[origenIndex], nuevoOrden[destinoIndex]] = [
+      nuevoOrden[destinoIndex],
+      nuevoOrden[origenIndex],
+    ];
     setSelectedSocialMedias(nuevoOrden);
     setSuccess(false);
   };
