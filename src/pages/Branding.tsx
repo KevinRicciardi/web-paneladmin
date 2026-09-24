@@ -1451,7 +1451,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         onConfirm={(file) => {
           setCropDialogSource(null);
           setCropModalOpen(false);
-          const replaceIndex = cropDialogType === "banner" ? editingBannerIndex : undefined;
+          const replaceIndex = cropDialogType === "banner" ? editingBannerIndex ?? undefined : undefined;
           void handleUpload(file, cropDialogType, replaceIndex);
           setEditingBannerIndex(null);
         }}

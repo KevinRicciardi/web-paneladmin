@@ -9,6 +9,7 @@ import {
   actualizarPodcast, crearPodcast, eliminarPodcast, listarMisPodcasts,
 } from "../services/podcast.service";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
+import { auth } from "../firebase";
 import { extractKickChannelName, getKickAudioUrl } from "../services/kick.service";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";

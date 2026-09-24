@@ -132,7 +132,7 @@ async function getTenantStreamData(tenantSlug: string): Promise<StreamData | nul
 }
 
 export async function getStreamData(
-  url: string,
+  _url: string,
   provider: StreamProvider,
   tenantSlug?: string,
 ): Promise<StreamData | null> {
