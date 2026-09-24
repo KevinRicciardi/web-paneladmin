@@ -1,0 +1,15 @@
+services:
+  panel:
+    build:
+      context: .
+      args:
+        # Docker Compose lee estas variables del .env de esta misma
+        # carpeta (mecanismo distinto a "env_file:" — ese inyecta
+        # variables al contenedor en ejecución; esto sustituye valores
+        # acá mismo, en el archivo de compose, antes del build).
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+        VITE_CLOUDINARY_CLOUD_NAME: ${VITE_CLOUDINARY_CLOUD_NAME}
+        VITE_CLOUDINARY_UPLOAD_PRESET: ${VITE_CLOUDINARY_UPLOAD_PRESET}
+    ports:
+      - "8080:80"
+    restart: unless-stopped
