@@ -11,6 +11,7 @@ import {
   Typography,
 } from "@mui/material";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
+import { auth } from "../firebase";
 import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";

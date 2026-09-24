@@ -186,7 +186,7 @@ export default function Soporte({ perfil }: { perfil: Perfil }) {
               </Link>
             </Typography>
             {emailContacto ? (
-              <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 1 }}>
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", mb: 1 }}>
                 <Link
                   href={`https://mail.google.com/mail/u/0/?view=cm&to=${encodeURIComponent(emailContacto)}`}
                   target="_blank"
@@ -219,7 +219,7 @@ export default function Soporte({ perfil }: { perfil: Perfil }) {
               </Stack>
             ) : null}
             {whatsappLink ? (
-              <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 1 }}>
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", mb: 1 }}>
                 <Link
                   href={whatsappLink}
                   target="_blank"
