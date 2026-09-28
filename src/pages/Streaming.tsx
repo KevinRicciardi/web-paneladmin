@@ -14,7 +14,9 @@ import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import { auth } from "../firebase";
 import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
+import { puedeVerSeccion } from "../utils/permisos";
 import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";
+import { detectStreamingPlatform, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
 import { buildYoutubeChannelEmbedUrl } from "../services/youtube.service";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -32,73 +34,6 @@ async function subirACloudinary(file: File): Promise<string> {
   if (!res.ok) throw new Error("Error al subir imagen");
   const data = await res.json();
   return data.secure_url as string;
-}
-
-function getEmbedUrl(url: string): string | null {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes("youtube.com") || u.hostname === "youtu.be") {
-      let videoId = u.searchParams.get("v");
-      if (!videoId && u.hostname === "youtu.be") videoId = u.pathname.slice(1);
-      if (!videoId && url.includes("/live/")) videoId = u.pathname.split("/live/")[1];
-      return videoId ? "https://www.youtube.com/embed/" + videoId : null;
-    }
-    if (u.hostname === "kick.com" || u.hostname === "www.kick.com") {
-      const canal = u.pathname.replace("/", "").split("/")[0];
-      return canal ? "https://player.kick.com/" + canal : null;
-    }
-    if (u.hostname === "twitch.tv" || u.hostname === "www.twitch.tv") {
-      const canal = u.pathname.split("/").filter(Boolean)[0];
-      if (!canal || canal === "directory" || canal === "videos") return null;
-      const parent = typeof window !== "undefined" ? window.location.hostname : "localhost";
-      return `https://player.twitch.tv/?channel=${encodeURIComponent(canal)}&parent=${encodeURIComponent(parent)}`;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function detectarPlataforma(url: string): string {
-  if (url.includes("kick.com")) return "Kick";
-  if (url.includes("twitch.tv")) return "Twitch";
-  if (url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube";
-  return "Desconocida";
-}
-
-function detectarProveedor(url: string): string | null {
-  const normalized = url.toLowerCase();
-  if (normalized.includes("kick.com")) return "kick";
-  if (normalized.includes("twitch.tv")) return "twitch";
-  if (normalized.includes("youtube.com") || normalized.includes("youtu.be")) return "youtube";
-  return null;
-}
-
-function getAudioUrl(url: string): string | null {
-  const normalized = url.trim();
-  if (!normalized) return null;
-
-  const lower = normalized.toLowerCase();
-  const audioExtensions = [".mp3", ".aac", ".m4a", ".ogg", ".wav", ".flac", ".opus", ".m3u8"];
-  if (audioExtensions.some((ext) => lower.endsWith(ext))) {
-    return normalized;
-  }
-
-  try {
-    const parsed = new URL(normalized);
-    if (
-      parsed.hostname.includes("kick.com")
-      || parsed.hostname.includes("youtube.com")
-      || parsed.hostname.includes("youtu.be")
-      || parsed.hostname.includes("twitch.tv")
-    ) {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-
-  return normalized;
 }
 
 function isHlsUrl(url: string) {
@@ -139,6 +74,8 @@ function getStoredValue(key: string): string {
 }
 
 export default function Streaming({ perfil }: { perfil: Perfil }) {
+  const canViewStreaming = puedeVerSeccion(perfil, "streaming");
+  const canViewPodcast = puedeVerSeccion(perfil, "podcast");
   const t = perfil.tenant;
   const [streamUrl, setStreamUrl] = useState<string>(() => t?.streamUrl ?? getStoredValue("streamUrl"));
   const [streamProvider, setStreamProvider] = useState<string>(() => {
@@ -170,24 +107,38 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [originalCoverSource, setOriginalCoverSource] = useState<string | null>(null);
   const portadaInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const esPodcast = tipoTransmision === "audio";
-  const embedUrl = streamUrl ? getEmbedUrl(streamUrl) : null;
+  const embedUrl = streamUrl ? getStreamingEmbedUrl(streamUrl) : null;
   const plataforma = streamProvider === "youtube"
     ? "YouTube"
     : streamProvider === "twitch"
     ? "Twitch"
     : streamUrl
-    ? detectarPlataforma(streamUrl)
+    ? getStreamingPlatformLabel(streamUrl)
     : null;
   const youtubeEmbedUrl = buildYoutubeChannelEmbedUrl(youtubeChannelId);
   const channelName = streamUrl ? extractKickChannelName(streamUrl) : null;
-  const rawAudioUrl = kickAudioUrl || (streamUrl ? getAudioUrl(streamUrl) : null);
+  const rawAudioUrl = kickAudioUrl || (streamUrl ? getDirectAudioUrl(streamUrl) : null);
+  const directVideoUrl = esPodcast && streamUrl && isDirectVideoUrl(streamUrl) ? streamUrl : null;
   const isHlsStream = rawAudioUrl ? isHlsUrl(rawAudioUrl) : false;
   const audioUrl = rawAudioUrl && !isHlsStream ? rawAudioUrl : null;
   const useKickIframeFallback = esPodcast && Boolean(channelName) && !audioUrl;
   const kickIframeUrl = useKickIframeFallback && channelName ? `https://player.kick.com/${channelName}` : null;
   const useYoutubeAudioFallback = esPodcast && streamProvider === "youtube" && Boolean(youtubeEmbedUrl);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !directVideoUrl) return;
+    video.src = directVideoUrl;
+    video.load();
+    return () => {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [directVideoUrl]);
 
   useEffect(() => {
     if (!useKickIframeFallback) {
@@ -398,6 +349,21 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   }, [audioUrl]);
 
   const handleTogglePlay = () => {
+    if (directVideoUrl && videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        void videoRef.current.play()
+          .then(() => setIsPlaying(true))
+          .catch(() => {
+            setAudioLoadError("No se pudo reproducir el video en este navegador.");
+            setIsPlaying(false);
+          });
+      }
+      return;
+    }
+
     if (useYoutubeAudioFallback) {
       if (!youtubeEmbedUrl) return;
       if (youtubeAudioSrc) {
@@ -570,6 +536,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
   return (
     <Box>
+      {(canViewStreaming || canViewPodcast) && <>
       {/* Encabezado */}
       <Box sx={ { display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2, mb: 4 } }>
         <Box>
@@ -594,7 +561,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         </Card>
       </Box>
 
-      <Box sx={ { display: "grid", gridTemplateColumns: { xs: "1fr", md: "7fr 5fr" }, gap: 3, alignItems: "start" } }>
+      <Box sx={ { display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0, 7fr) minmax(280px, 5fr)" }, gap: 3, alignItems: "start" } }>
 
         {/* Destino Principal */}
         <Card variant="outlined">
@@ -620,9 +587,9 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
               value={streamUrl}
               onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
                 const value = e.target.value;
-                const detectedProvider = detectarProveedor(value);
+                const detectedProvider = detectStreamingPlatform(value);
                 setStreamUrl(value);
-                if (detectedProvider) setStreamProvider(detectedProvider);
+                if (detectedProvider !== "direct" && detectedProvider !== "other") setStreamProvider(detectedProvider);
                 setSuccess(false);
               }}
               fullWidth
@@ -981,21 +948,12 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
                     {kickIframeSrc && (
                       <Box
-                        sx={{
-                          position: "absolute",
-                          inset: 0,
-                          width: "100%",
-                          height: "100%",
-                        }}
-                      >
-                        <Box
-                          component="iframe"
-                          src={kickIframeSrc}
-                          title="Kick audio player"
-                          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                          sx={{ width: "100%", height: "100%", border: "none", pointerEvents: "none" }}
-                        />
-                      </Box>
+                        component="iframe"
+                        src={kickIframeSrc}
+                        title="Kick audio player"
+                        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                        sx={{ position: "fixed", left: -10000, width: 1, height: 1, opacity: 0, pointerEvents: "none", border: "none" }}
+                      />
                     )}
                   </Box>
 
@@ -1012,6 +970,35 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                       </Typography>
                     )}
                   </Box>
+                </Box>
+              ) : directVideoUrl ? (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box
+                    role="button"
+                    tabIndex={0}
+                    aria-label={isPlaying ? "Pausar video" : "Reproducir video"}
+                    onClick={handleTogglePlay}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleTogglePlay();
+                      }
+                    }}
+                    sx={{ position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: 1, borderColor: "divider", bgcolor: "action.hover", cursor: "pointer", display: "grid", placeItems: "center" }}
+                  >
+                    {imagenPortada ? (
+                      <Box component="img" src={imagenPortada} alt="Portada del podcast" sx={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : <span className="material-symbols-outlined" style={{ fontSize: 48, opacity: 0.3 }}>podcasts</span>}
+                    <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "linear-gradient(180deg, rgba(0,0,0,0.08), rgba(0,0,0,0.42))" }}>
+                      <Box sx={{ width: 58, height: 58, borderRadius: "50%", bgcolor: "rgba(0,0,0,0.72)", display: "grid", placeItems: "center", color: "white" }}>
+                        <span className="material-symbols-outlined">{isPlaying ? "pause" : "play_arrow"}</span>
+                      </Box>
+                    </Box>
+                    <video ref={videoRef} playsInline preload="metadata" aria-hidden="true" tabIndex={-1} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onEnded={handleAudioEnded} onError={() => setAudioLoadError("No se pudo cargar el video directo.")} style={{ position: "fixed", left: -10000, width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
+                  </Box>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{isPlaying ? "Reproduciendo audio del video" : "Tocá la portada para reproducir"}</Typography>
+                  <Typography variant="caption" color="text.secondary">El video permanece oculto; la portada se mantiene visible y el audio continúa en segundo plano.</Typography>
+                  {audioLoadError && <Typography variant="caption" color="error">{audioLoadError}</Typography>}
                 </Box>
               ) : audioUrl ? (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -1205,6 +1192,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
           {loading ? "Guardando..." : "Guardar Configuración"}
         </Button>
       </Box>
+      </>}
+      {!canViewStreaming && !canViewPodcast && <Alert severity="error">No tenés permisos para acceder a esta sección.</Alert>}
     </Box>
   );
 }

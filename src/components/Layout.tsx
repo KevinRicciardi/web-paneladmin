@@ -13,7 +13,6 @@ const navItemsBase = [
   { to: "/streaming", label: "Streaming", icon: "sensors", seccion: "streaming" },
   { to: "/programacion", label: "Programación", icon: "calendar_month", seccion: "programacion" },
   { to: "/noticias", label: "Noticias", icon: "newspaper", seccion: "noticias" },
-  { to: "/podcast", label: "Podcast", icon: "podcasts", seccion: "podcast" },
   { to: "/estadisticas", label: "Estadísticas", icon: "monitoring", seccion: "estadisticas" },
   { to: "/generar-app", label: "Generar App", icon: "phone_android", seccion: "soloDueno" },
 ];
@@ -37,7 +36,7 @@ const routePreloaders: Record<string, () => Promise<unknown>> = {
   "/streaming": () => import("../pages/Streaming"),
   "/programacion": () => import("../pages/Programacion"),
   "/noticias": () => import("../pages/Noticias"),
-  "/podcast": () => import("../pages/Podcast"),
+  "/podcast": () => import("../pages/Streaming"),
   "/estadisticas": () => import("../pages/Estadisticas"),
   "/administradores": () => import("../pages/Administradores"),
   "/generar-app": () => import("../pages/GenerarApp"),
@@ -59,7 +58,10 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
     perfil.rol === "MEGA_ADMIN" ? "MegaAdmin" : perfil.rol === "SUPER_ADMIN" ? "SuperAdmin" : "Admin";
   const etiquetaCargo = perfil.rol === "ADMIN" && perfil.cargo ? ` ${perfil.cargo}` : "";
   const subtitulo = `${nombreUsuario} - ${etiquetaRol}${etiquetaCargo}`;
-  const navItemsVisibles = navItemsBase.filter((item) => puedeVerSeccion(perfil, item.seccion));
+  const navItemsVisibles = navItemsBase.filter((item) =>
+    puedeVerSeccion(perfil, item.seccion)
+    || (item.to === "/streaming" && puedeVerSeccion(perfil, "podcast"))
+  );
   // TEMP: mientras haya cuentas MEGA_ADMIN mal asignadas por el bug de
   // /auth/register, dejamos que MEGA_ADMIN también vea "Administradores".
   // Corregir esto en regla (solo SUPER_ADMIN) una vez reclasificadas.
@@ -121,7 +123,7 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
 
           <List sx={{ flex: 1, p: 0 }}>
             {navItems.map((item) => {
-              const selected = location.pathname === item.to;
+              const selected = location.pathname === item.to || (item.to === "/streaming" && location.pathname === "/podcast");
               return (
                 <ListItemButton
                   key={item.to}

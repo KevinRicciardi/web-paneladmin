@@ -4,18 +4,35 @@ import {
   DialogActions, DialogContent, DialogTitle, IconButton, Slider, Stack,
   TextField, Typography,
 } from "@mui/material";
-import type { Perfil, PodcastEpisode, PodcastEpisodePayload, PodcastEpisodeStatus } from "../types";
+import type { Perfil, PodcastEpisode, PodcastEpisodePayload, PodcastEpisodeStatus, PodcastPlatformType } from "../types";
 import {
   actualizarPodcast, crearPodcast, eliminarPodcast, listarMisPodcasts,
 } from "../services/podcast.service";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import { auth } from "../firebase";
 import { extractKickChannelName, getKickAudioUrl } from "../services/kick.service";
+import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl } from "../services/streaming-media";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
+
+async function uploadPodcastMedia(file: File): Promise<string> {
+  const body = new FormData();
+  body.append("file", file);
+  body.append("upload_preset", UPLOAD_PRESET);
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
+    method: "POST",
+    body,
+  });
+  if (!response.ok) throw new Error("No se pudo subir el archivo multimedia.");
+  const data = await response.json();
+  return data.secure_url as string;
+}
 
 const emptyForm: PodcastEpisodePayload = {
   title: "", description: "", podcastName: "", coverImageUrl: "", audioUrl: "",
+  videoUrl: "", streamUrl: "", platformType: "direct",
   duration: "", publishedAt: "", status: "draft",
 };
 
@@ -42,6 +59,10 @@ function isDirectAudioUrl(url: string) {
     || /\/(stream|audio|live|playback)$/.test(normalized);
 }
 
+function isDirectVideoUrl(url: string) {
+  return /\.(mp4|m4v|webm|ogv|m3u8)$/.test(url.trim().toLowerCase().split(/[?#]/)[0]);
+}
+
 function getPlaybackError(error: unknown) {
   const typedError = error as { status?: number; code?: string; message?: string };
   if (typedError.status === 400) return "La URL de audio no es válida.";
@@ -60,10 +81,12 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   const [liveCover, setLiveCover] = useState(perfil.tenant.podcastImagenPortada ?? "");
   const [liveSaving, setLiveSaving] = useState(false);
   const [livePlaying, setLivePlaying] = useState(false);
+  const [liveEmbedUrl, setLiveEmbedUrl] = useState("");
   const [liveResolvedUrl, setLiveResolvedUrl] = useState("");
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveReady, setLiveReady] = useState(false);
   const liveAudioRef = useRef<HTMLAudioElement>(null);
+  const liveVideoRef = useRef<HTMLVideoElement>(null);
   const liveHlsRef = useRef<any>(null);
   const livePlayRequestedRef = useRef(false);
   const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
@@ -73,8 +96,12 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   const [form, setForm] = useState<PodcastEpisodePayload>(emptyForm);
   const [editing, setEditing] = useState<PodcastEpisode | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [episodeToDelete, setEpisodeToDelete] = useState<PodcastEpisode | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioFileRef = useRef<HTMLInputElement>(null);
+  const videoFileRef = useRef<HTMLInputElement>(null);
   const [current, setCurrent] = useState<PodcastEpisode | null>(null);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
@@ -82,6 +109,12 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   const [volume, setVolume] = useState(1);
   const [playbackError, setPlaybackError] = useState("");
   const liveKickChannel = extractKickChannelName(liveUrl);
+  const currentEmbedUrl = current?.streamUrl
+    ? getAutoplayStreamingEmbedUrl(current.streamUrl, current.platformType)
+    : null;
+  const currentUsesVideo = Boolean(current?.videoUrl || (
+    current?.streamUrl && !currentEmbedUrl && isDirectVideoUrl(current.streamUrl)
+  ));
 
   const loadEpisodes = async () => {
     setLoading(true);
@@ -188,11 +221,21 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
 
   const toggleLivePreview = async () => {
     const audio = liveAudioRef.current;
-    if (!audio) return;
     if (livePlaying) {
       livePlayRequestedRef.current = false;
-      audio.pause();
+      audio?.pause();
+      liveVideoRef.current?.pause();
+      setLiveEmbedUrl("");
       setLivePlaying(false);
+      return;
+    }
+    if (isDirectVideoUrl(liveUrl)) {
+      const video = liveVideoRef.current;
+      if (!video) return;
+      video.src = liveUrl.trim();
+      video.load();
+      try { await video.play(); setLivePlaying(true); }
+      catch { setError("No se pudo reproducir el video en vivo."); setLivePlaying(false); }
       return;
     }
     if (liveKickChannel) {
@@ -210,6 +253,21 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
       } finally { setLiveLoading(false); }
       return;
     }
+    const livePlatform = detectStreamingPlatform(liveUrl);
+    if (livePlatform === "youtube" || livePlatform === "twitch") {
+      const embedUrl = getAutoplayStreamingEmbedUrl(liveUrl, livePlatform);
+      if (!embedUrl) {
+        setError("No se pudo generar el reproductor oficial para esta URL.");
+        return;
+      }
+      audioRef.current?.pause();
+      videoRef.current?.pause();
+      setPlaying(false);
+      setLiveEmbedUrl(embedUrl);
+      setLivePlaying(true);
+      return;
+    }
+    if (!audio) return;
     if (!isDirectAudioUrl(liveUrl)) {
       setError("La URL de audio no es válida.");
       return;
@@ -230,6 +288,10 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
     setForm({
       ...episode,
       coverImageUrl: episode.coverImageUrl ?? "",
+      audioUrl: episode.audioUrl ?? "",
+      videoUrl: episode.videoUrl ?? "",
+      streamUrl: episode.streamUrl ?? "",
+      platformType: episode.platformType ?? "direct",
       duration: episode.duration ?? "",
       publishedAt: episode.publishedAt ?? "",
     });
@@ -239,15 +301,54 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleMediaUpload = async (event: React.ChangeEvent<HTMLInputElement>, field: "audioUrl" | "videoUrl") => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const expectedType = field === "audioUrl" ? "audio" : "video";
+    const extension = file.name.toLowerCase().split(".").pop() ?? "";
+    const allowedExtensions = field === "audioUrl"
+      ? ["mp3", "aac", "m4a", "ogg", "wav", "flac", "opus"]
+      : ["mp4", "m4v", "webm", "ogv", "mov"];
+    if (!file.type.startsWith(`${expectedType}/`) && !allowedExtensions.includes(extension)) {
+      setError(`Seleccioná un archivo de ${expectedType === "audio" ? "audio" : "video"} compatible.`);
+      return;
+    }
+    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+      setError("Falta configurar el almacenamiento de archivos multimedia.");
+      return;
+    }
+    setUploadingMedia(true);
+    setError("");
+    try {
+      const url = await uploadPodcastMedia(file);
+      updateField(field, url);
+      updateField("platformType", "direct");
+    } catch (uploadError) {
+      console.error(uploadError);
+      setError("No se pudo subir el archivo. Verificá el preset de Cloudinary.");
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
   const saveEpisode = async () => {
-    if (!form.title.trim() || !form.podcastName.trim() || !form.audioUrl.trim()) {
-      setError("Completá título, nombre del podcast y URL del audio.");
+    const hasMedia = Boolean(form.audioUrl?.trim() || form.videoUrl?.trim() || form.streamUrl?.trim());
+    if (!form.title.trim() || !form.podcastName.trim() || !hasMedia) {
+      setError("Completá título, nombre del podcast y al menos una fuente de audio, video o stream.");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      const saved = editing ? await actualizarPodcast(tenantId, editing.id, form) : await crearPodcast(tenantId, form);
+      const payload: PodcastEpisodePayload = {
+        ...form,
+        audioUrl: form.audioUrl?.trim() || undefined,
+        videoUrl: form.videoUrl?.trim() || undefined,
+        streamUrl: form.streamUrl?.trim() || undefined,
+        coverImageUrl: form.coverImageUrl?.trim() || undefined,
+      };
+      const saved = editing ? await actualizarPodcast(tenantId, editing.id, payload) : await crearPodcast(tenantId, payload);
       setEpisodes((prev) => editing
         ? prev.map((item) => item.id === saved.id ? saved : item)
         : [saved, ...prev]);
@@ -259,22 +360,55 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
 
   const playEpisode = async (episode: PodcastEpisode) => {
     const audio = audioRef.current;
-    if (!audio) return;
     setPlaybackError("");
     liveAudioRef.current?.pause();
+    liveVideoRef.current?.pause();
+    setLiveEmbedUrl("");
     setLivePlaying(false);
     if (current?.id === episode.id && playing) {
-      audio.pause();
+      audio?.pause();
+      videoRef.current?.pause();
       setPlaying(false);
       return;
     }
+
+    const streamUrl = episode.streamUrl?.trim() ?? "";
+    const embedUrl = streamUrl ? getAutoplayStreamingEmbedUrl(streamUrl, episode.platformType) : null;
+    const directStreamVideo = streamUrl && !embedUrl && isDirectVideoUrl(streamUrl) ? streamUrl : "";
+    const videoUrl = episode.videoUrl?.trim() || directStreamVideo;
+    const audioUrl = episode.audioUrl?.trim()
+      || (streamUrl && !embedUrl && !videoUrl && isDirectAudioUrl(streamUrl) ? streamUrl : "");
+
+    if (!embedUrl && !videoUrl && !audioUrl) {
+      setPlaybackError("No hay una fuente reproducible. Usá una URL directa o un embed compatible de YouTube, Twitch o Kick.");
+      return;
+    }
+
+    audio?.pause();
+    videoRef.current?.pause();
+    setCurrent(episode);
+    setPosition(0);
+    if (embedUrl) {
+      setPlaying(true);
+      return;
+    }
+
+    if (videoUrl) {
+      const video = videoRef.current;
+      if (!video) return;
+      video.src = videoUrl;
+      video.load();
+      try { await video.play(); setPlaying(true); }
+      catch { setPlaying(false); setPlaybackError("No se pudo reproducir este video. Revisá la URL y el acceso del servidor."); }
+      return;
+    }
+
+    if (!audio || !audioUrl) return;
     if (current?.id !== episode.id) {
-      audio.src = episode.audioUrl;
-      setCurrent(episode);
-      setPosition(0);
+      audio.src = audioUrl;
     }
     try { await audio.play(); setPlaying(true); }
-    catch { setPlaying(false); setPlaybackError("No se pudo reproducir este audio. Revisá la URL del episodio."); }
+    catch { setPlaying(false); setPlaybackError("No se pudo reproducir esta fuente. Revisá la URL del episodio."); }
   };
 
   const deleteEpisode = async () => {
@@ -295,6 +429,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   return (
     <Box>
       <audio ref={liveAudioRef} onPause={() => setLivePlaying(false)} onEnded={() => setLivePlaying(false)} onError={() => { setLivePlaying(false); setError("La URL de la señal en vivo no está disponible."); }} />
+      <video ref={liveVideoRef} playsInline aria-hidden="true" tabIndex={-1} style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} onPause={() => setLivePlaying(false)} onEnded={() => setLivePlaying(false)} onError={() => { setLivePlaying(false); setError("El video directo en vivo no está disponible."); }} />
       <audio
         ref={audioRef}
         preload="metadata"
@@ -305,6 +440,22 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
         onEnded={() => setPlaying(false)}
         onError={() => setPlaybackError("No se pudo cargar el audio seleccionado.")}
       />
+      <video
+        ref={videoRef}
+        playsInline
+        preload="metadata"
+        aria-hidden="true"
+        tabIndex={-1}
+        style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
+        onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onError={() => setPlaybackError("No se pudo cargar el video seleccionado.")}
+      />
+      {liveEmbedUrl && <Box component="iframe" src={liveEmbedUrl} title="Reproductor externo de Podcast" allow="autoplay; encrypted-media; picture-in-picture" sx={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none", border: "none" }} />}
+      {currentEmbedUrl && playing && <Box component="iframe" src={currentEmbedUrl} title="Reproductor externo del episodio" allow="autoplay; encrypted-media; picture-in-picture" sx={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none", border: "none" }} />}
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2, mb: 3, flexWrap: "wrap" }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 800, mb: 0.75 }}>Podcast</Typography>
@@ -320,19 +471,24 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
         </Stack>
       )}
 
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "7fr 5fr" }, gap: 3, alignItems: "start", mb: 4 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0, 7fr) minmax(280px, 5fr)" }, gap: 3, alignItems: "start", mb: 4 }}>
         <Card variant="outlined">
           <CardContent>
             <Typography sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" }}>
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>podcasts</span>
               Señal de Podcast en vivo
             </Typography>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 }}>Link de audio en vivo</Typography>
-            <TextField fullWidth size="small" value={liveUrl} onChange={(event) => setLiveUrl(event.target.value)} placeholder="https://servidor.com:puerto/stream.mp3" sx={{ mb: 1, "& .MuiInputBase-input": { fontFamily: "monospace", fontSize: 13 } }} />
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>Usá una URL directa de audio MP3, AAC, M4A, WAV u otra compatible. No es un enlace de video.</Typography>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 }}>URL de la señal en vivo</Typography>
+            <TextField fullWidth size="small" value={liveUrl} onChange={(event) => {
+              const value = event.target.value;
+              const platform = detectStreamingPlatform(value);
+              setLiveUrl(value);
+              if (["youtube", "twitch", "kick"].includes(platform)) setLiveProvider(platform);
+            }} placeholder="Audio directo, YouTube, Twitch o Kick" sx={{ mb: 1, "& .MuiInputBase-input": { fontFamily: "monospace", fontSize: 13 } }} />
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>Acepta URLs directas de audio/video y canales compatibles de YouTube, Twitch o Kick.</Typography>
             <Typography sx={{ fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 }}>Proveedor</Typography>
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", border: "1px solid", borderColor: "divider", mb: 3, borderRadius: 1, overflow: "hidden" }}>
-              {[{ value: "direct", label: "Audio directo" }, { value: "icecast", label: "Icecast / Radio" }].map((option) => (
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(3, 1fr)" }, border: "1px solid", borderColor: "divider", mb: 3, borderRadius: 1, overflow: "hidden" }}>
+              {[{ value: "direct", label: "Directo" }, { value: "icecast", label: "Icecast / Radio" }, { value: "youtube", label: "YouTube" }, { value: "twitch", label: "Twitch" }, { value: "kick", label: "Kick" }, { value: "other", label: "Otra URL directa" }].map((option) => (
                 <Box key={option.value} onClick={() => setLiveProvider(option.value)} sx={{ textAlign: "center", py: 1.25, cursor: "pointer", fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", bgcolor: liveProvider === option.value ? "primary.main" : "transparent", color: liveProvider === option.value ? "primary.contrastText" : "text.primary", "&:hover": { bgcolor: liveProvider === option.value ? "primary.main" : "action.hover" } }}>{option.label}</Box>
               ))}
             </Box>
@@ -392,12 +548,14 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
           <Box sx={{ minWidth: 150, flex: 1 }}><Typography variant="caption" color="text.secondary">Reproduciendo ahora</Typography><Typography sx={{ fontWeight: 800 }} noWrap>{current.title}</Typography></Box>
           <IconButton onClick={() => void playEpisode(current)} aria-label={playing ? "Pausar audio" : "Reproducir audio"}><span className="material-symbols-outlined">{playing ? "pause" : "play_arrow"}</span></IconButton>
+          {!currentUsesVideo && !currentEmbedUrl && <>
           <IconButton aria-label="Retroceder 10 segundos" onClick={() => { if (audioRef.current) audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10); }}><span className="material-symbols-outlined">replay_10</span></IconButton>
           <Typography variant="caption">{formatTime(position)}</Typography>
           <Slider size="small" value={duration ? position : 0} max={duration || 1} onChange={(_, value) => { const next = Array.isArray(value) ? value[0] : value; if (audioRef.current) audioRef.current.currentTime = next; setPosition(next); }} sx={{ flex: { xs: "1 1 100%", sm: 2 }, minWidth: 120 }} aria-label="Progreso del audio" />
           <Typography variant="caption">{formatTime(duration)}</Typography><span className="material-symbols-outlined">volume_up</span>
           <IconButton aria-label="Avanzar 10 segundos" onClick={() => { if (audioRef.current) audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 10); }}><span className="material-symbols-outlined">forward_10</span></IconButton>
           <Slider size="small" value={volume} min={0} max={1} step={0.01} onChange={(_, value) => { const next = Array.isArray(value) ? value[0] : value; setVolume(next); if (audioRef.current) audioRef.current.volume = next; }} sx={{ width: 90 }} aria-label="Volumen" />
+          </>}
         </Box>
       </CardContent></Card>}
 
@@ -407,12 +565,30 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
           <TextField label="Título" value={form.title} onChange={(event) => updateField("title", event.target.value)} required />
           <TextField label="Nombre del podcast" value={form.podcastName} onChange={(event) => updateField("podcastName", event.target.value)} required />
           <TextField label="Descripción" value={form.description} onChange={(event) => updateField("description", event.target.value)} multiline minRows={3} />
-          <TextField label="URL directa del audio" placeholder="https://.../episodio.mp3" value={form.audioUrl} onChange={(event) => updateField("audioUrl", event.target.value)} required helperText="Usá una URL directa MP3, M4A, WAV u otro formato compatible." />
-          <TextField label="URL de portada" value={form.coverImageUrl} onChange={(event) => updateField("coverImageUrl", event.target.value)} />
+          <Box>
+            <TextField fullWidth label="URL directa del audio" placeholder="https://.../episodio.mp3" value={form.audioUrl ?? ""} onChange={(event) => updateField("audioUrl", event.target.value)} helperText="Opcional si cargás video o un stream." />
+            <input ref={audioFileRef} type="file" accept="audio/*,.mp3,.aac,.m4a,.ogg,.wav,.flac,.opus" hidden onChange={(event) => void handleMediaUpload(event, "audioUrl")} />
+            <Button size="small" onClick={() => audioFileRef.current?.click()} disabled={uploadingMedia}>{uploadingMedia ? "Subiendo archivo..." : "Subir archivo de audio"}</Button>
+          </Box>
+          <Box>
+            <TextField fullWidth label="URL directa del video" placeholder="https://.../episodio.mp4" value={form.videoUrl ?? ""} onChange={(event) => updateField("videoUrl", event.target.value)} helperText="El video se reproduce oculto detrás de la portada; su audio permanece activo." />
+            <input ref={videoFileRef} type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.mov" hidden onChange={(event) => void handleMediaUpload(event, "videoUrl")} />
+            <Button size="small" onClick={() => videoFileRef.current?.click()} disabled={uploadingMedia}>{uploadingMedia ? "Subiendo archivo..." : "Subir archivo de video"}</Button>
+          </Box>
+          <TextField label="URL del stream o plataforma" placeholder="https://youtube.com/watch?v=..." value={form.streamUrl ?? ""} onChange={(event) => {
+            const value = event.target.value;
+            updateField("streamUrl", value);
+            const platform = detectStreamingPlatform(value);
+            if (platform !== "direct") updateField("platformType", platform);
+          }} helperText="YouTube, Twitch y Kick usan embeds oficiales. Otras fuentes deben ofrecer una URL multimedia directa." />
+          <TextField select label="Tipo de plataforma" value={form.platformType ?? "direct"} onChange={(event) => updateField("platformType", event.target.value as PodcastPlatformType)} slotProps={{ select: { native: true } }}>
+            <option value="direct">URL directa</option><option value="youtube">YouTube</option><option value="twitch">Twitch</option><option value="kick">Kick</option><option value="other">Otra / enlace directo</option>
+          </TextField>
+          <TextField label="URL de portada / poster" value={form.coverImageUrl ?? ""} onChange={(event) => updateField("coverImageUrl", event.target.value)} />
           <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}><TextField label="Duración" placeholder="12:30" value={form.duration} onChange={(event) => updateField("duration", event.target.value)} /><TextField label="Fecha de publicación" type="date" value={form.publishedAt ? form.publishedAt.slice(0, 10) : ""} onChange={(event) => updateField("publishedAt", event.target.value)} slotProps={{ inputLabel: { shrink: true } }} /></Box>
           <TextField select label="Estado" value={form.status} onChange={(event) => updateField("status", event.target.value as PodcastEpisodeStatus)} slotProps={{ select: { native: true } }}><option value="draft">Borrador</option><option value="published">Publicado</option></TextField>
         </Stack></DialogContent>
-        <DialogActions><Button onClick={closeForm}>Cancelar</Button><Button variant="contained" onClick={() => void saveEpisode()} disabled={saving}>{saving ? "Guardando..." : "Guardar"}</Button></DialogActions>
+        <DialogActions><Button onClick={closeForm}>Cancelar</Button><Button variant="contained" onClick={() => void saveEpisode()} disabled={saving || uploadingMedia}>{saving ? "Guardando..." : "Guardar"}</Button></DialogActions>
       </Dialog>
       <Dialog open={Boolean(episodeToDelete)} onClose={() => setEpisodeToDelete(null)}><DialogTitle>Eliminar episodio</DialogTitle><DialogContent><Typography>¿Querés eliminar “{episodeToDelete?.title}”?</Typography></DialogContent><DialogActions><Button onClick={() => setEpisodeToDelete(null)}>Cancelar</Button><Button color="error" variant="contained" onClick={() => void deleteEpisode()}>Eliminar</Button></DialogActions></Dialog>
     </Box>
