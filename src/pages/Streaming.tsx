@@ -18,6 +18,7 @@ import { puedeVerSeccion } from "../utils/permisos";
 import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";
 import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
 import { buildYoutubeChannelEmbedUrl } from "../services/youtube.service";
+import { getSignalStatus, getStreamData, type StreamData } from "../services/stream.service";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
@@ -84,6 +85,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   });
   const [youtubeChannelId, setYoutubeChannelId] = useState<string | null>(() => t?.youtubeChannelId ?? null);
   const [kickData, setKickData] = useState<KickStreamData | null>(null);
+  const [streamStatusData, setStreamStatusData] = useState<StreamData | null>(null);
   const [kickAudioUrl, setKickAudioUrl] = useState<string | null>(null);
   const [tipoTransmision, setTipoTransmision] = useState<string>(() => {
     const valor = t?.tipoTransmision ?? getStoredValue("tipoTransmision");
@@ -220,6 +222,43 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       if (intervalId) clearInterval(intervalId);
     };
   }, [channelName, streamProvider]);
+
+  useEffect(() => {
+    let active = true;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const refreshProviderStreamData = async () => {
+      if (!streamUrl || !streamProvider || streamProvider === "kick" || !perfil.tenant?.slug) {
+        setStreamStatusData(null);
+        return;
+      }
+
+      try {
+        const data = await getStreamData(streamUrl, streamProvider as "youtube" | "twitch", perfil.tenant.slug);
+        if (!active) return;
+
+        setStreamStatusData(data);
+
+        if (data?.isLive && !intervalId) {
+          intervalId = setInterval(refreshProviderStreamData, 30_000);
+        }
+
+        if (!data?.isLive && intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      } catch (error) {
+        console.error(`Error fetching ${streamProvider} stream status:`, error);
+      }
+    };
+
+    void refreshProviderStreamData();
+
+    return () => {
+      active = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [perfil.tenant?.slug, streamProvider, streamUrl]);
 
   useEffect(() => {
     const fetchKickAudio = async () => {
@@ -422,9 +461,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     setIsPlaying(false);
   };
 
-  const estado = kickData?.isLive
-    ? { label: "Conectado", conectado: true }
-    : { label: "Desconectado", conectado: false };
+  const signalData = streamProvider === "kick" ? kickData : streamStatusData;
+  const estado = getSignalStatus(streamProvider, signalData);
 
   const handlePortada = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

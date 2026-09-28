@@ -3,7 +3,25 @@ import type { KickStreamData } from "./kick.service";
 export type StreamProvider = "kick" | "youtube" | "twitch" | null;
 export type StreamData = KickStreamData;
 
+export type SignalStatus = {
+  label: "Conectado" | "Desconectado";
+  conectado: boolean;
+};
+
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+
+export function getSignalStatus(
+  provider: string | StreamProvider | null | undefined,
+  data?: Partial<StreamData> | null,
+): SignalStatus {
+  const isLive = Boolean(data?.isLive);
+  if (provider && provider !== "kick" && !data) {
+    return { label: "Desconectado", conectado: false };
+  }
+  return isLive
+    ? { label: "Conectado", conectado: true }
+    : { label: "Desconectado", conectado: false };
+}
 
 function calcularDuracionStream(isLive: boolean | undefined, startedAt?: string | null) {
   if (!isLive || !startedAt) return 0;
