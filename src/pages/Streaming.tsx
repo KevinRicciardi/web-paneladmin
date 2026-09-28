@@ -16,7 +16,7 @@ import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
 import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";
-import { detectStreamingPlatform, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
+import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
 import { buildYoutubeChannelEmbedUrl } from "../services/youtube.service";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -100,8 +100,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [audioLoading, setAudioLoading] = useState(false);
   const [kickIframeSrc, setKickIframeSrc] = useState<string | null>(null);
   const [kickIframePlaying, setKickIframePlaying] = useState(false);
-  const [youtubeAudioSrc, setYoutubeAudioSrc] = useState<string | null>(null);
-  const [youtubeAudioPlaying, setYoutubeAudioPlaying] = useState(false);
+  const [externalAudioSrc, setExternalAudioSrc] = useState<string | null>(null);
+  const [externalAudioPlaying, setExternalAudioPlaying] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
   const [originalCoverSource, setOriginalCoverSource] = useState<string | null>(null);
@@ -126,7 +126,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const audioUrl = rawAudioUrl && !isHlsStream ? rawAudioUrl : null;
   const useKickIframeFallback = esPodcast && Boolean(channelName) && !audioUrl;
   const kickIframeUrl = useKickIframeFallback && channelName ? `https://player.kick.com/${channelName}` : null;
-  const useYoutubeAudioFallback = esPodcast && streamProvider === "youtube" && Boolean(youtubeEmbedUrl);
+  const externalAudioUrl = streamProvider === "youtube"
+    ? youtubeEmbedUrl
+    : getAutoplayStreamingEmbedUrl(streamUrl, detectStreamingPlatform(streamUrl));
+  const useExternalAudioFallback = esPodcast && Boolean(externalAudioUrl)
+    && (streamProvider === "youtube" || streamProvider === "twitch");
 
   useEffect(() => {
     const video = videoRef.current;
@@ -149,11 +153,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   }, [useKickIframeFallback]);
 
   useEffect(() => {
-    if (!useYoutubeAudioFallback) {
-      setYoutubeAudioSrc(null);
-      setYoutubeAudioPlaying(false);
+    if (!useExternalAudioFallback) {
+      setExternalAudioSrc(null);
+      setExternalAudioPlaying(false);
     }
-  }, [useYoutubeAudioFallback]);
+  }, [useExternalAudioFallback]);
 
   useEffect(() => {
     if (t?.streamUrl) {
@@ -364,17 +368,17 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       return;
     }
 
-    if (useYoutubeAudioFallback) {
-      if (!youtubeEmbedUrl) return;
-      if (youtubeAudioSrc) {
-        setYoutubeAudioSrc(null);
-        setYoutubeAudioPlaying(false);
+    if (useExternalAudioFallback) {
+      if (!externalAudioUrl) return;
+      if (externalAudioSrc) {
+        setExternalAudioSrc(null);
+        setExternalAudioPlaying(false);
         setIsPlaying(false);
         return;
       }
 
-      setYoutubeAudioSrc(`${youtubeEmbedUrl}&autoplay=1`);
-      setYoutubeAudioPlaying(true);
+      setExternalAudioSrc(externalAudioUrl);
+      setExternalAudioPlaying(true);
       setIsPlaying(true);
       return;
     }
@@ -589,7 +593,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 const value = e.target.value;
                 const detectedProvider = detectStreamingPlatform(value);
                 setStreamUrl(value);
-                if (detectedProvider !== "direct" && detectedProvider !== "other") setStreamProvider(detectedProvider);
+                if (isDirectVideoUrl(value) || getDirectAudioUrl(value)) {
+                  setStreamProvider("direct");
+                } else if (detectedProvider !== "direct" && detectedProvider !== "other") {
+                  setStreamProvider(detectedProvider);
+                }
                 setSuccess(false);
               }}
               fullWidth
@@ -772,7 +780,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 />
               </Box>
             ) : esPodcast ? (
-              useYoutubeAudioFallback ? (
+              useExternalAudioFallback ? (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <Box
                     sx={{
@@ -838,18 +846,17 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                         }}
                       >
                         <span className="material-symbols-outlined">
-                          {youtubeAudioPlaying ? "pause" : "play_arrow"}
+                          {externalAudioPlaying ? "pause" : "play_arrow"}
                         </span>
                       </Box>
                     </Box>
                   </Box>
 
-                  {/* Iframe de YouTube realmente oculto: sigue sonando pero no se ve el video */}
-                  {youtubeAudioSrc && (
+                  {externalAudioSrc && (
                     <Box
                       component="iframe"
-                      src={youtubeAudioSrc}
-                      title="YouTube audio player"
+                      src={externalAudioSrc}
+                      title={`${streamProvider} audio player`}
                       allow="autoplay; encrypted-media"
                       sx={{
                         position: "absolute",
@@ -865,10 +872,10 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
                   <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 1 }}>
                     <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
-                      {youtubeAudioPlaying ? "Reproduciendo audio de YouTube" : "Tocá la portada para reproducir"}
+                      {externalAudioPlaying ? `Reproduciendo audio de ${streamProvider}` : "Tocá la portada para reproducir"}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      YouTube no permite extraer solo el audio: se reproduce el video oficial de YouTube oculto en segundo plano, así que solo se escucha.
+                      Se usa el reproductor oficial oculto en segundo plano; la portada permanece visible.
                     </Typography>
                   </Box>
                 </Box>
