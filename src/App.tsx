@@ -2,7 +2,7 @@ import { lazy, Suspense, useState, useEffect } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Box, CircularProgress } from "@mui/material";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import type { Perfil } from "./types";
 import { getCachedAuthHeaders } from "./services/authenticatedFetch";
 
@@ -15,7 +15,6 @@ const Soporte = lazy(() => import("./pages/Soporte"));
 const Streaming = lazy(() => import("./pages/Streaming"));
 const Programacion = lazy(() => import("./pages/Programacion"));
 const Noticias = lazy(() => import("./pages/Noticias"));
-const Podcast = lazy(() => import("./pages/Podcast"));
 const Estadisticas = lazy(() => import("./pages/Estadisticas"));
 const Administradores = lazy(() => import("./pages/Administradores"));
 const GenerarApp = lazy(() => import("./pages/GenerarApp"));
@@ -113,9 +112,9 @@ function App() {
                   <Route path="/" element={<Dashboard perfil={perfil} />} />
                   <Route path="/branding" element={<Branding perfil={perfil} />} />
                   <Route path="/streaming" element={<Streaming perfil={perfil} />} />
+                  <Route path="/podcast" element={<Navigate to="/streaming" replace />} />
                   <Route path="/programacion" element={<Programacion />} />
                   <Route path="/noticias" element={<Noticias />} />
-                  <Route path="/podcast" element={<Podcast perfil={perfil} />} />
                   <Route path="/estadisticas" element={<Estadisticas />} />
                   <Route path="/administradores" element={<Administradores />} />
                   <Route path="/generar-app" element={<GenerarApp perfil={perfil} />} />

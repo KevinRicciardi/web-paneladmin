@@ -91,6 +91,8 @@ export interface NewsPayload {
 
 export type PodcastEpisodeStatus = "draft" | "published";
 
+export type PodcastPlatformType = "direct" | "youtube" | "twitch" | "kick" | "other";
+
 export interface PodcastEpisode {
   id: number;
   tenantId: number;
@@ -98,7 +100,10 @@ export interface PodcastEpisode {
   description: string;
   podcastName: string;
   coverImageUrl?: string | null;
-  audioUrl: string;
+  audioUrl?: string | null;
+  videoUrl?: string | null;
+  streamUrl?: string | null;
+  platformType?: PodcastPlatformType | null;
   duration?: string | null;
   publishedAt?: string | null;
   status: PodcastEpisodeStatus;
@@ -111,7 +116,10 @@ export interface PodcastEpisodePayload {
   description: string;
   podcastName: string;
   coverImageUrl?: string;
-  audioUrl: string;
+  audioUrl?: string;
+  videoUrl?: string;
+  streamUrl?: string;
+  platformType?: PodcastPlatformType;
   duration?: string;
   publishedAt?: string;
   status: PodcastEpisodeStatus;
