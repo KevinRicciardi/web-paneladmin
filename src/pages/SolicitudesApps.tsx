@@ -17,7 +17,11 @@ import {
   Typography,
 } from "@mui/material";
 import type { BuildRequest, BuildRequestStatus } from "../types";
-import { actualizarEstadoSolicitud, listarSolicitudes } from "../services/buildRequests.service";
+import {
+  actualizarEstadoSolicitud,
+  descargarAab,
+  listarSolicitudes,
+} from "../services/buildRequests.service";
 
 const TRANSICIONES: Record<BuildRequestStatus, BuildRequestStatus[]> = {
   PENDING: ["IN_PROGRESS", "WAITING_CLIENT", "CANCELLED"],
@@ -204,6 +208,7 @@ function DetalleSolicitud({
 }) {
   const [internalNotes, setInternalNotes] = useState("");
   const [aplicando, setAplicando] = useState<BuildRequestStatus | null>(null);
+  const [descargando, setDescargando] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -229,6 +234,20 @@ function DetalleSolicitud({
     }
   };
 
+  const handleDescargar = async () => {
+    setDescargando(true);
+    setError("");
+
+    try {
+      const nombre = `${solicitud.tenant?.slug ?? solicitud.tenantId}-${solicitud.id}.aab`;
+      await descargarAab(solicitud.id, nombre);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo descargar el .aab");
+    } finally {
+      setDescargando(false);
+    }
+  };
+
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { bgcolor: "#161616", borderColor: "divider" } } }}>
       <DialogTitle sx={{ fontWeight: 900 }}>
@@ -238,8 +257,24 @@ function DetalleSolicitud({
         <Stack spacing={2}>
           {error && <Alert severity="error">{error}</Alert>}
 
-          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
             <Chip size="small" label={statusLabel(solicitud.status)} color={statusColor(solicitud.status)} />
+            {solicitud.artifactPath && (
+              <Button
+                size="small"
+                variant="contained"
+                disabled={descargando}
+                onClick={handleDescargar}
+                sx={{
+                  bgcolor: "#fff",
+                  color: "#000",
+                  fontWeight: 700,
+                  "&:hover": { bgcolor: "#e0e0e0" },
+                }}
+              >
+                {descargando ? "Descargando..." : "Descargar .aab"}
+              </Button>
+            )}
           </Box>
 
           <Typography variant="body2" color="text.secondary">
