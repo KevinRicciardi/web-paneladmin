@@ -139,3 +139,23 @@ export async function actualizarEstadoSolicitud(
 
   return parseResponse<BuildRequest>(res);
 }
+
+/// Etapa 4: el .aab vive en disco del servidor, detrás del mismo auth
+/// de MEGA_ADMIN — no hay link público, hay que pedirlo con el token y
+/// bajarlo como blob para poder disparar la descarga en el navegador.
+export async function descargarAab(id: number, nombreSugerido: string): Promise<void> {
+  const headers = await getAuthHeaders();
+
+  const res = await fetch(`${API_URL}/build-requests/${id}/download`, { headers });
+  if (!res.ok) {
+    throw new Error("No se pudo descargar el .aab");
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nombreSugerido;
+  link.click();
+  URL.revokeObjectURL(url);
+}
