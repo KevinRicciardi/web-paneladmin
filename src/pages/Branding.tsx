@@ -831,6 +831,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       icon: key.startsWith("custom:") || key === "websiteUrl" ? null : PREVIEW_SOCIAL_ICONS[socialKey],
       iconColor: key.startsWith("custom:") || key === "websiteUrl"
         ? colores.botones
+        : key === "twitterUrl" || key === "tiktokUrl" || key === "linkedinUrl"
+          ? contraste(colores.cardFondo)
         : PREVIEW_SOCIAL_COLORS[socialKey],
       isSymbol: key === "websiteUrl",
     }];
