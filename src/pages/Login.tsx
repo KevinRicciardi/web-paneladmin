@@ -13,6 +13,8 @@ import {
   Typography,
   Alert,
   Stack,
+  IconButton,
+  InputAdornment,
 } from "@mui/material";
 
 interface LoginProps {
@@ -22,6 +24,7 @@ interface LoginProps {
 export default function Login({ error }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [errorLocal, setErrorLocal] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -85,11 +88,50 @@ export default function Login({ error }: LoginProps) {
                 />
                 <TextField
                   label="Contraseña"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   fullWidth
                   autoComplete="current-password"
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                            onClick={() => setShowPassword((visible) => !visible)}
+                            edge="end"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              {showPassword ? (
+                                <>
+                                  <path d="M3 3l18 18" />
+                                  <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                                  <path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c5 0 8.5 4.2 9.5 7-.4 1.1-1.2 2.3-2.4 3.4" />
+                                  <path d="M6.2 6.2C4.2 7.5 2.9 9.5 2.5 12c.6 1.7 1.9 3.4 4 4.8A9.7 9.7 0 0 0 12 19c1 0 1.9-.1 2.8-.4" />
+                                </>
+                              ) : (
+                                <>
+                                  <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" />
+                                  <circle cx="12" cy="12" r="3" />
+                                </>
+                              )}
+                            </svg>
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
                 />
                 <Button type="submit" variant="contained" fullWidth size="large" disabled={loading}>
                   {loading ? "Ingresando..." : "Iniciar sesión"}
