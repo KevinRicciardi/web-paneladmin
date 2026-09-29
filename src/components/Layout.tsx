@@ -58,10 +58,18 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
     perfil.rol === "MEGA_ADMIN" ? "MegaAdmin" : perfil.rol === "SUPER_ADMIN" ? "SuperAdmin" : "Admin";
   const etiquetaCargo = perfil.rol === "ADMIN" && perfil.cargo ? ` ${perfil.cargo}` : "";
   const subtitulo = `${nombreUsuario} - ${etiquetaRol}${etiquetaCargo}`;
-  const navItemsVisibles = navItemsBase.filter((item) =>
-    puedeVerSeccion(perfil, item.seccion)
-    || (item.to === "/streaming" && puedeVerSeccion(perfil, "podcast"))
-  );
+  const navItemsVisibles = navItemsBase.filter((item) => {
+    // "Generar App" es para que el SUPER_ADMIN pida la compilación de
+    // SU tenant — a un MEGA_ADMIN no le corresponde, y mostrárselo
+    // genera confusión con "Solicitudes de Apps" (su cola de todos los
+    // tenants), que es la sección que sí usa.
+    if (item.to === "/generar-app" && perfil.rol === "MEGA_ADMIN") return false;
+
+    return (
+      puedeVerSeccion(perfil, item.seccion)
+      || (item.to === "/streaming" && puedeVerSeccion(perfil, "podcast"))
+    );
+  });
   // TEMP: mientras haya cuentas MEGA_ADMIN mal asignadas por el bug de
   // /auth/register, dejamos que MEGA_ADMIN también vea "Administradores".
   // Corregir esto en regla (solo SUPER_ADMIN) una vez reclasificadas.
