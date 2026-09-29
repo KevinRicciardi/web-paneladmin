@@ -283,6 +283,9 @@ export interface BuildRequest {
   status: BuildRequestStatus;
   notes?: string | null;
   internalNotes?: string | null;
+  /// Presente cuando el worker ya compiló y subió el .aab a Supabase
+  /// Storage — con esto el panel muestra el botón de descarga.
+  artifactPath?: string | null;
   publishInfo?: BuildRequestPublishInfo | null;
   createdAt: string;
   updatedAt: string;
