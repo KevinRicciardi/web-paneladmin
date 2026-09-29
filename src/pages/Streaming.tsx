@@ -15,7 +15,7 @@ import { auth } from "../firebase";
 import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
-import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";
+import { extractKickChannelName, getKickAudioUrl } from "../services/kick.service";
 import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
 import { buildYoutubeChannelEmbedUrl } from "../services/youtube.service";
 import { getSignalStatus, getStreamData, type StreamData } from "../services/stream.service";
@@ -78,20 +78,25 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const canViewStreaming = puedeVerSeccion(perfil, "streaming");
   const canViewPodcast = puedeVerSeccion(perfil, "podcast");
   const t = perfil.tenant;
-  const [streamUrl, setStreamUrl] = useState<string>(() => t?.streamUrl ?? getStoredValue("streamUrl"));
+  const [streamUrl, setStreamUrl] = useState<string>(() => (
+    t?.tipoTransmision === "audio" ? t.podcastUrl || t.streamUrl : t?.streamUrl
+  ) ?? getStoredValue("streamUrl"));
   const [streamProvider, setStreamProvider] = useState<string>(() => {
-    const valor = t?.streamProvider ?? getStoredValue("streamProvider");
+    const valor = (t?.tipoTransmision === "audio" ? t.podcastProvider || t.streamProvider : t?.streamProvider)
+      ?? getStoredValue("streamProvider");
     return valor || "kick";
   });
   const [youtubeChannelId, setYoutubeChannelId] = useState<string | null>(() => t?.youtubeChannelId ?? null);
-  const [kickData, setKickData] = useState<KickStreamData | null>(null);
   const [streamStatusData, setStreamStatusData] = useState<StreamData | null>(null);
+  const [signalLoading, setSignalLoading] = useState(true);
   const [kickAudioUrl, setKickAudioUrl] = useState<string | null>(null);
   const [tipoTransmision, setTipoTransmision] = useState<string>(() => {
     const valor = t?.tipoTransmision ?? getStoredValue("tipoTransmision");
     return valor || "video";
   });
-  const [imagenPortada, setImagenPortada] = useState<string>(() => t?.imagenPortada ?? "");
+  const [imagenPortada, setImagenPortada] = useState<string>(() => (
+    t?.tipoTransmision === "audio" ? t.podcastImagenPortada || t.imagenPortada : t?.imagenPortada
+  ) ?? "");
   const [uploadingPortada, setUploadingPortada] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -125,11 +130,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const rawAudioUrl = kickAudioUrl || (streamUrl ? getDirectAudioUrl(streamUrl) : null);
   const directVideoUrl = esPodcast && streamUrl && isDirectVideoUrl(streamUrl) ? streamUrl : null;
   const isHlsStream = rawAudioUrl ? isHlsUrl(rawAudioUrl) : false;
-  const audioUrl = rawAudioUrl && !isHlsStream ? rawAudioUrl : null;
+  const audioUrl = rawAudioUrl;
   const useKickIframeFallback = esPodcast && Boolean(channelName) && !audioUrl;
   const kickIframeUrl = useKickIframeFallback && channelName ? `https://player.kick.com/${channelName}` : null;
   const externalAudioUrl = streamProvider === "youtube"
-    ? youtubeEmbedUrl
+    ? youtubeEmbedUrl ? `${youtubeEmbedUrl}&autoplay=1&playsinline=1` : null
     : getAutoplayStreamingEmbedUrl(streamUrl, detectStreamingPlatform(streamUrl));
   const useExternalAudioFallback = esPodcast && Boolean(externalAudioUrl)
     && (streamProvider === "youtube" || streamProvider === "twitch");
@@ -162,19 +167,12 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   }, [useExternalAudioFallback]);
 
   useEffect(() => {
-    if (t?.streamUrl) {
-      setStreamUrl(t.streamUrl);
-    } else {
-      const storedUrl = getStoredValue("streamUrl");
-      if (storedUrl) setStreamUrl(storedUrl);
-    }
+    const podcastMode = t?.tipoTransmision === "audio";
+    const configuredUrl = podcastMode ? t?.podcastUrl || t?.streamUrl : t?.streamUrl;
+    setStreamUrl(configuredUrl ?? getStoredValue("streamUrl"));
 
-    if (t?.streamProvider) {
-      setStreamProvider(t.streamProvider);
-    } else {
-      const storedProvider = getStoredValue("streamProvider");
-      setStreamProvider(storedProvider || "kick");
-    }
+    const configuredProvider = podcastMode ? t?.podcastProvider || t?.streamProvider : t?.streamProvider;
+    setStreamProvider(configuredProvider ?? (getStoredValue("streamProvider") || "kick"));
 
     setYoutubeChannelId(t?.youtubeChannelId ?? null);
 
@@ -186,61 +184,28 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       else setTipoTransmision("video");
     }
 
-    setImagenPortada(t?.imagenPortada ?? "");
-  }, [t?.streamUrl, t?.streamProvider, t?.youtubeChannelId, t?.tipoTransmision, t?.imagenPortada]);
-
-  useEffect(() => {
-    let active = true;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const refreshKickData = async () => {
-      if (!channelName || streamProvider !== "kick") return;
-
-      try {
-        const token = await auth.currentUser?.getIdToken();
-        const data = await getKickStreamData(channelName, token);
-        if (!active) return;
-        setKickData(data);
-
-        if (data?.isLive && !intervalId) {
-          intervalId = setInterval(refreshKickData, 1000);
-        }
-
-        if (!data?.isLive && intervalId) {
-          clearInterval(intervalId);
-          intervalId = null;
-        }
-      } catch (error) {
-        console.error("Error fetching Kick stream data:", error);
-      }
-    };
-
-    void refreshKickData();
-
-    return () => {
-      active = false;
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [channelName, streamProvider]);
+    setImagenPortada(podcastMode ? t?.podcastImagenPortada || t?.imagenPortada || "" : t?.imagenPortada ?? "");
+  }, [t?.streamUrl, t?.streamProvider, t?.youtubeChannelId, t?.tipoTransmision, t?.imagenPortada, t?.podcastUrl, t?.podcastProvider, t?.podcastImagenPortada]);
 
   useEffect(() => {
     let active = true;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const refreshProviderStreamData = async () => {
-      if (!streamUrl || !streamProvider || streamProvider === "kick" || !perfil.tenant?.slug) {
+      if (!streamUrl || !streamProvider || streamProvider === "direct" || streamProvider === "other" || !perfil.tenant?.slug) {
         setStreamStatusData(null);
+        setSignalLoading(false);
         return;
       }
 
       try {
-        const data = await getStreamData(streamUrl, streamProvider as "youtube" | "twitch", perfil.tenant.slug);
+        const data = await getStreamData(streamUrl, streamProvider as "kick" | "youtube" | "twitch", perfil.tenant.slug);
         if (!active) return;
 
         setStreamStatusData(data);
 
         if (data?.isLive && !intervalId) {
-          intervalId = setInterval(refreshProviderStreamData, 30_000);
+          intervalId = setInterval(refreshProviderStreamData, streamProvider === "kick" ? 1000 : 30_000);
         }
 
         if (!data?.isLive && intervalId) {
@@ -249,9 +214,12 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         }
       } catch (error) {
         console.error(`Error fetching ${streamProvider} stream status:`, error);
+      } finally {
+        if (active) setSignalLoading(false);
       }
     };
 
+    setSignalLoading(true);
     void refreshProviderStreamData();
 
     return () => {
@@ -294,7 +262,6 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       return;
     }
 
-    audioElement.crossOrigin = "anonymous";
     let hlsInstance: any = null;
     let canceled = false;
 
@@ -354,10 +321,10 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             });
             hlsInstance.on(Hls.Events.ERROR, (_event: any, data: any) => {
               console.error("Error reproduciendo audio HLS:", data);
-              if (!canceled) {
+              if (!canceled && data.fatal) {
                 setAudioReady(false);
                 setAudioLoading(false);
-                setAudioLoadError("No se pudo cargar el audio HLS en este navegador.");
+                setAudioLoadError("Falló la señal HLS. Revisá que la playlist y sus segmentos permitan CORS desde el panel.");
               }
             });
           } else {
@@ -461,8 +428,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     setIsPlaying(false);
   };
 
-  const signalData = streamProvider === "kick" ? kickData : streamStatusData;
-  const estado = getSignalStatus(streamProvider, signalData);
+  const estado = getSignalStatus(streamProvider, streamStatusData);
 
   const handlePortada = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -489,11 +455,12 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   };
 
   const handleDescartar = () => {
-    setStreamUrl(t?.streamUrl ?? "");
-    setStreamProvider(t?.streamProvider ?? "kick");
+    const podcastMode = t?.tipoTransmision === "audio";
+    setStreamUrl(podcastMode ? t?.podcastUrl || t?.streamUrl || "" : t?.streamUrl ?? "");
+    setStreamProvider(podcastMode ? t?.podcastProvider || t?.streamProvider || "direct" : t?.streamProvider ?? "kick");
     setYoutubeChannelId(t?.youtubeChannelId ?? null);
     setTipoTransmision(t?.tipoTransmision ?? "video");
-    setImagenPortada(t?.imagenPortada ?? "");
+    setImagenPortada(podcastMode ? t?.podcastImagenPortada || t?.imagenPortada || "" : t?.imagenPortada ?? "");
     setSuccess(false);
     setError("");
   };
@@ -503,6 +470,17 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     setSuccess(false);
     setError("");
     try {
+      const tenantPayload = {
+        streamUrl,
+        streamProvider,
+        tipoTransmision,
+        imagenPortada,
+        ...(esPodcast ? {
+          podcastUrl: streamUrl,
+          podcastProvider: streamProvider,
+          podcastImagenPortada: imagenPortada,
+        } : {}),
+      };
       const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
@@ -510,7 +488,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ streamUrl, streamProvider, tipoTransmision, imagenPortada }),
+        body: JSON.stringify(tenantPayload),
       });
       if (!res.ok) {
         let message = "Error al guardar";
@@ -528,8 +506,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         streamProvider: string;
         tipoTransmision: string;
         imagenPortada: string;
+        podcastUrl?: string;
+        podcastProvider?: string;
+        podcastImagenPortada?: string;
         youtubeChannelId?: string | null;
-      } = { streamUrl, streamProvider, tipoTransmision, imagenPortada };
+      } = tenantPayload;
       try {
         const data = await res.json();
         if (data && typeof data === "object") {
@@ -592,13 +573,15 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>
               Estado de Señal
             </Typography>
-            <Chip
-              label={estado.label.toUpperCase()}
-              size="small"
-              color={estado.conectado ? "success" : "default"}
-              variant={estado.conectado ? "filled" : "outlined"}
-              sx={ { fontSize: 11, fontWeight: 700, letterSpacing: 0.5 } }
-            />
+            {!signalLoading && (
+              <Chip
+                label={estado.label.toUpperCase()}
+                size="small"
+                color={estado.conectado ? "success" : "default"}
+                variant={estado.conectado ? "filled" : "outlined"}
+                sx={ { fontSize: 11, fontWeight: 700, letterSpacing: 0.5 } }
+              />
+            )}
           </Box>
         </Card>
       </Box>
@@ -662,7 +645,20 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 return (
                   <Box
                     key={op.val}
-                    onClick={() => { setTipoTransmision(op.val); setSuccess(false); }}
+                    onClick={() => {
+                      const nextIsPodcast = op.val === "audio";
+                      setTipoTransmision(op.val);
+                      if (nextIsPodcast) {
+                        setStreamUrl(t?.podcastUrl || t?.streamUrl || "");
+                        setStreamProvider(t?.podcastProvider || t?.streamProvider || "direct");
+                        setImagenPortada(t?.podcastImagenPortada || t?.imagenPortada || "");
+                      } else {
+                        setStreamUrl(t?.streamUrl ?? "");
+                        setStreamProvider(t?.streamProvider ?? "kick");
+                        setImagenPortada(t?.imagenPortada ?? "");
+                      }
+                      setSuccess(false);
+                    }}
                     sx={ {
                       textAlign: "center", py: 1.25, cursor: "pointer",
                       fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
@@ -895,7 +891,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                       component="iframe"
                       src={externalAudioSrc}
                       title={`${streamProvider} audio player`}
-                      allow="autoplay; encrypted-media"
+                      allow="autoplay; encrypted-media; picture-in-picture"
                       sx={{
                         position: "absolute",
                         width: "1px",
@@ -1064,7 +1060,6 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                     }}
                     onClick={() => {
                       if (audioLoading) return;
-                      if (isHlsStream && !audioReady) return;
                       handleTogglePlay();
                     }}
                   >
