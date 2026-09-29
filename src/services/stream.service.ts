@@ -9,6 +9,9 @@ export type SignalStatus = {
 };
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+const STREAM_DATA_CACHE_TTL_MS = 5_000;
+const streamDataCache = new Map<string, { data: StreamData | null; expiresAt: number }>();
+const streamDataRequests = new Map<string, Promise<StreamData | null>>();
 
 export function getSignalStatus(
   provider: string | StreamProvider | null | undefined,
@@ -154,14 +157,37 @@ export async function getStreamData(
   provider: StreamProvider,
   tenantSlug?: string,
 ): Promise<StreamData | null> {
-  if (provider === "kick") {
-    return tenantSlug ? getTenantStreamData(tenantSlug) : null;
-  }
-  if (provider === "youtube") return tenantSlug ? getYoutubeStreamData(tenantSlug) : null;
+  if (!tenantSlug || !provider) return null;
 
-  if (provider === "twitch") {
-    return tenantSlug ? getTwitchStreamData(tenantSlug) : null;
-  }
+  const cacheKey = `${provider}:${tenantSlug}`;
+  const cached = streamDataCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
 
-  return null;
+  const pending = streamDataRequests.get(cacheKey);
+  if (pending) return pending;
+
+  const request = (async () => {
+    const data = provider === "kick"
+      ? await getTenantStreamData(tenantSlug)
+      : provider === "youtube"
+        ? await getYoutubeStreamData(tenantSlug)
+        : provider === "twitch"
+          ? await getTwitchStreamData(tenantSlug)
+          : null;
+
+    streamDataCache.set(cacheKey, {
+      data,
+      expiresAt: Date.now() + STREAM_DATA_CACHE_TTL_MS,
+    });
+    return data;
+  })();
+
+  streamDataRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    if (streamDataRequests.get(cacheKey) === request) {
+      streamDataRequests.delete(cacheKey);
+    }
+  }
 }
