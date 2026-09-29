@@ -15,7 +15,7 @@ import { auth } from "../firebase";
 import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
-import { extractKickChannelName, getKickAudioUrl, getKickStreamData, type KickStreamData } from "../services/kick.service";
+import { extractKickChannelName, getKickAudioUrl } from "../services/kick.service";
 import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
 import { buildYoutubeChannelEmbedUrl } from "../services/youtube.service";
 import { getSignalStatus, getStreamData, type StreamData } from "../services/stream.service";
@@ -87,8 +87,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     return valor || "kick";
   });
   const [youtubeChannelId, setYoutubeChannelId] = useState<string | null>(() => t?.youtubeChannelId ?? null);
-  const [kickData, setKickData] = useState<KickStreamData | null>(null);
   const [streamStatusData, setStreamStatusData] = useState<StreamData | null>(null);
+  const [signalLoading, setSignalLoading] = useState(true);
   const [kickAudioUrl, setKickAudioUrl] = useState<string | null>(null);
   const [tipoTransmision, setTipoTransmision] = useState<string>(() => {
     const valor = t?.tipoTransmision ?? getStoredValue("tipoTransmision");
@@ -191,54 +191,21 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     let active = true;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
-    const refreshKickData = async () => {
-      if (!channelName || streamProvider !== "kick") return;
-
-      try {
-        const token = await auth.currentUser?.getIdToken();
-        const data = await getKickStreamData(channelName, token);
-        if (!active) return;
-        setKickData(data);
-
-        if (data?.isLive && !intervalId) {
-          intervalId = setInterval(refreshKickData, 1000);
-        }
-
-        if (!data?.isLive && intervalId) {
-          clearInterval(intervalId);
-          intervalId = null;
-        }
-      } catch (error) {
-        console.error("Error fetching Kick stream data:", error);
-      }
-    };
-
-    void refreshKickData();
-
-    return () => {
-      active = false;
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [channelName, streamProvider]);
-
-  useEffect(() => {
-    let active = true;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
     const refreshProviderStreamData = async () => {
-      if (!streamUrl || !streamProvider || streamProvider === "kick" || !perfil.tenant?.slug) {
+      if (!streamUrl || !streamProvider || streamProvider === "direct" || streamProvider === "other" || !perfil.tenant?.slug) {
         setStreamStatusData(null);
+        setSignalLoading(false);
         return;
       }
 
       try {
-        const data = await getStreamData(streamUrl, streamProvider as "youtube" | "twitch", perfil.tenant.slug);
+        const data = await getStreamData(streamUrl, streamProvider as "kick" | "youtube" | "twitch", perfil.tenant.slug);
         if (!active) return;
 
         setStreamStatusData(data);
 
         if (data?.isLive && !intervalId) {
-          intervalId = setInterval(refreshProviderStreamData, 30_000);
+          intervalId = setInterval(refreshProviderStreamData, streamProvider === "kick" ? 1000 : 30_000);
         }
 
         if (!data?.isLive && intervalId) {
@@ -247,9 +214,12 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         }
       } catch (error) {
         console.error(`Error fetching ${streamProvider} stream status:`, error);
+      } finally {
+        if (active) setSignalLoading(false);
       }
     };
 
+    setSignalLoading(true);
     void refreshProviderStreamData();
 
     return () => {
@@ -458,8 +428,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     setIsPlaying(false);
   };
 
-  const signalData = streamProvider === "kick" ? kickData : streamStatusData;
-  const estado = getSignalStatus(streamProvider, signalData);
+  const estado = getSignalStatus(streamProvider, streamStatusData);
 
   const handlePortada = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -604,13 +573,15 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>
               Estado de Señal
             </Typography>
-            <Chip
-              label={estado.label.toUpperCase()}
-              size="small"
-              color={estado.conectado ? "success" : "default"}
-              variant={estado.conectado ? "filled" : "outlined"}
-              sx={ { fontSize: 11, fontWeight: 700, letterSpacing: 0.5 } }
-            />
+            {!signalLoading && (
+              <Chip
+                label={estado.label.toUpperCase()}
+                size="small"
+                color={estado.conectado ? "success" : "default"}
+                variant={estado.conectado ? "filled" : "outlined"}
+                sx={ { fontSize: 11, fontWeight: 700, letterSpacing: 0.5 } }
+              />
+            )}
           </Box>
         </Card>
       </Box>

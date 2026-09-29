@@ -33,6 +33,7 @@ import {
   actualizarPrograma,
   eliminarPrograma,
 } from "../services/schedule.service";
+import { ajustarFinAlCambiarInicio, esRangoHorarioValido } from "./programacion.utils";
 
 // Lista completa: se usa para traducir a texto el campo "dias" de programas
 // ya guardados (incluye opciones viejas que ya no se pueden crear desde acá).
@@ -865,6 +866,10 @@ export default function Programacion() {
       setError("Esperá a que termine de subir la imagen.");
       return;
     }
+    if (!esRangoHorarioValido(form.horaInicio, form.horaFin)) {
+      setError("La hora de fin debe ser posterior a la hora de inicio.");
+      return;
+    }
 
     try {
       setGuardando(true);
@@ -1028,6 +1033,7 @@ export default function Programacion() {
   const conflictoHoraFin = form.horaFin
     ? horariosOcupados.find((programa) => esHorarioOcupado(programa, form.horaFin))
     : undefined;
+  const rangoHorarioInvalido = !esRangoHorarioValido(form.horaInicio, form.horaFin);
   const conflictoHorarioRango =
     form.horaInicio && form.horaFin && form.horaInicio < form.horaFin
       ? horariosOcupados.find((programa) =>
@@ -1617,7 +1623,14 @@ export default function Programacion() {
                   labelId="hora-inicio-label"
                   value={form.horaInicio}
                   label="Hora inicio"
-                  onChange={(e) => setForm({ ...form, horaInicio: e.target.value })}
+                  onChange={(e) => {
+                    const horaInicio = e.target.value;
+                    setForm((actual) => ({
+                      ...actual,
+                      horaInicio,
+                      horaFin: ajustarFinAlCambiarInicio(horaInicio, actual.horaFin),
+                    }));
+                  }}
                   sx={pickerFieldSx}
                   MenuProps={{
                     slotProps: {
@@ -1681,9 +1694,11 @@ export default function Programacion() {
                 </Select>
               </FormControl>
             </Stack>
-            {(conflictoHorarioRango || conflictoHoraInicio || conflictoHoraFin) && (
+            {(rangoHorarioInvalido || conflictoHorarioRango || conflictoHoraInicio || conflictoHoraFin) && (
               <Alert severity="warning" sx={{ mt: 1 }}>
-                {conflictoHorarioRango ? (
+                {rangoHorarioInvalido ? (
+                  <span>La hora de fin debe ser posterior a la hora de inicio.</span>
+                ) : conflictoHorarioRango ? (
                   <span>
                     El rango {form.horaInicio} — {form.horaFin} se superpone con "{conflictoHorarioRango.titulo}" ({descripcionPrograma(conflictoHorarioRango)}).
                   </span>
@@ -1715,7 +1730,7 @@ export default function Programacion() {
         </DialogContent>
         <DialogActions sx={{ bgcolor: "#000000", color: "#ffffff" }}>
           <Button onClick={() => setAbierto(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={guardar} disabled={guardando || Boolean(conflictoHorarioRango)}>
+          <Button variant="contained" onClick={guardar} disabled={guardando || rangoHorarioInvalido || Boolean(conflictoHorarioRango)}>
             {guardando ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>

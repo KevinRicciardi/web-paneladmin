@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { getSignalStatus } from "./stream.service";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { getSignalStatus, getStreamData } from "./stream.service";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("getSignalStatus", () => {
   it("marca conectado cuando la plataforma reporta stream en vivo", () => {
@@ -11,5 +15,19 @@ describe("getSignalStatus", () => {
   it("marca desconectado cuando no hay stream activo", () => {
     expect(getSignalStatus("youtube", { isLive: false })).toEqual({ label: "Desconectado", conectado: false });
     expect(getSignalStatus("kick", null)).toEqual({ label: "Desconectado", conectado: false });
+  });
+
+  it("reutiliza el estado del stream durante unos segundos", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ isLive: true, viewers: 12 }),
+    } as Response);
+
+    const first = await getStreamData("https://youtube.com/canal", "youtube", "cache-test-stream-status");
+    const second = await getStreamData("https://youtube.com/canal", "youtube", "cache-test-stream-status");
+
+    expect(first?.isLive).toBe(true);
+    expect(second).toBe(first);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
