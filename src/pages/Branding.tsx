@@ -1,4 +1,13 @@
 import { memo, useRef, useState, useEffect } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faFacebookF,
+  faInstagram,
+  faLinkedinIn,
+  faTiktok,
+  faXTwitter,
+  faYoutube,
+} from "@fortawesome/free-brands-svg-icons";
 import {
   Alert, Box, Button, Card, CardContent, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, IconButton, InputAdornment, TextField, Tooltip, Typography, Select, MenuItem,
@@ -74,6 +83,24 @@ const SOCIAL_MEDIA_FIELDS: { key: SocialMediaKey; label: string }[] = [
   { key: "twitterUrl", label: "X / Twitter" },
   { key: "linkedinUrl", label: "LinkedIn" },
 ];
+
+const PREVIEW_SOCIAL_ICONS = {
+  instagramUrl: faInstagram,
+  youtubeUrl: faYoutube,
+  tiktokUrl: faTiktok,
+  facebookUrl: faFacebookF,
+  twitterUrl: faXTwitter,
+  linkedinUrl: faLinkedinIn,
+};
+
+const PREVIEW_SOCIAL_COLORS: Record<SocialMediaKey, string> = {
+  instagramUrl: "#E4405F",
+  youtubeUrl: "#FF0000",
+  tiktokUrl: "#FFFFFF",
+  facebookUrl: "#1877F2",
+  twitterUrl: "#FFFFFF",
+  linkedinUrl: "#0A66C2",
+};
 
 function normalizarOrdenRedes(
   valor?: string | null,
@@ -167,21 +194,19 @@ const EditorColor = memo(function EditorColor({
   );
 });
 
-// Devuelve negro o blanco según qué contraste mejor con el color de fondo
+function sinSetear(hex?: string): boolean {
+  const h = (hex || "").replace("#", "").trim().toUpperCase();
+  return !h || h === "000000" || h === "FF000000";
+}
+
 function contraste(hex: string): string {
   let h = (hex || "").replace("#", "");
   if (h.length === 3) h = h.split("").map((c) => c + c).join("");
   if (h.length !== 6) return "#FFFFFF";
-  const r = parseInt(h.substr(0, 2), 16);
-  const g = parseInt(h.substr(2, 2), 16);
-  const b = parseInt(h.substr(4, 2), 16);
-  const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return L > 0.6 ? "#000000" : "#FFFFFF";
-}
-
-function sinSetear(hex?: string): boolean {
-  const h = (hex || "").replace("#", "").trim().toUpperCase();
-  return !h || h === "000000" || h === "FF000000";
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? "#000000" : "#FFFFFF";
 }
 
 function oscurecer(hex: string, factor: number): string {
@@ -200,26 +225,6 @@ function oscurecer(hex: string, factor: number): string {
   const nb = Math.round(b * (1 - factor));
 
   return `#${nr.toString(16).padStart(2, "0")}${ng.toString(16).padStart(2, "0")}${nb.toString(16).padStart(2, "0")}`;
-}
-
-function normalizeHex(hex: string): string {
-  let h = (hex || "").replace(/[^0-9a-fA-F]/g, "").toLowerCase();
-  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
-  return h.padStart(6, "0");
-}
-
-function mismosColores(a: string, b: string): boolean {
-  return normalizeHex(a) === normalizeHex(b);
-}
-
-// Devuelve un color de texto 'seguro' sobre un fondo.
-// Si `text` coincide exactamente con `bg`, usamos `fallback` (si también coincide con bg, usamos contraste de bg).
-function safeTextColor(bg: string, text: string, fallback: string): string {
-  if (mismosColores(bg, text)) {
-    if (mismosColores(bg, fallback)) return contraste(bg);
-    return fallback;
-  }
-  return contraste(bg);
 }
 
 async function subirACloudinary(file: File): Promise<string> {
@@ -456,29 +461,14 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
   // onPrimario calculado si se necesita contraste sobre color primario
   const headerTextColor = colores.textoCabecera?.trim() ? colores.textoCabecera : colores.texto;
-  // Usamos el color exactamente como lo configura el tenant, sin aplicar lógica de contraste
   const onCabecera = headerTextColor;
-  const statusTextColor = headerTextColor;
   const textoTenue = alpha(colores.texto, 0.55);
-  const textoSuave = alpha(colores.texto, 0.75);
-  const borde = alpha(colores.texto, 0.12);
 
   const fondo = sinSetear(colores.fondo) ? oscurecer(colores.primario, 0.86) : colores.fondo;
-
-  const streamActivo = perfil.tenant?.streamActivo ?? false;
-  const estadoStream = streamActivo ? "EN VIVO" : "OFFLINE";
-
-  // Avatar de marca (función disponible pero no usada en esta versión)
-
-  const platformLabel = (url: string | null | undefined) => {
-    if (!url) return null;
-    if (url.includes("kick.com")) return "KICK";
-    if (url.includes("youtube.com") || url.includes("youtu.be")) return "YOUTUBE";
-    if (url.includes("twitch.tv")) return "TWITCH";
-    return "STREAM";
-  };
-
-  const previewPlatform = platformLabel(perfil.tenant?.streamUrl);
+  const borde = alpha(contraste(fondo), 0.12);
+  const cabeceraPreview = sinSetear(colores.cabecera)
+    ? oscurecer(colores.primario, 0.92)
+    : colores.cabecera;
   const bannerPreviewUrl = bannerUrls[bannerActivoIndex] ?? bannerUrls[0] ?? "";
 
   useEffect(() => {
@@ -821,6 +811,30 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       : key.startsWith("custom:")
         ? otherContentList.find((item) => item.id === key)?.nombre || "Enlace personalizado"
       : SOCIAL_MEDIA_FIELDS.find((field) => field.key === key)?.label ?? key;
+
+  const previewSocialLinks = selectedSocialMedias.flatMap((key) => {
+    const customItem = key.startsWith("custom:")
+      ? otherContentList.find((item) => item.id === key)
+      : undefined;
+    const url = key === "websiteUrl"
+      ? websiteUrl
+      : customItem
+        ? customItem.enlace
+        : socialMediaValues[key as SocialMediaKey];
+    if (!url?.trim()) return [];
+
+    const socialKey = key as SocialMediaKey;
+    return [{
+      key,
+      label: brandingLinkLabel(key),
+      mark: key === "websiteUrl" ? "language" : customItem?.nombre.trim().charAt(0).toUpperCase() || "link",
+      icon: key.startsWith("custom:") || key === "websiteUrl" ? null : PREVIEW_SOCIAL_ICONS[socialKey],
+      iconColor: key.startsWith("custom:") || key === "websiteUrl"
+        ? colores.botones
+        : PREVIEW_SOCIAL_COLORS[socialKey],
+      isSymbol: key === "websiteUrl",
+    }];
+  });
 
   const actualizarContenidoPersonalizado = (id: string, campo: "nombre" | "enlace", valor: string) => {
     setOtherContentList((actual) => actual.map((item) => (
@@ -1351,88 +1365,227 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         <Box sx={ { position: { md: "sticky" }, top: 24 } }>
           <Card variant="outlined" sx={ { overflow: "hidden", border: "none", boxShadow: "none", bgcolor: "transparent" } }>
             <Box
-              sx={ {
+              sx={{
+                width: 440,
+                maxWidth: "none",
+                height: 956,
+                minWidth: 440,
+                minHeight: 956,
+                flex: "none",
+                mx: "auto",
                 bgcolor: fondo,
                 color: colores.texto,
-                borderRadius: 3,
-                minWidth: 320,
+                border: "1px solid",
+                borderColor: borde,
+                borderRadius: "18px",
                 overflow: "hidden",
                 display: "flex",
                 flexDirection: "column",
-                fontFamily: (fontFamily === 'system-ui' ? "system-ui, 'Segoe UI', Roboto, sans-serif" : `${fontFamily}, system-ui, 'Segoe UI', Roboto, sans-serif`),
-                '& *': {
-                  fontFamily: (fontFamily === 'system-ui' ? "system-ui, 'Segoe UI', Roboto, sans-serif" : `${fontFamily}, system-ui, 'Segoe UI', Roboto, sans-serif`),
+                boxShadow: "0 18px 48px rgba(0,0,0,0.24)",
+                fontFamily: fontFamily === "system-ui" ? "system-ui, 'Segoe UI', Roboto, sans-serif" : `${fontFamily}, system-ui, 'Segoe UI', Roboto, sans-serif`,
+                "& *": {
+                  fontFamily: fontFamily === "system-ui" ? "system-ui, 'Segoe UI', Roboto, sans-serif" : `${fontFamily}, system-ui, 'Segoe UI', Roboto, sans-serif`,
                 },
-                '& .material-symbols-outlined': {
-                  fontFamily: 'Material Symbols Outlined',
+                "& .material-symbols-outlined": {
+                  fontFamily: "Material Symbols Outlined",
                   fontFeatureSettings: "'liga' 1",
                 },
-              } }
+              }}
             >
-              {/* Header con cabecera */}
-              <Box sx={ { bgcolor: colores.cabecera, p: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between" } }>
-                <Box sx={ { display: "flex", alignItems: "center", gap: 1 } }>
-                  <Box sx={ { width: 32, height: 32, borderRadius: "50%", overflow: "hidden", bgcolor: alpha(onCabecera, 0.2), display: "flex", alignItems: "center", justifyContent: "center" } }>
-                    {logoUrl ? (
-                      <Box component="img" src={logoUrl} sx={ { width: "100%", height: "100%", objectFit: "cover" } } />
-                    ) : (
-                      <span className="material-symbols-outlined" style={ { fontSize: 16, color: onCabecera } }>play_circle</span>
-                    )}
-                  </Box>
-                  <Typography sx={ { fontSize: 13, fontWeight: 800, letterSpacing: 1.5, color: onCabecera } }>{nombre || "OEDE"}</Typography>
+              <Box
+                sx={{
+                  height: 64,
+                  flexShrink: 0,
+                  px: 2.5,
+                  bgcolor: cabeceraPreview,
+                  borderBottom: "1px solid",
+                  borderColor: borde,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    flexShrink: 0,
+                    overflow: "hidden",
+                    borderRadius: "6px",
+                    bgcolor: colores.botones,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: contraste(colores.botones),
+                    fontWeight: 900,
+                  }}
+                >
+                  {logoUrl ? (
+                    <Box component="img" src={logoUrl} alt="" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : nombre.trim().charAt(0).toUpperCase() || "A"}
                 </Box>
-                <span className="material-symbols-outlined" style={ { fontSize: 20, color: onCabecera } }>person</span>
+                <Typography
+                  noWrap
+                  sx={{ minWidth: 0, flex: 1, fontSize: 18, fontWeight: 700, letterSpacing: 1, color: onCabecera }}
+                >
+                  {nombre || "Mi Canal"}
+                </Typography>
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    flexShrink: 0,
+                    borderRadius: "50%",
+                    border: `2px solid ${onCabecera}`,
+                    bgcolor: colores.botones,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: contraste(colores.botones),
+                    fontSize: 13,
+                    fontWeight: 900,
+                  }}
+                >
+                  U
+                </Box>
               </Box>
-              {/* Contenido principal */}
-              <Box sx={ { p: 2 } }>
 
-              <Box sx={ { borderRadius: 3, overflow: "hidden", position: "relative", minHeight: 220, bgcolor: colores.primario, backgroundSize: "cover", backgroundPosition: "center" } }>
-                <Box sx={ { position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,0.28)" } } />
-                <Box sx={ { position: "absolute", top: 12, left: 12, display: "inline-flex", alignItems: "center", gap: 0.75, bgcolor: colores.cabecera, px: 1.5, py: 0.75, borderRadius: 2 } }>
-                  <Box sx={ { width: 8, height: 8, borderRadius: "50%", bgcolor: streamActivo ? "#10B981" : alpha(colores.textoCabecera ?? colores.texto, 0.72) } } />
-                  <Typography sx={ { color: statusTextColor, fontSize: 10, fontWeight: 800, letterSpacing: 1 } }>{estadoStream}</Typography>
-                </Box>
-                {previewPlatform && (
-                  <Box sx={ { position: "absolute", top: 12, right: 12, bgcolor: alpha(colores.texto, 0.16), color: colores.texto, px: 1.5, py: 0.75, borderRadius: 2, fontSize: 10, fontWeight: 700 } }>
-                    {previewPlatform}
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: "auto",
+                  scrollbarWidth: "none",
+                  "&::-webkit-scrollbar": { display: "none" },
+                }}
+              >
+                <Box sx={{ px: 2.5, pt: 3, pb: 5 }}>
+                  <Typography sx={{ color: textoTenue, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, mb: 1 }}>
+                    STREAM
+                  </Typography>
+                  <Typography sx={{ color: textoTenue, fontSize: 15, fontWeight: 600, mb: 1.5 }}>
+                    Stream
+                  </Typography>
+                  <Box
+                    sx={{
+                      aspectRatio: "16 / 9",
+                      bgcolor: "#000000",
+                      border: "1px solid",
+                      borderColor: borde,
+                      borderRadius: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Box sx={{ width: 46, height: 46, borderRadius: "50%", bgcolor: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span className="material-symbols-outlined" style={{ color: "#FFFFFF", fontSize: 28 }}>play_arrow</span>
+                    </Box>
                   </Box>
-                )}
-                <Box sx={ { position: "absolute", bottom: 16, left: 16, right: 16, display: "flex", alignItems: "center", justifyContent: "space-between" } }>
-                  <Box>
-                    <Typography sx={ { color: colores.texto, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5 } }>Stream</Typography>
-                    <Typography sx={ { color: colores.texto, fontSize: 18, fontWeight: 900, mt: 0.5 } }>{nombre || "Tu canal"} está offline</Typography>
-                  </Box>
-                  <Box sx={ { width: 40, height: 40, borderRadius: "50%", bgcolor: alpha(colores.texto, 0.2), display: "flex", alignItems: "center", justifyContent: "center" } }>
-                    <span className="material-symbols-outlined" style={ { color: colores.texto, fontSize: 20 } }>play_arrow</span>
-                  </Box>
-                </Box>
-              </Box>
 
-              <Box sx={ { mt: 2, display: "grid", gap: 2 } }>
-                <Box sx={ { borderRadius: 3, bgcolor: colores.cardFondo, p: 2 } }>
-                  <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>Publicidad</Typography>
-                  {bannerPreviewUrl ? (
-                    <Box component="img" src={bannerPreviewUrl} sx={ { width: "100%", height: 96, borderRadius: 2, objectFit: "cover" } } />
-                  ) : (
-                    <Box sx={ { width: "100%", height: 96, borderRadius: 2, bgcolor: alpha(colores.texto, 0.04), display: "flex", alignItems: "center", justifyContent: "center" } }>
-                      <Typography sx={ { color: textoSuave } }>Publicidad</Typography>
+                  <Box sx={{ mt: 2, bgcolor: colores.cardFondo, border: "1px solid", borderColor: borde, borderRadius: "14px", overflow: "hidden" }}>
+                    <Box sx={{ px: 1.75, py: 1.25, borderBottom: "1px solid", borderColor: borde, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <Typography sx={{ fontSize: 15, fontWeight: 800 }}>Chat</Typography>
+                      <span className="material-symbols-outlined" style={{ color: colores.iconos, fontSize: 18 }}>more_horiz</span>
+                    </Box>
+                    <Box sx={{ height: 74, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Typography sx={{ color: textoTenue, fontSize: 12 }}>Esperando mensajes...</Typography>
+                    </Box>
+                    <Box sx={{ px: 1.25, pb: 1.25, display: "flex", alignItems: "center", gap: 1 }}>
+                      <Box sx={{ flex: 1, px: 1.5, py: 1, border: "1px solid", borderColor: borde, borderRadius: 999, color: textoTenue, fontSize: 12 }}>
+                        Enviar mensaje
+                      </Box>
+                      <span className="material-symbols-outlined" style={{ color: colores.botones, fontSize: 20 }}>send</span>
+                    </Box>
+                  </Box>
+
+                  {bannerPreviewUrl && (
+                    <Box sx={{ mt: 3 }}>
+                      <Typography sx={{ color: textoTenue, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, mb: 1 }}>
+                        PUBLICIDAD
+                      </Typography>
+                      <Box component="img" src={bannerPreviewUrl} alt="Banner" sx={{ display: "block", width: "100%", height: 100, borderRadius: "12px", objectFit: "cover" }} />
                     </Box>
                   )}
-                </Box>
 
-                <Box sx={ { borderRadius: 3, bgcolor: colores.cardFondo, p: 2 } }>
-                  <Typography sx={ { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1.5, color: textoTenue, mb: 1.5 } }>Streams pasados</Typography>
-                  <Typography sx={ { color: textoSuave, fontSize: 13, mb: 2 } }>No hay streams anteriores disponibles.</Typography>
-                  <button style={ { width: "100%", backgroundColor: colores.botones, color: safeTextColor(colores.botones, colores.texto, colores.secundario), border: "none", borderRadius: "8px", padding: "12px 16px", fontWeight: 600, fontSize: 16, cursor: "pointer", transition: "all 0.2s" } } onMouseEnter={(e) => e.currentTarget.style.opacity = "0.8"} onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}>Ver más</button>
+                  {previewSocialLinks.length > 0 && (
+                    <Box sx={{ mt: 3.5 }}>
+                      <Typography sx={{ color: textoTenue, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, mb: 1.25 }}>
+                        SEGUÍ EL CANAL
+                      </Typography>
+                      <Box
+                        sx={{
+                          p: 1.75,
+                          bgcolor: colores.cardFondo,
+                          border: "1px solid",
+                          borderColor: borde,
+                          borderRadius: "14px",
+                          overflowX: "auto",
+                          scrollbarWidth: "none",
+                          "&::-webkit-scrollbar": { display: "none" },
+                        }}
+                      >
+                        <Box sx={{ display: "flex", width: "max-content", gap: 1.25 }}>
+                          {previewSocialLinks.map((link) => (
+                            <Box
+                              key={link.key}
+                              title={link.label}
+                              aria-label={link.label}
+                              sx={{
+                                width: 44,
+                                height: 44,
+                                flexShrink: 0,
+                                borderRadius: "12px",
+                                border: "1px solid",
+                                borderColor: borde,
+                                bgcolor: colores.cardFondo,
+                                color: link.iconColor,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 13,
+                                fontWeight: 900,
+                              }}
+                            >
+                              {link.icon ? (
+                                <FontAwesomeIcon icon={link.icon} />
+                              ) : link.isSymbol ? (
+                                <span className="material-symbols-outlined" style={{ fontSize: 19 }}>{link.mark}</span>
+                              ) : link.mark}
+                            </Box>
+                          ))}
+                        </Box>
+                      </Box>
+                    </Box>
+                  )}
+
+                  <Box sx={{ mt: 3.5 }}>
+                    <Typography sx={{ color: textoTenue, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, mb: 1.25 }}>
+                      STREAMS PASADOS
+                    </Typography>
+                    <Box sx={{ p: 1.75, bgcolor: colores.cardFondo, border: "1px solid", borderColor: borde, borderRadius: "14px" }}>
+                      <Box sx={{ width: 48, height: 48, mb: 1.5, bgcolor: alpha(colores.iconos, 0.12), borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span className="material-symbols-outlined" style={{ color: colores.iconos, fontSize: 24 }}>play_arrow</span>
+                      </Box>
+                      <Typography sx={{ color: textoTenue, fontSize: 13 }}>
+                        No hay streams anteriores disponibles.
+                      </Typography>
+                    </Box>
+                  </Box>
                 </Box>
               </Box>
-              </Box>
 
-              {/* Footer con navegación */}
-              <Box sx={ { bgcolor: colores.cabecera, display: "flex", justifyContent: "space-around" } }>
-                {[{ icon: 'home', active: true }, { icon: 'grid_view', active: false }, { icon: 'person', active: false }].map((item) => (
-                  <Box key={item.icon} sx={ { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", py: 1.5 } }>
-                    <span className="material-symbols-outlined" style={ { color: item.active ? colores.primario : colores.iconos, fontSize: 22 } }>{item.icon}</span>
+              <Box sx={{ height: 64, flexShrink: 0, bgcolor: cabeceraPreview, borderTop: "1px solid", borderColor: borde, display: "flex" }}>
+                {[
+                  { icon: "home", label: "Inicio", active: true },
+                  { icon: "article", label: "Noticias", active: false },
+                  { icon: "calendar_month", label: "Programación", active: false },
+                ].map((item) => (
+                  <Box key={item.label} sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0.25 }}>
+                    <span className="material-symbols-outlined" style={{ color: item.active ? colores.primario : colores.iconos, fontSize: 22 }}>{item.icon}</span>
+                    <Typography sx={{ color: item.active ? colores.primario : colores.iconos, fontSize: 11, fontWeight: item.active ? 700 : 500 }}>
+                      {item.label}
+                    </Typography>
                   </Box>
                 ))}
               </Box>
