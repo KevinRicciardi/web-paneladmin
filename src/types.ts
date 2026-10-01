@@ -252,6 +252,11 @@ export interface BuildRequestPublishInfo {
   containsAds: boolean;
   targetAudience?: string | null;
   additionalNotes?: string | null;
+  /// Assets obligatorios para la ficha de Google Play — sin esto,
+  /// Google ni deja mandar la app a revisión.
+  iconUrl: string;
+  featureGraphicUrl: string;
+  screenshotUrls: string[];
 }
 
 export type BuildRequestPublishInfoPayload = {
@@ -266,6 +271,9 @@ export type BuildRequestPublishInfoPayload = {
   containsAds?: boolean;
   targetAudience?: string;
   additionalNotes?: string;
+  iconUrl: string;
+  featureGraphicUrl: string;
+  screenshotUrls: string[];
 };
 
 interface PersonaResumen {
