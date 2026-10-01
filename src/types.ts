@@ -39,6 +39,7 @@ export interface Tenant {
   colorBotones?: string | null; // extra
   colorCardFondo?: string | null; // extra
   colorIconos?: string | null; // extra
+  colorBorde?: string | null;
 
   admins?: AdminUser[];
   fontFamily?: string | null; // Fuente personalizada (ej: "Roboto", "Montserrat", etc.)
