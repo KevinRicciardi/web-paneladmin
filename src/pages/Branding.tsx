@@ -44,17 +44,18 @@ type Colores = {
   botones: string;
   cardFondo: string;
   iconos: string;
+  borde: string;
 };
 
 // Temas predefinidos: cada uno define la paleta completa
 const PRESETS: { nombre: string; colores: Colores }[] = [
-  { nombre: "Azul",     colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#3B82F6", secundario: "#F59E0B", botones: "#3B82F6", cardFondo: "#111111", iconos: "#94A3B8" } },
-  { nombre: "Verde",    colores: { fondo: "#07120C", cabecera: "#0C1F14", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#22C55E", secundario: "#D9F99D", botones: "#22C55E", cardFondo: "#0F1F17", iconos: "#86EFAC" } },
-  { nombre: "Púrpura",  colores: { fondo: "#0F0A16", cabecera: "#1A0F26", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#A855F7", secundario: "#FBC7FF", botones: "#A855F7", cardFondo: "#1A1024", iconos: "#D8B4FE" } },
-  { nombre: "Blanco y Negro", colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#FFFFFF", secundario: "#A3A3A3", botones: "#FFFFFF", cardFondo: "#1A1A1A", iconos: "#A3A3A3" } },
-  { nombre: "Negro y Dorado", colores: { fondo: "#0A0A0A", cabecera: "#000000", texto: "#F5E6C8", textoCabecera: "#F5E6C8", primario: "#D4AF37", secundario: "#FCD34D", botones: "#D4AF37", cardFondo: "#1A1A14", iconos: "#8B7500" } },
-  { nombre: "Rojo",     colores: { fondo: "#0A0A0A", cabecera: "#140000", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#EF4444", secundario: "#FECACA", botones: "#EF4444", cardFondo: "#1A0F0F", iconos: "#FCA5A5" } },
-  { nombre: "Claro",    colores: { fondo: "#FFFFFF", cabecera: "#F3F4F6", texto: "#111827", textoCabecera: "#111827", primario: "#3B82F6", secundario: "#60A5FA", botones: "#3B82F6", cardFondo: "#F9FAFB", iconos: "#6B7280" } },
+  { nombre: "Azul",     colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#3B82F6", secundario: "#F59E0B", botones: "#3B82F6", cardFondo: "#111111", iconos: "#94A3B8", borde: "#FFFFFF" } },
+  { nombre: "Verde",    colores: { fondo: "#07120C", cabecera: "#0C1F14", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#22C55E", secundario: "#D9F99D", botones: "#22C55E", cardFondo: "#0F1F17", iconos: "#86EFAC", borde: "#FFFFFF" } },
+  { nombre: "Púrpura",  colores: { fondo: "#0F0A16", cabecera: "#1A0F26", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#A855F7", secundario: "#FBC7FF", botones: "#A855F7", cardFondo: "#1A1024", iconos: "#D8B4FE", borde: "#FFFFFF" } },
+  { nombre: "Blanco y Negro", colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#FFFFFF", secundario: "#A3A3A3", botones: "#FFFFFF", cardFondo: "#1A1A1A", iconos: "#A3A3A3", borde: "#FFFFFF" } },
+  { nombre: "Negro y Dorado", colores: { fondo: "#0A0A0A", cabecera: "#000000", texto: "#F5E6C8", textoCabecera: "#F5E6C8", primario: "#D4AF37", secundario: "#FCD34D", botones: "#D4AF37", cardFondo: "#1A1A14", iconos: "#8B7500", borde: "#FFFFFF" } },
+  { nombre: "Rojo",     colores: { fondo: "#0A0A0A", cabecera: "#140000", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#EF4444", secundario: "#FECACA", botones: "#EF4444", cardFondo: "#1A0F0F", iconos: "#FCA5A5", borde: "#FFFFFF" } },
+  { nombre: "Claro",    colores: { fondo: "#FFFFFF", cabecera: "#F3F4F6", texto: "#111827", textoCabecera: "#111827", primario: "#3B82F6", secundario: "#60A5FA", botones: "#3B82F6", cardFondo: "#F9FAFB", iconos: "#6B7280", borde: "#000000" } },
 ];
 
 const CAMPOS: { key: keyof Colores; label: string }[] = [
@@ -67,6 +68,7 @@ const CAMPOS: { key: keyof Colores; label: string }[] = [
   { key: "botones",    label: "Color de Botones" },
   { key: "cardFondo",  label: "Color de Fondo de Cards" },
   { key: "iconos",     label: "Color de Iconos" },
+  { key: "borde",      label: "Color de Bordes" },
 ];
 
 type SocialMediaKey = "instagramUrl" | "youtubeUrl" | "tiktokUrl" | "facebookUrl" | "twitterUrl" | "linkedinUrl";
@@ -121,9 +123,14 @@ function normalizarOrdenRedes(
       || (typeof key === "string" && key.startsWith("custom:"))
       || SOCIAL_MEDIA_FIELDS.some((field) => field.key === key)
     );
-    return incluirSitioWeb && !validas.includes("websiteUrl")
-      ? [...validas, "websiteUrl"]
-      : validas;
+    const redesPrincipales = SOCIAL_MEDIA_FIELDS.map(({ key }) => key);
+    const ordenCompleto = [
+      ...validas,
+      ...redesPrincipales.filter((key) => !validas.includes(key)),
+    ];
+    return incluirSitioWeb && !ordenCompleto.includes("websiteUrl")
+      ? [...ordenCompleto, "websiteUrl"]
+      : ordenCompleto;
   } catch {
     return ordenPorDefecto;
   }
@@ -296,6 +303,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       botones: (t as any)?.colorBotones ?? t?.colorPrimario ?? "#3B82F6",
       cardFondo: (t as any)?.colorCardFondo ?? "#111111",
       iconos: t?.colorIconos ?? "#94A3B8",
+      borde: t?.colorBorde ?? contraste(t?.colorCardFondo ?? "#111111"),
     } as Colores,
   };
 
@@ -312,6 +320,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         botones: input.botones ?? base.botones,
         cardFondo: input.cardFondo ?? base.cardFondo,
         iconos: input.iconos ?? base.iconos,
+        borde: input.borde ?? base.borde,
       } as Colores;
     }
 
@@ -354,11 +363,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   // Nuevos estados para Branding
   const [websiteUrl, setWebsiteUrl] = useState(t?.websiteUrl ?? "");
   const [selectedSocialMedias, setSelectedSocialMedias] = useState<BrandingLinkKey[]>(() => {
-    const redesConUrl = SOCIAL_MEDIA_FIELDS
-      .filter(({ key }) => Boolean(t?.[key]))
-      .map(({ key }) => key);
     const contenidoPersonalizado = cargarContenidoPersonalizado(t?.otherContentJson);
-    const orden = normalizarOrdenRedes(t?.socialMediasJson, Boolean(t?.websiteUrl), redesConUrl);
+    const orden = normalizarOrdenRedes(t?.socialMediasJson, Boolean(t?.websiteUrl));
     const personalizadosEnOrden = contenidoPersonalizado
       .map((item) => item.id as CustomLinkKey)
       .filter((key) => !orden.includes(key));
@@ -451,7 +457,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const textoTenue = alpha(colores.texto, 0.55);
 
   const fondo = sinSetear(colores.fondo) ? oscurecer(colores.primario, 0.86) : colores.fondo;
-  const borde = alpha(contraste(fondo), 0.12);
+  const borde = alpha(colores.borde, 0.12);
   const cabeceraPreview = sinSetear(colores.cabecera)
     ? oscurecer(colores.primario, 0.92)
     : colores.cabecera;
@@ -660,6 +666,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           colorBotones: colores.botones,
           colorCardFondo: colores.cardFondo,
           colorIconos: colores.iconos,
+          colorBorde: colores.borde,
           websiteUrl,
           socialMediasJson: JSON.stringify(selectedSocialMedias),
           otherContentJson: JSON.stringify(otherContentList),
@@ -718,6 +725,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             colorBotones: colores.botones,
             colorCardFondo: colores.cardFondo,
             colorIconos: colores.iconos,
+            colorBorde: colores.borde,
             websiteUrl,
             socialMediasJson: JSON.stringify(selectedSocialMedias),
             otherContentJson: JSON.stringify(otherContentList),
@@ -817,6 +825,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       icon: key.startsWith("custom:") || key === "websiteUrl" ? null : PREVIEW_SOCIAL_ICONS[socialKey],
       iconColor: key.startsWith("custom:") || key === "websiteUrl"
         ? colores.botones
+        : key === "twitterUrl" || key === "tiktokUrl" || key === "linkedinUrl"
+          ? contraste(colores.cardFondo)
         : PREVIEW_SOCIAL_COLORS[socialKey],
       isSymbol: key === "websiteUrl",
     }];

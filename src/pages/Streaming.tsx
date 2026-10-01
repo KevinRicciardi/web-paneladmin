@@ -66,24 +66,16 @@ function CardHeader({ icon, children }: { icon: string; children: React.ReactNod
   );
 }
 
-function getStoredValue(key: string): string {
-  try {
-    return localStorage.getItem(key) ?? "";
-  } catch {
-    return "";
-  }
-}
-
 export default function Streaming({ perfil }: { perfil: Perfil }) {
   const canViewStreaming = puedeVerSeccion(perfil, "streaming");
   const canViewPodcast = puedeVerSeccion(perfil, "podcast");
   const t = perfil.tenant;
   const [streamUrl, setStreamUrl] = useState<string>(() => (
     t?.tipoTransmision === "audio" ? t.podcastUrl || t.streamUrl : t?.streamUrl
-  ) ?? getStoredValue("streamUrl"));
+  ) ?? "");
   const [streamProvider, setStreamProvider] = useState<string>(() => {
     const valor = (t?.tipoTransmision === "audio" ? t.podcastProvider || t.streamProvider : t?.streamProvider)
-      ?? getStoredValue("streamProvider");
+      ?? "";
     return valor || "kick";
   });
   const [youtubeChannelId, setYoutubeChannelId] = useState<string | null>(() => t?.youtubeChannelId ?? null);
@@ -91,7 +83,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [signalLoading, setSignalLoading] = useState(true);
   const [kickAudioUrl, setKickAudioUrl] = useState<string | null>(null);
   const [tipoTransmision, setTipoTransmision] = useState<string>(() => {
-    const valor = t?.tipoTransmision ?? getStoredValue("tipoTransmision");
+    const valor = t?.tipoTransmision ?? "";
     return valor || "video";
   });
   const [imagenPortada, setImagenPortada] = useState<string>(() => (
@@ -169,19 +161,17 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   useEffect(() => {
     const podcastMode = t?.tipoTransmision === "audio";
     const configuredUrl = podcastMode ? t?.podcastUrl || t?.streamUrl : t?.streamUrl;
-    setStreamUrl(configuredUrl ?? getStoredValue("streamUrl"));
+    setStreamUrl(configuredUrl ?? "");
 
     const configuredProvider = podcastMode ? t?.podcastProvider || t?.streamProvider : t?.streamProvider;
-    setStreamProvider(configuredProvider ?? (getStoredValue("streamProvider") || "kick"));
+    setStreamProvider(configuredProvider || "kick");
 
     setYoutubeChannelId(t?.youtubeChannelId ?? null);
 
     if (t?.tipoTransmision) {
       setTipoTransmision(t.tipoTransmision);
     } else {
-      const storedTipo = getStoredValue("tipoTransmision");
-      if (storedTipo) setTipoTransmision(storedTipo);
-      else setTipoTransmision("video");
+      setTipoTransmision("video");
     }
 
     setImagenPortada(podcastMode ? t?.podcastImagenPortada || t?.imagenPortada || "" : t?.imagenPortada ?? "");
@@ -516,13 +506,6 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         if (data && typeof data === "object") {
           payload = { ...payload, ...data };
         }
-      } catch {}
-
-      try {
-        localStorage.setItem("streamUrl", streamUrl);
-        localStorage.setItem("streamProvider", streamProvider);
-        localStorage.setItem("tipoTransmision", tipoTransmision);
-        localStorage.removeItem("imagenPortada");
       } catch {}
 
       if (payload.streamUrl) {
