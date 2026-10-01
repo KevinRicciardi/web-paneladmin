@@ -124,9 +124,14 @@ function normalizarOrdenRedes(
       || (typeof key === "string" && key.startsWith("custom:"))
       || SOCIAL_MEDIA_FIELDS.some((field) => field.key === key)
     );
-    return incluirSitioWeb && !validas.includes("websiteUrl")
-      ? [...validas, "websiteUrl"]
-      : validas;
+    const redesPrincipales = SOCIAL_MEDIA_FIELDS.map(({ key }) => key);
+    const ordenCompleto = [
+      ...validas,
+      ...redesPrincipales.filter((key) => !validas.includes(key)),
+    ];
+    return incluirSitioWeb && !ordenCompleto.includes("websiteUrl")
+      ? [...ordenCompleto, "websiteUrl"]
+      : ordenCompleto;
   } catch {
     return ordenPorDefecto;
   }
@@ -372,11 +377,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   // Nuevos estados para Branding
   const [websiteUrl, setWebsiteUrl] = useState(t?.websiteUrl ?? "");
   const [selectedSocialMedias, setSelectedSocialMedias] = useState<BrandingLinkKey[]>(() => {
-    const redesConUrl = SOCIAL_MEDIA_FIELDS
-      .filter(({ key }) => Boolean(t?.[key]))
-      .map(({ key }) => key);
     const contenidoPersonalizado = cargarContenidoPersonalizado(t?.otherContentJson);
-    const orden = normalizarOrdenRedes(t?.socialMediasJson, Boolean(t?.websiteUrl), redesConUrl);
+    const orden = normalizarOrdenRedes(t?.socialMediasJson, Boolean(t?.websiteUrl));
     const personalizadosEnOrden = contenidoPersonalizado
       .map((item) => item.id as CustomLinkKey)
       .filter((key) => !orden.includes(key));
