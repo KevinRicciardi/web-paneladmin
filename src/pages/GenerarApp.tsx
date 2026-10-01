@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -10,6 +10,8 @@ import {
   CircularProgress,
   Divider,
   FormControlLabel,
+  IconButton,
+  Snackbar,
   Stack,
   Step,
   StepLabel,
@@ -28,6 +30,10 @@ import {
   editarSolicitud,
   listarMisSolicitudes,
 } from "../services/buildRequests.service";
+import { subirACloudinary } from "../utils/cloudinary";
+
+const MIN_SCREENSHOTS = 2;
+const MAX_SCREENSHOTS = 8;
 
 // Estados en los que ya no tiene sentido seguir operando sobre la
 // solicitud — igual que en el backend (src/build-requests/build-requests.service.ts).
@@ -35,6 +41,30 @@ const ESTADOS_FINALES: BuildRequestStatus[] = ["PUBLISHED", "FAILED", "CANCELLED
 
 function esActiva(solicitud: BuildRequest) {
   return !ESTADOS_FINALES.includes(solicitud.status);
+}
+
+function ErrorSnackbar({ error, onClose }: { error: string; onClose: () => void }) {
+  return (
+    <Snackbar
+      open={Boolean(error)}
+      autoHideDuration={6000}
+      onClose={onClose}
+      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+    >
+      <Alert severity="error" onClose={onClose} variant="filled" sx={{ width: "100%" }}>
+        {error}
+      </Alert>
+    </Snackbar>
+  );
+}
+
+function validarAssets(publishInfo: BuildRequestPublishInfoPayload): string {
+  if (!publishInfo.iconUrl) return "Falta el ícono de la app";
+  if (!publishInfo.featureGraphicUrl) return "Falta la imagen destacada";
+  if (publishInfo.screenshotUrls.length < MIN_SCREENSHOTS) {
+    return `Subí al menos ${MIN_SCREENSHOTS} capturas de pantalla`;
+  }
+  return "";
 }
 
 const PASOS: { status: BuildRequestStatus; label: string }[] = [
@@ -88,6 +118,9 @@ const EMPTY_PUBLISH_INFO: BuildRequestPublishInfoPayload = {
   containsAds: false,
   targetAudience: "",
   additionalNotes: "",
+  iconUrl: "",
+  featureGraphicUrl: "",
+  screenshotUrls: [],
 };
 
 export default function GenerarApp({ perfil }: { perfil: Perfil }) {
@@ -243,6 +276,7 @@ function ReenvioSolicitud({
           websiteUrl: solicitud.publishInfo.websiteUrl ?? "",
           targetAudience: solicitud.publishInfo.targetAudience ?? "",
           additionalNotes: solicitud.publishInfo.additionalNotes ?? "",
+          screenshotUrls: solicitud.publishInfo.screenshotUrls ?? [],
         }
       : EMPTY_PUBLISH_INFO,
   );
@@ -250,6 +284,12 @@ function ReenvioSolicitud({
   const [error, setError] = useState("");
 
   const reenviar = async () => {
+    const errorAssets = validarAssets(publishInfo);
+    if (errorAssets) {
+      setError(errorAssets);
+      return;
+    }
+
     setEnviando(true);
     setError("");
 
@@ -270,7 +310,7 @@ function ReenvioSolicitud({
         {solicitud.internalNotes ? `: ${solicitud.internalNotes}` : "."}
       </Alert>
 
-      {error && <Alert severity="error">{error}</Alert>}
+      <ErrorSnackbar error={error} onClose={() => setError("")} />
 
       <TextField
         label="Mensaje para el equipo de Pinnacle"
@@ -297,6 +337,12 @@ function NuevaSolicitud({ onCreada }: { onCreada: () => void }) {
   const [error, setError] = useState("");
 
   const enviar = async () => {
+    const errorAssets = validarAssets(publishInfo);
+    if (errorAssets) {
+      setError(errorAssets);
+      return;
+    }
+
     setEnviando(true);
     setError("");
 
@@ -319,7 +365,7 @@ function NuevaSolicitud({ onCreada }: { onCreada: () => void }) {
         </Typography>
 
         <Stack spacing={2.5}>
-          {error && <Alert severity="error">{error}</Alert>}
+          <ErrorSnackbar error={error} onClose={() => setError("")} />
 
           <TextField
             label="Mensaje para el equipo de Pinnacle (opcional)"
@@ -350,7 +396,10 @@ function FormularioPublishInfo({
   value: BuildRequestPublishInfoPayload;
   onChange: (value: BuildRequestPublishInfoPayload) => void;
 }) {
-  const setField = (field: keyof BuildRequestPublishInfoPayload, val: string | boolean) => {
+  const setField = (
+    field: keyof BuildRequestPublishInfoPayload,
+    val: string | boolean | string[],
+  ) => {
     onChange({ ...value, [field]: val });
   };
 
@@ -402,6 +451,222 @@ function FormularioPublishInfo({
         minRows={2}
         fullWidth
       />
+
+      <Divider />
+
+      <Box>
+        <Typography sx={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: "text.secondary", mb: 0.5 }}>
+          Assets para la ficha de Google Play
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Sin estas imágenes, Google no deja publicar la app.
+        </Typography>
+      </Box>
+
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+        <ImageUploadBox
+          label="Ícono de la app"
+          hint="Cuadrado, 512×512px"
+          url={value.iconUrl}
+          onUploaded={(url) => setField("iconUrl", url)}
+          onRemove={() => setField("iconUrl", "")}
+        />
+        <ImageUploadBox
+          label="Imagen destacada"
+          hint="1024×500px"
+          url={value.featureGraphicUrl}
+          onUploaded={(url) => setField("featureGraphicUrl", url)}
+          onRemove={() => setField("featureGraphicUrl", "")}
+        />
+      </Box>
+
+      <ScreenshotsUploadBox
+        urls={value.screenshotUrls}
+        onChange={(urls) => setField("screenshotUrls", urls)}
+      />
     </Stack>
+  );
+}
+
+function ImageUploadBox({
+  label,
+  hint,
+  url,
+  onUploaded,
+  onRemove,
+}: {
+  label: string;
+  hint: string;
+  url: string;
+  onUploaded: (url: string) => void;
+  onRemove: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setSubiendo(true);
+    setError("");
+    try {
+      const subida = await subirACloudinary(file);
+      onUploaded(subida);
+    } catch {
+      setError("No se pudo subir la imagen");
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
+  return (
+    <Box>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg"
+        hidden
+        onChange={(e) => void handleFile(e.target.files?.[0])}
+      />
+      <Box
+        onClick={() => !subiendo && inputRef.current?.click()}
+        sx={{
+          border: "2px dashed",
+          borderColor: url ? "primary.main" : "divider",
+          borderRadius: 2,
+          p: 2,
+          textAlign: "center",
+          cursor: "pointer",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 0.5,
+          minHeight: 120,
+          bgcolor: "rgba(255,255,255,0.02)",
+        }}
+      >
+        {subiendo ? (
+          <CircularProgress size={28} />
+        ) : url ? (
+          <Box component="img" src={url} sx={{ maxHeight: 90, maxWidth: "100%", objectFit: "contain", borderRadius: 1 }} />
+        ) : (
+          <>
+            <span className="material-symbols-outlined">file_upload</span>
+            <Typography variant="body2">{label}</Typography>
+          </>
+        )}
+        <Typography variant="caption" color="text.secondary">{hint}</Typography>
+      </Box>
+      {url && (
+        <Button size="small" color="error" onClick={onRemove} sx={{ mt: 0.5 }}>
+          Quitar
+        </Button>
+      )}
+      {error && <Typography variant="caption" color="error">{error}</Typography>}
+    </Box>
+  );
+}
+
+function ScreenshotsUploadBox({
+  urls,
+  onChange,
+}: {
+  urls: string[];
+  onChange: (urls: string[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const disponibles = MAX_SCREENSHOTS - urls.length;
+    const aSubir = Array.from(files).slice(0, Math.max(disponibles, 0));
+
+    if (aSubir.length === 0) {
+      setError(`Ya tenés el máximo de ${MAX_SCREENSHOTS} capturas`);
+      return;
+    }
+
+    setSubiendo(true);
+    setError("");
+    try {
+      const subidas = await Promise.all(aSubir.map((file) => subirACloudinary(file)));
+      onChange([...urls, ...subidas]);
+    } catch {
+      setError("No se pudieron subir una o más capturas");
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
+  const quitar = (index: number) => {
+    onChange(urls.filter((_, i) => i !== index));
+  };
+
+  const faltan = Math.max(MIN_SCREENSHOTS - urls.length, 0);
+
+  return (
+    <Box>
+      <Typography sx={{ mb: 1 }}>
+        Capturas de pantalla ({urls.length}/{MAX_SCREENSHOTS}, mínimo {MIN_SCREENSHOTS})
+      </Typography>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg"
+        multiple
+        hidden
+        onChange={(e) => void handleFiles(e.target.files)}
+      />
+
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
+        {urls.map((url, index) => (
+          <Box key={url} sx={{ position: "relative" }}>
+            <Box
+              component="img"
+              src={url}
+              sx={{ width: 90, height: 160, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
+            />
+            <IconButton
+              size="small"
+              onClick={() => quitar(index)}
+              sx={{ position: "absolute", top: -8, right: -8, bgcolor: "background.paper", "&:hover": { bgcolor: "background.paper" } }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
+            </IconButton>
+          </Box>
+        ))}
+
+        {urls.length < MAX_SCREENSHOTS && (
+          <Box
+            onClick={() => !subiendo && inputRef.current?.click()}
+            sx={{
+              width: 90,
+              height: 160,
+              border: "2px dashed",
+              borderColor: "divider",
+              borderRadius: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              bgcolor: "rgba(255,255,255,0.02)",
+            }}
+          >
+            {subiendo ? <CircularProgress size={24} /> : <span className="material-symbols-outlined">add</span>}
+          </Box>
+        )}
+      </Box>
+
+      {faltan > 0 && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+          Faltan {faltan} captura{faltan === 1 ? "" : "s"} más
+        </Typography>
+      )}
+      {error && <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>{error}</Typography>}
+    </Box>
   );
 }

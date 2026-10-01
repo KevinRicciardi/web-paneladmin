@@ -309,6 +309,27 @@ function DetalleSolicitud({
               {solicitud.publishInfo.additionalNotes && (
                 <CampoDetalle label="Información adicional" value={solicitud.publishInfo.additionalNotes} />
               )}
+
+              <Divider />
+              <Typography sx={{ fontWeight: 800 }}>Assets para la ficha de Google Play</Typography>
+              <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                <AssetPreview label="Ícono" url={solicitud.publishInfo.iconUrl} size={64} />
+                <AssetPreview label="Imagen destacada" url={solicitud.publishInfo.featureGraphicUrl} width={160} height={78} />
+              </Box>
+              {solicitud.publishInfo.screenshotUrls?.length > 0 && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 1, display: "block", mb: 0.5 }}>
+                    Capturas de pantalla ({solicitud.publishInfo.screenshotUrls.length})
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                    {solicitud.publishInfo.screenshotUrls.map((url) => (
+                      <a key={url} href={url} target="_blank" rel="noreferrer">
+                        <Box component="img" src={url} sx={{ width: 70, height: 124, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }} />
+                      </a>
+                    ))}
+                  </Box>
+                </Box>
+              )}
             </>
           )}
 
@@ -357,6 +378,44 @@ function CampoDetalle({ label, value }: { label?: string; value?: string | null 
         {label}
       </Typography>
       <Typography variant="body2">{value}</Typography>
+    </Box>
+  );
+}
+
+function AssetPreview({
+  label,
+  url,
+  size,
+  width,
+  height,
+}: {
+  label: string;
+  url?: string | null;
+  size?: number;
+  width?: number;
+  height?: number;
+}) {
+  if (!url) return null;
+
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 1, display: "block", mb: 0.5 }}>
+        {label}
+      </Typography>
+      <a href={url} target="_blank" rel="noreferrer">
+        <Box
+          component="img"
+          src={url}
+          sx={{
+            width: size ?? width,
+            height: size ?? height,
+            objectFit: "cover",
+            borderRadius: 1,
+            border: "1px solid",
+            borderColor: "divider",
+          }}
+        />
+      </a>
     </Box>
   );
 }

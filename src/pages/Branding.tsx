@@ -15,11 +15,10 @@ import {
 } from "@mui/material";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import ImageCropDialog from "../components/ImageCropDialog";
+import { subirACloudinary } from "../utils/cloudinary";
 import type { Perfil } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
 
 // Fuentes disponibles
 const FUENTES_DISPONIBLES = [
@@ -225,19 +224,6 @@ function oscurecer(hex: string, factor: number): string {
   const nb = Math.round(b * (1 - factor));
 
   return `#${nr.toString(16).padStart(2, "0")}${ng.toString(16).padStart(2, "0")}${nb.toString(16).padStart(2, "0")}`;
-}
-
-async function subirACloudinary(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", UPLOAD_PRESET);
-  const res = await fetch(
-    "https://api.cloudinary.com/v1_1/" + CLOUD_NAME + "/image/upload",
-    { method: "POST", body: formData }
-  );
-  if (!res.ok) throw new Error("Error al subir imagen");
-  const data = await res.json();
-  return data.secure_url as string;
 }
 
 function CardHeader({ icon, children }: { icon: string; children: React.ReactNode }) {
