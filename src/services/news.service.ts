@@ -80,6 +80,13 @@ export async function listarMisNoticias(): Promise<News[]> {
   }
 }
 
+export async function listarNoticiasPublicadasPorSlug(
+  slug: string,
+): Promise<Pick<News, "id" | "title" | "excerpt" | "coverImageUrl" | "publishedAt" | "createdAt" | "updatedAt">[]> {
+  const res = await fetch(`${API_URL}/tenants/${encodeURIComponent(slug)}/news`);
+  return parseResponse(res);
+}
+
 function invalidarCacheNoticias() {
   noticiasCache = null;
 }

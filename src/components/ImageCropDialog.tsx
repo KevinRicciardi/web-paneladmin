@@ -1,15 +1,25 @@
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
+import { cropAnimatedGif } from "../utils/animatedGif";
 
 type CropType = "logo" | "banner" | "cover" | "event";
+
+export type CropSettings = {
+  cropBox: { x: number; y: number; width: number; height: number };
+  pan: { x: number; y: number };
+  zoom: number;
+  rotation: number;
+  flipHorizontal: boolean;
+};
 
 type CropDialogProps = {
   open: boolean;
   imageUrl: string | null;
   type: CropType;
   fileName?: string;
+  initialSettings?: CropSettings | null;
   onClose: () => void;
-  onConfirm: (file: File) => void;
+  onConfirm: (file: File, settings: CropSettings) => void;
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -27,6 +37,20 @@ const buildDefaultCrop = (type: CropType) => {
 
 const getTargetAspect = (type: CropType) =>
   type === "logo" ? 1 : type === "banner" ? 6 : 16 / 9;
+
+const fileNameWithMimeType = (fileName: string, mimeType: string) => {
+  const extensionByMimeType: Record<string, string> = {
+    "image/gif": "gif",
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/svg+xml": "svg",
+    "image/webp": "webp",
+  };
+  const extension = extensionByMimeType[mimeType.toLowerCase()];
+  if (!extension) return fileName || "imagen";
+  const baseName = (fileName || "imagen").replace(/\.[^./\\]+$/, "");
+  return `${baseName}.${extension}`;
+};
 
 const buildCropForImage = (type: CropType, width: number, height: number) => {
   if (!width || !height) return buildDefaultCrop(type);
@@ -62,6 +86,7 @@ export default function ImageCropDialog({
   imageUrl,
   type,
   fileName = "imagen",
+  initialSettings,
   onClose,
   onConfirm,
 }: CropDialogProps) {
@@ -71,6 +96,7 @@ export default function ImageCropDialog({
   const [cropZoom, setCropZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [flipHorizontal, setFlipHorizontal] = useState(false);
+  const [hasUserAdjusted, setHasUserAdjusted] = useState(false);
   const [draggingCrop, setDraggingCrop] = useState<{
     mode: "move" | "resize";
     startX: number;
@@ -114,15 +140,16 @@ export default function ImageCropDialog({
 
   useEffect(() => {
     if (open) {
-      setCropBox(buildDefaultCrop(type));
-      setCropPan({ x: 0, y: 0 });
-      setCropZoom(1);
-      setRotation(0);
-      setFlipHorizontal(false);
+      setCropBox(initialSettings?.cropBox ?? buildDefaultCrop(type));
+      setCropPan(initialSettings?.pan ?? { x: 0, y: 0 });
+      setCropZoom(initialSettings?.zoom ?? 1);
+      setRotation(initialSettings?.rotation ?? 0);
+      setFlipHorizontal(initialSettings?.flipHorizontal ?? false);
+      setHasUserAdjusted(false);
       setImageSize({ width: 0, height: 0 });
       setDraggingCrop(null);
     }
-  }, [open, type]);
+  }, [open, type, initialSettings]);
 
   const handleCropPointerDown = (
     event: React.PointerEvent<HTMLDivElement>,
@@ -164,10 +191,14 @@ export default function ImageCropDialog({
       const minPanY = cropBox.y + cropBox.height - displayedHeight;
       const maxPanY = cropBox.y;
 
-      setCropPan({
+      const nextPan = {
         x: clamp(draggingCrop.startPan.x + dx * 1.8, Math.min(minPanX, maxPanX), Math.max(minPanX, maxPanX)),
         y: clamp(draggingCrop.startPan.y + dy * 1.8, Math.min(minPanY, maxPanY), Math.max(minPanY, maxPanY)),
-      });
+      };
+      if (nextPan.x !== draggingCrop.startPan.x || nextPan.y !== draggingCrop.startPan.y) {
+        setHasUserAdjusted(true);
+      }
+      setCropPan(nextPan);
       return;
     }
 
@@ -189,18 +220,29 @@ export default function ImageCropDialog({
       height = draggingCrop.startBox.height - delta;
     }
 
-    setCropBox({
+    const nextBox = {
       x: clamp(x, 0, 100 - width),
       y: clamp(y, 0, 100 - height),
       width: clamp(width, 15, 100),
       height: clamp(height, 15, 100),
-    });
+    };
+    if (
+      nextBox.x !== draggingCrop.startBox.x ||
+      nextBox.y !== draggingCrop.startBox.y ||
+      nextBox.width !== draggingCrop.startBox.width ||
+      nextBox.height !== draggingCrop.startBox.height
+    ) {
+      setHasUserAdjusted(true);
+    }
+    setCropBox(nextBox);
   };
 
   const handleCropWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
     const delta = event.deltaY > 0 ? -0.1 : 0.1;
-    setCropZoom((prev) => clamp(Number((prev + delta).toFixed(2)), 1, 2.5));
+    const nextZoom = clamp(Number((cropZoom + delta).toFixed(2)), 1, 2.5);
+    if (nextZoom !== cropZoom) setHasUserAdjusted(true);
+    setCropZoom(nextZoom);
   };
 
   const handleCropPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -212,6 +254,7 @@ export default function ImageCropDialog({
   };
 
   const resetAdjustments = () => {
+    setHasUserAdjusted(true);
     setCropPan({ x: 0, y: 0 });
     setCropZoom(1);
     setRotation(0);
@@ -219,6 +262,7 @@ export default function ImageCropDialog({
   };
 
   const rotateImage = () => {
+    setHasUserAdjusted(true);
     setRotation((current) => (current + 90) % 360);
     setCropPan({ x: 0, y: 0 });
   };
@@ -230,6 +274,63 @@ export default function ImageCropDialog({
 
   const confirmCrop = async () => {
     if (!resolvedUrl) return;
+
+    const settings: CropSettings = {
+      cropBox,
+      pan: cropPan,
+      zoom: cropZoom,
+      rotation,
+      flipHorizontal,
+    };
+
+    if (!hasUserAdjusted && initialSettings) {
+      onClose();
+      return;
+    }
+
+    let sourceBlob: Blob;
+    try {
+      sourceBlob = await fetch(resolvedUrl).then((response) => response.blob());
+    } catch (error) {
+      console.error("No se pudo leer la imagen para recortarla:", error);
+      onClose();
+      return;
+    }
+
+    if (!hasUserAdjusted) {
+      const mimeType = sourceBlob.type || "image/jpeg";
+      const output = new File([sourceBlob], fileNameWithMimeType(fileName, mimeType), { type: mimeType });
+      onConfirm(output, settings);
+      onClose();
+      return;
+    }
+
+    const targetWidth = type === "logo" ? 1024 : type === "banner" ? 1800 : 1600;
+    const targetHeight = type === "logo" ? 1024 : type === "banner" ? 300 : 900;
+    const signature = await sourceBlob.slice(0, 6).text();
+    const isGif = sourceBlob.type.toLowerCase().startsWith("image/gif") ||
+      /^GIF8[79]a$/.test(signature) ||
+      fileName.toLowerCase().endsWith(".gif");
+
+    if (isGif) {
+      try {
+        const outputBlob = await cropAnimatedGif(sourceBlob, {
+          cropBox,
+          pan: cropPan,
+          zoom: cropZoom,
+          targetWidth,
+          targetHeight,
+          rotation,
+          flipHorizontal,
+        });
+        onConfirm(new File([outputBlob], fileNameWithMimeType(fileName, "image/gif"), { type: "image/gif" }), settings);
+        onClose();
+      } catch (error) {
+        console.error("No se pudo recortar la GIF animada:", error);
+        onClose();
+      }
+      return;
+    }
 
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -253,22 +354,40 @@ export default function ImageCropDialog({
       height: (cropBox.height / 100) * img.naturalHeight,
     };
 
-    const targetWidth = type === "logo" ? 1024 : type === "banner" ? 1800 : 1600;
-    const targetHeight = type === "logo" ? 1024 : type === "banner" ? 300 : 900;
+    const transformedCanvas = document.createElement("canvas");
+    transformedCanvas.width = img.naturalWidth;
+    transformedCanvas.height = img.naturalHeight;
+
+    const transformedContext = transformedCanvas.getContext("2d");
+    if (!transformedContext) return;
+
+    transformedContext.translate(img.naturalWidth / 2, img.naturalHeight / 2);
+    transformedContext.translate(
+      (cropPan.x / 100) * img.naturalWidth,
+      (cropPan.y / 100) * img.naturalHeight,
+    );
+    transformedContext.rotate((rotation * Math.PI) / 180);
+    transformedContext.scale(cropZoom, cropZoom);
+    transformedContext.scale(flipHorizontal ? -1 : 1, 1);
+    transformedContext.drawImage(
+      img,
+      -img.naturalWidth / 2,
+      -img.naturalHeight / 2,
+      img.naturalWidth,
+      img.naturalHeight,
+    );
 
     const canvas = document.createElement("canvas");
     canvas.width = targetWidth;
     canvas.height = targetHeight;
-
     const context = canvas.getContext("2d");
     if (!context) return;
-
     context.fillStyle = "#000000";
     context.fillRect(0, 0, targetWidth, targetHeight);
 
     try {
       context.drawImage(
-        img,
+        transformedCanvas,
         box.x,
         box.y,
         box.width,
@@ -284,26 +403,14 @@ export default function ImageCropDialog({
       return;
     }
 
-    const outputCanvas = document.createElement("canvas");
-    const isQuarterTurn = rotation % 180 !== 0;
-    outputCanvas.width = isQuarterTurn ? targetHeight : targetWidth;
-    outputCanvas.height = isQuarterTurn ? targetWidth : targetHeight;
-    const outputContext = outputCanvas.getContext("2d");
-    if (!outputContext) return;
-
-    outputContext.translate(outputCanvas.width / 2, outputCanvas.height / 2);
-    outputContext.rotate((rotation * Math.PI) / 180);
-    outputContext.scale(flipHorizontal ? -1 : 1, 1);
-    outputContext.drawImage(canvas, -targetWidth / 2, -targetHeight / 2);
-
     const outputBlob = await new Promise<Blob | null>((resolve) => {
-      outputCanvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92);
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92);
     });
 
     if (!outputBlob) return;
 
     const output = new File([outputBlob], fileName || "imagen", { type: outputBlob.type || "image/jpeg" });
-    onConfirm(output);
+    onConfirm(output, settings);
     onClose();
   };
 
@@ -318,14 +425,17 @@ export default function ImageCropDialog({
       <DialogTitle>Ajustá el recorte</DialogTitle>
       <DialogContent sx={{ pt: 2 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Arrastrá la imagen dentro del cuadro para centrarla y ajustá los bordes para definir el recorte final.
+          Lo que queda dentro del marco es lo que se guarda. Arrastrá la imagen para elegir qué parte conservar.
         </Typography>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
           <Button
             size="small"
             variant={flipHorizontal ? "contained" : "outlined"}
-            onClick={() => setFlipHorizontal((current) => !current)}
+            onClick={() => {
+              setHasUserAdjusted(true);
+              setFlipHorizontal((current) => !current);
+            }}
             title="Espejar horizontalmente"
             startIcon={<span className="material-symbols-outlined">flip</span>}
           >
@@ -371,7 +481,9 @@ export default function ImageCropDialog({
               onLoad={(event) => {
                 const image = event.currentTarget;
                 setImageSize({ width: image.naturalWidth, height: image.naturalHeight });
-                setCropBox(buildCropForImage(type, image.naturalWidth, image.naturalHeight));
+                if (!initialSettings) {
+                  setCropBox(buildCropForImage(type, image.naturalWidth, image.naturalHeight));
+                }
               }}
               sx={{
                 position: "absolute",
