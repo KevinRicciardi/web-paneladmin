@@ -14,9 +14,11 @@ import {
   alpha,
 } from "@mui/material";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
-import ImageCropDialog from "../components/ImageCropDialog";
+import ImageCropDialog, { type CropSettings } from "../components/ImageCropDialog";
 import { subirACloudinary } from "../utils/cloudinary";
-import type { Perfil } from "../types";
+import type { News, Perfil, Programa } from "../types";
+import { listarProgramacionPorSlug } from "../services/schedule.service";
+import { listarNoticiasPublicadasPorSlug } from "../services/news.service";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -58,13 +60,13 @@ const PRESETS: { nombre: string; colores: Colores }[] = [
   { nombre: "Claro",    colores: { fondo: "#FFFFFF", cabecera: "#F3F4F6", texto: "#111827", textoCabecera: "#111827", primario: "#3B82F6", secundario: "#60A5FA", botones: "#3B82F6", cardFondo: "#F9FAFB", iconos: "#6B7280", borde: "#000000" } },
 ];
 
-const CAMPOS: { key: keyof Colores; label: string }[] = [
+const CAMPOS: { key: keyof Colores; label: string; description?: string }[] = [
   { key: "fondo",      label: "Color de Fondo" },
   { key: "cabecera",   label: "Color de Cabecera" },
   { key: "texto",      label: "Color de Texto (general)" },
   { key: "textoCabecera", label: "Color de Texto (cabecera)" },
-  { key: "primario",   label: "Color Primario" },
-  { key: "secundario", label: "Color Secundario" },
+  { key: "primario",   label: "Color de énfasis", description: "Se usa para destacar la navegación, las selecciones y los estados de carga." },
+  { key: "secundario", label: "Color de EN VIVO", description: "Se usa en el indicador EN VIVO de Inicio y Programación." },
   { key: "botones",    label: "Color de Botones" },
   { key: "cardFondo",  label: "Color de Fondo de Cards" },
   { key: "iconos",     label: "Color de Iconos" },
@@ -328,8 +330,12 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [logoUrl, setLogoUrl] = useState(inicial.logoUrl);
   const [bannerUrls, setBannerUrls] = useState<string[]>(() => normalizarBanners(inicial.bannerUrl));
   const [bannerActivoIndex, setBannerActivoIndex] = useState(0);
-  const [bannerAutoRotate, setBannerAutoRotate] = useState(true);
-  const [bannerIntervalSeconds, setBannerIntervalSeconds] = useState(5);
+  const [previewBannerIndex, setPreviewBannerIndex] = useState(0);
+  const bannerSwipeStartXRef = useRef<number | null>(null);
+  const [previewScreen, setPreviewScreen] = useState<"home" | "news" | "schedule">("home");
+  const [previewScheduleDay, setPreviewScheduleDay] = useState("HOY");
+  const [previewPrograms, setPreviewPrograms] = useState<Programa[]>([]);
+  const [previewNews, setPreviewNews] = useState<Pick<News, "id" | "title" | "excerpt" | "coverImageUrl" | "publishedAt" | "createdAt" | "updatedAt">[]>([]);
   const [instagramUrl, setInstagramUrl] = useState(inicial.instagramUrl);
   const [youtubeUrl, setYoutubeUrl] = useState(inicial.youtubeUrl);
   const [tiktokUrl, setTiktokUrl] = useState(inicial.tiktokUrl);
@@ -351,11 +357,14 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [temaAEliminar, setTemaAEliminar] = useState<{ nombre: string; colores: Colores } | null>(null);
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropDialogSource, setCropDialogSource] = useState<string | null>(null);
+  const [cropDialogInitialSettings, setCropDialogInitialSettings] = useState<CropSettings | null>(null);
   const [cropDialogType, setCropDialogType] = useState<"logo" | "banner">("logo");
   const [cropDialogFileName, setCropDialogFileName] = useState("imagen");
   const [editingBannerIndex, setEditingBannerIndex] = useState<number | null>(null);
   const [originalLogoSource, setOriginalLogoSource] = useState<string | null>(null);
-  const [originalBannerSource, setOriginalBannerSource] = useState<string | null>(null);
+  const [originalBannerSources, setOriginalBannerSources] = useState<Record<string, string>>({});
+  const [bannerCropSettings, setBannerCropSettings] = useState<Record<string, CropSettings>>({});
+  const cropConfirmedRef = useRef(false);
   const guardandoTemaRef = useRef(false);
   const temasPersonalizadosRef = useRef<{ nombre: string; colores: Colores }[]>([]);
   const persistenciaTemasRef = useRef(Promise.resolve());
@@ -431,6 +440,48 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   }, [perfil]);
 
   useEffect(() => {
+    const slug = perfil.tenant.slug;
+    if (!slug) {
+      setPreviewPrograms([]);
+      return;
+    }
+
+    let active = true;
+    listarProgramacionPorSlug(slug)
+      .then((programas) => {
+        if (active) setPreviewPrograms(programas);
+      })
+      .catch(() => {
+        if (active) setPreviewPrograms([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [perfil.tenant.slug]);
+
+  useEffect(() => {
+    const slug = perfil.tenant.slug;
+    if (!slug) {
+      setPreviewNews([]);
+      return;
+    }
+
+    let active = true;
+    listarNoticiasPublicadasPorSlug(slug)
+      .then((noticias) => {
+        if (active) setPreviewNews(noticias);
+      })
+      .catch(() => {
+        if (active) setPreviewNews([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [perfil.tenant.slug]);
+
+  useEffect(() => {
     if (success) {
       const timer = setTimeout(() => setSuccess(false), 3000);
       return () => clearTimeout(timer);
@@ -461,17 +512,37 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const cabeceraPreview = sinSetear(colores.cabecera)
     ? oscurecer(colores.primario, 0.92)
     : colores.cabecera;
-  const bannerPreviewUrl = bannerUrls[bannerActivoIndex] ?? bannerUrls[0] ?? "";
-
+  const programasPreview = previewPrograms.filter((programa) => programa.activo);
   useEffect(() => {
-    if (!bannerAutoRotate || bannerUrls.length <= 1) return;
+    if (bannerUrls.length <= 1) {
+      setPreviewBannerIndex(0);
+      return;
+    }
 
-    const intervalId = window.setInterval(() => {
-      setBannerActivoIndex((prev) => (prev + 1) % bannerUrls.length);
-    }, Math.max(2, bannerIntervalSeconds) * 1000);
+    const timeoutId = window.setTimeout(() => {
+      setPreviewBannerIndex((current) => (current + 1) % bannerUrls.length);
+    }, 7_000);
 
-    return () => window.clearInterval(intervalId);
-  }, [bannerAutoRotate, bannerIntervalSeconds, bannerUrls.length]);
+    return () => window.clearTimeout(timeoutId);
+  }, [bannerUrls, previewBannerIndex]);
+
+  const handlePreviewBannerPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    bannerSwipeStartXRef.current = event.clientX;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePreviewBannerPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const startX = bannerSwipeStartXRef.current;
+    bannerSwipeStartXRef.current = null;
+    if (startX === null || bannerUrls.length <= 1) return;
+
+    const deltaX = event.clientX - startX;
+    if (Math.abs(deltaX) < 40) return;
+
+    setPreviewBannerIndex((current) => (
+      current + (deltaX < 0 ? 1 : -1) + bannerUrls.length
+    ) % bannerUrls.length);
+  };
 
   // (Funciones auxiliares de preview eliminadas porque no se usan actualmente)
 
@@ -481,7 +552,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   };
   const aplicarPreset = (c: Partial<Colores>) => { setColores(ensureColores(c)); setSuccess(false); };
 
-  const handleUpload = async (file: File, tipo: "logo" | "banner", replaceIndex?: number) => {
+  const handleUpload = async (
+    file: File,
+    tipo: "logo" | "banner",
+    replaceIndex?: number,
+    originalSource?: string,
+    cropSettings?: CropSettings,
+  ) => {
     tipo === "logo" ? setUploadingLogo(true) : setUploadingBanner(true);
     setError("");
     try {
@@ -489,15 +566,24 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       if (tipo === "logo") {
         setLogoUrl(url);
       } else {
+        const sourceToKeep = originalSource ?? (replaceIndex === undefined ? url : undefined);
+        if (sourceToKeep) {
+          setOriginalBannerSources((prev) => ({ ...prev, [url]: sourceToKeep }));
+        }
+        if (cropSettings) {
+          setBannerCropSettings((prev) => ({ ...prev, [url]: cropSettings }));
+        }
         setBannerUrls((prev) => {
           const next = [...prev];
           if (typeof replaceIndex === "number" && replaceIndex >= 0 && replaceIndex < next.length) {
             next[replaceIndex] = url;
             setBannerActivoIndex(replaceIndex);
+            setPreviewBannerIndex(replaceIndex);
             return next;
           }
           next.push(url);
           setBannerActivoIndex(next.length - 1);
+          setPreviewBannerIndex(next.length - 1);
           return next;
         });
       }
@@ -522,6 +608,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         if (current > index) return current - 1;
         return current;
       });
+      setPreviewBannerIndex((current) => {
+        if (current >= next.length) return Math.max(0, next.length - 1);
+        if (current > index) return current - 1;
+        return current;
+      });
       return next;
     });
     setSuccess(false);
@@ -535,9 +626,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
     const url = URL.createObjectURL(file);
     if (tipo === "logo" && originalLogoSource?.startsWith("blob:")) URL.revokeObjectURL(originalLogoSource);
-    if (tipo === "banner" && originalBannerSource?.startsWith("blob:")) URL.revokeObjectURL(originalBannerSource);
-    tipo === "logo" ? setOriginalLogoSource(url) : setOriginalBannerSource(url);
+    if (tipo === "logo") setOriginalLogoSource(url);
     setCropDialogSource(url);
+    setCropDialogInitialSettings(null);
     setCropDialogType(tipo);
     setCropDialogFileName(file.name || `${tipo}.jpg`);
     setCropModalOpen(true);
@@ -546,7 +637,12 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const abrirEditorExistente = (tipo: "logo" | "banner") => {
     const url = tipo === "logo" ? logoUrl : (bannerUrls[bannerActivoIndex] ?? bannerUrls[0] ?? "");
     if (!url) return;
-    setCropDialogSource(tipo === "logo" ? originalLogoSource || url : originalBannerSource || url);
+    const originalSource = tipo === "logo" ? originalLogoSource || url : originalBannerSources[url] || url;
+    setCropDialogInitialSettings(tipo === "banner" ? bannerCropSettings[url] ?? null : null);
+    if (tipo === "banner" && !originalBannerSources[url]) {
+      setOriginalBannerSources((prev) => ({ ...prev, [url]: url }));
+    }
+    setCropDialogSource(originalSource);
     setCropDialogType(tipo);
     setCropDialogFileName(`${tipo}.jpg`);
     if (tipo === "banner") setEditingBannerIndex(bannerActivoIndex);
@@ -556,8 +652,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
   const cancelarRecorte = () => {
     setCropModalOpen(false);
-    if (cropDialogSource?.startsWith("blob:") && cropDialogSource !== originalLogoSource && cropDialogSource !== originalBannerSource) URL.revokeObjectURL(cropDialogSource);
+    const isOriginalBannerSource = cropDialogSource && Object.values(originalBannerSources).includes(cropDialogSource);
+    if (!cropConfirmedRef.current && cropDialogSource?.startsWith("blob:") && cropDialogSource !== originalLogoSource && !isOriginalBannerSource) {
+      URL.revokeObjectURL(cropDialogSource);
+    }
+    cropConfirmedRef.current = false;
     setCropDialogSource(null);
+    setCropDialogInitialSettings(null);
     setEditingBannerIndex(null);
   };
 
@@ -1225,9 +1326,14 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           <Card variant="outlined">
             <CardContent>
               <CardHeader icon="palette">Personalizar Colores</CardHeader>
-              {CAMPOS.map(({ key, label }) => (
+              {CAMPOS.map(({ key, label, description }) => (
                 <Box key={key} sx={ { mb: 2, "&:last-child": { mb: 0 } } }>
                   <Typography variant="body2" color="text.secondary" gutterBottom>{label}</Typography>
+                  {description && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.75 }}>
+                      {description}
+                    </Typography>
+                  )}
                   <EditorColor
                     value={colores[key]}
                     onChange={(value) => setColor(key, value)}
@@ -1255,34 +1361,15 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             <CardContent>
               <CardHeader icon="photo_size_select_large">Banners de Cabecera · Tamaño recomendado: 1920x320px</CardHeader>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
-                Se aceptan varios banners. Pueden rotar automáticamente o mantenerse fijos. Los GIF/animaciones también pueden cargarse si el formato lo permite.
+                Se aceptan varios banners. En la app se pueden deslizar y cambian automáticamente. También se admiten GIF animados.
               </Typography>
               <input ref={bannerInputRef} type="file" accept="image/*" hidden
                 onChange={(e) => handleFileChange(e, "banner")} />
 
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, mb: 2, flexWrap: "wrap" }}>
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
                 <Button variant="outlined" size="small" onClick={() => bannerInputRef.current?.click()}>
                   + Agregar banner
                 </Button>
-                {bannerUrls.length > 1 && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Button
-                      size="small"
-                      variant={bannerAutoRotate ? "contained" : "outlined"}
-                      onClick={() => setBannerAutoRotate((prev) => !prev)}
-                    >
-                      Rotación {bannerAutoRotate ? "ON" : "OFF"}
-                    </Button>
-                    <TextField
-                      size="small"
-                      type="number"
-                      label="Segundos"
-                      value={bannerIntervalSeconds}
-                      onChange={(e) => setBannerIntervalSeconds(Math.max(2, Number(e.target.value) || 2))}
-                      sx={{ width: 110 }}
-                    />
-                  </Box>
-                )}
               </Box>
 
               {bannerUrls.length === 0 ? (
@@ -1322,7 +1409,12 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                             e.stopPropagation();
                             setBannerActivoIndex(index);
                             setEditingBannerIndex(index);
-                            setCropDialogSource(bannerUrl);
+                            const originalSource = originalBannerSources[bannerUrl] || bannerUrl;
+                            if (!originalBannerSources[bannerUrl]) {
+                              setOriginalBannerSources((prev) => ({ ...prev, [bannerUrl]: bannerUrl }));
+                            }
+                            setCropDialogSource(originalSource);
+                            setCropDialogInitialSettings(bannerCropSettings[bannerUrl] ?? null);
                             setCropDialogType("banner");
                             setCropDialogFileName(`banner-${index + 1}.jpg`);
                             setCropModalOpen(true);
@@ -1455,13 +1547,22 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   "&::-webkit-scrollbar": { display: "none" },
                 }}
               >
+                {previewScreen === "home" ? (
                 <Box sx={{ px: 2.5, pt: 3, pb: 5 }}>
                   <Typography sx={{ color: textoTenue, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, mb: 1 }}>
                     STREAM
                   </Typography>
-                  <Typography sx={{ color: textoTenue, fontSize: 15, fontWeight: 600, mb: 1.5 }}>
-                    Stream
-                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+                    <Typography sx={{ color: textoTenue, fontSize: 15, fontWeight: 600 }}>
+                      Stream
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
+                      <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: colores.secundario }} />
+                      <Typography sx={{ color: colores.secundario, fontSize: 10, fontWeight: 900 }}>
+                        EN VIVO
+                      </Typography>
+                    </Box>
+                  </Box>
                   <Box
                     sx={{
                       aspectRatio: "16 / 9",
@@ -1495,12 +1596,68 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     </Box>
                   </Box>
 
-                  {bannerPreviewUrl && (
+                  {bannerUrls.length > 0 && (
                     <Box sx={{ mt: 3 }}>
                       <Typography sx={{ color: textoTenue, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, mb: 1 }}>
                         PUBLICIDAD
                       </Typography>
-                      <Box component="img" src={bannerPreviewUrl} alt="Banner" sx={{ display: "block", width: "100%", height: 100, borderRadius: "12px", objectFit: "cover" }} />
+                      <Box
+                        onPointerDown={handlePreviewBannerPointerDown}
+                        onPointerUp={handlePreviewBannerPointerUp}
+                        onPointerCancel={() => { bannerSwipeStartXRef.current = null; }}
+                        sx={{
+                          width: "100%",
+                          height: 100,
+                          overflow: "hidden",
+                          borderRadius: "12px",
+                          touchAction: "pan-y",
+                          cursor: bannerUrls.length > 1 ? "grab" : "default",
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            display: "flex",
+                            width: "100%",
+                            height: "100%",
+                            transform: `translateX(-${previewBannerIndex * 100}%)`,
+                            transition: "transform 450ms ease",
+                          }}
+                        >
+                          {bannerUrls.map((bannerUrl, index) => (
+                            <Box
+                              key={`${bannerUrl}-${index}`}
+                              component="img"
+                              src={bannerUrl}
+                              alt={`Banner ${index + 1}`}
+                              draggable={false}
+                              sx={{ flex: "0 0 100%", width: "100%", height: "100%", objectFit: "cover", userSelect: "none" }}
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                      {bannerUrls.length > 1 && (
+                        <Box sx={{ display: "flex", justifyContent: "center", gap: 0.75, mt: 1 }}>
+                          {bannerUrls.map((bannerUrl, index) => (
+                            <Box
+                              key={`${bannerUrl}-dot-${index}`}
+                              component="button"
+                              type="button"
+                              aria-label={`Mostrar banner ${index + 1}`}
+                              onClick={() => setPreviewBannerIndex(index)}
+                              sx={{
+                                width: 8,
+                                height: 8,
+                                minWidth: 8,
+                                p: 0,
+                                border: 0,
+                                borderRadius: "50%",
+                                bgcolor: index === previewBannerIndex ? colores.primario : alpha(colores.primario, 0.3),
+                                cursor: "pointer",
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      )}
                     </Box>
                   )}
 
@@ -1569,17 +1726,134 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     </Box>
                   </Box>
                 </Box>
+                ) : previewScreen === "news" ? (
+                  <Box sx={{ px: 2.5, pt: 3, pb: 5 }}>
+                    <Typography sx={{ color: colores.texto, fontSize: 21, fontWeight: 900, mb: 2 }}>
+                      Noticias
+                    </Typography>
+                    {previewNews.length === 0 ? (
+                      <Typography sx={{ color: textoTenue, py: 2, fontSize: 13 }}>
+                        Todavía no hay noticias publicadas.
+                      </Typography>
+                    ) : previewNews.map((noticia) => (
+                      <Box
+                        key={noticia.id}
+                        sx={{ pb: 2.25, mb: 2.25, borderBottom: "1px solid", borderColor: borde }}
+                      >
+                        <Box
+                          sx={{
+                            height: 170,
+                            mb: 1.25,
+                            overflow: "hidden",
+                            borderRadius: "10px",
+                            bgcolor: colores.cardFondo,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {noticia.coverImageUrl ? (
+                            <Box
+                              component="img"
+                              src={noticia.coverImageUrl}
+                              alt={noticia.title}
+                              sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            />
+                          ) : (
+                            <span className="material-symbols-outlined" style={{ color: colores.iconos, fontSize: 36 }}>image</span>
+                          )}
+                        </Box>
+                        <Typography sx={{ color: textoTenue, fontSize: 12, mb: 0.75 }}>
+                          {noticia.publishedAt ? new Date(noticia.publishedAt).toLocaleDateString("es-AR") : "Publicada"}
+                        </Typography>
+                        <Typography sx={{ color: colores.texto, fontSize: 18, lineHeight: 1.22, fontWeight: 900 }}>
+                          {noticia.title}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Box sx={{ px: 2, pt: 2, pb: 4 }}>
+                    <Typography sx={{ color: colores.texto, fontSize: 21, fontWeight: 900, px: 0.5, mb: 1 }}>
+                      Programación
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, p: 0.75, mb: 1.5, bgcolor: colores.cardFondo, borderRadius: "12px" }}>
+                      {[
+                        { label: "AYER", value: "AYER" },
+                        { label: "HOY", value: "HOY" },
+                        { label: "MAÑANA", value: "MAÑANA" },
+                      ].map((day) => (
+                        <Box
+                          key={day.value}
+                          component="button"
+                          type="button"
+                          onClick={() => setPreviewScheduleDay(day.value)}
+                          sx={{
+                            flex: 1,
+                            py: 1,
+                            border: 0,
+                            borderRadius: "999px",
+                            bgcolor: previewScheduleDay === day.value ? colores.botones : "transparent",
+                            color: previewScheduleDay === day.value ? contraste(colores.botones) : textoTenue,
+                            fontSize: 11,
+                            fontWeight: previewScheduleDay === day.value ? 800 : 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {day.label}
+                        </Box>
+                      ))}
+                    </Box>
+                    <Typography sx={{ color: textoTenue, fontSize: 12, px: 0.5, mb: 1.5 }}>
+                      {previewScheduleDay === "HOY" ? "LUNES  ·  5 DE OCTUBRE" : previewScheduleDay === "AYER" ? "DOMINGO  ·  4 DE OCTUBRE" : "MARTES  ·  6 DE OCTUBRE"}
+                    </Typography>
+                    {programasPreview.length === 0 ? (
+                      <Typography sx={{ color: textoTenue, px: 0.5, py: 2, fontSize: 13 }}>
+                        Todavía no hay programas para mostrar.
+                      </Typography>
+                    ) : programasPreview.map((programa, index) => (
+                      <Box key={programa.id} sx={{ display: "flex", gap: 1.25, minHeight: 100 }}>
+                        <Typography sx={{ width: 42, pt: 1, color: textoTenue, fontSize: 12, textAlign: "right" }}>
+                          {programa.horaInicio}
+                        </Typography>
+                        <Box sx={{ width: 16, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <Box sx={{ width: 10, height: 10, mt: 1, borderRadius: "50%", bgcolor: colores.iconos }} />
+                          {index < programasPreview.length - 1 && <Box sx={{ flex: 1, width: "1px", mt: 0.5, bgcolor: borde }} />}
+                        </Box>
+                        <Box sx={{ flex: 1, mb: 1.25, p: 1.25, bgcolor: colores.cardFondo, border: "1px solid", borderColor: borde, borderRadius: "10px" }}>
+                          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                            <Box sx={{ width: 48, height: 48, flex: "0 0 48px", overflow: "hidden", borderRadius: "7px", bgcolor: alpha(colores.iconos, 0.12), display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {programa.imagenUrl ? (
+                                <Box component="img" src={programa.imagenUrl} alt={programa.titulo} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              ) : (
+                                <span className="material-symbols-outlined" style={{ color: colores.iconos, fontSize: 22 }}>image</span>
+                              )}
+                            </Box>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ color: textoTenue, fontSize: 10, fontWeight: 800, mb: 0.5 }}>
+                                {programa.horaFin ? `${programa.horaInicio} - ${programa.horaFin}` : programa.horaInicio}
+                              </Typography>
+                              <Typography sx={{ color: colores.texto, fontSize: 14, lineHeight: 1.2, fontWeight: 800 }}>
+                                {programa.titulo}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
               </Box>
 
               <Box sx={{ height: 64, flexShrink: 0, bgcolor: cabeceraPreview, borderTop: "1px solid", borderColor: borde, display: "flex" }}>
                 {[
-                  { icon: "home", label: "Inicio", active: true },
-                  { icon: "article", label: "Noticias", active: false },
-                  { icon: "calendar_month", label: "Programación", active: false },
+                  { icon: "home", label: "Inicio", screen: "home" as const },
+                  { icon: "article", label: "Noticias", screen: "news" as const },
+                  { icon: "calendar_month", label: "Programación", screen: "schedule" as const },
                 ].map((item) => (
-                  <Box key={item.label} sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0.25 }}>
-                    <span className="material-symbols-outlined" style={{ color: item.active ? colores.primario : colores.iconos, fontSize: 22 }}>{item.icon}</span>
-                    <Typography sx={{ color: item.active ? colores.primario : colores.iconos, fontSize: 11, fontWeight: item.active ? 700 : 500 }}>
+                  <Box key={item.label} onClick={() => setPreviewScreen(item.screen)} sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0.25, cursor: "pointer" }}>
+                    <span className="material-symbols-outlined" style={{ color: previewScreen === item.screen ? colores.primario : colores.iconos, fontSize: 22 }}>{item.icon}</span>
+                    <Typography sx={{ color: previewScreen === item.screen ? colores.primario : colores.iconos, fontSize: 11, fontWeight: previewScreen === item.screen ? 700 : 500 }}>
                       {item.label}
                     </Typography>
                   </Box>
@@ -1596,12 +1870,16 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         imageUrl={cropDialogSource}
         type={cropDialogType}
         fileName={cropDialogFileName}
+        initialSettings={cropDialogInitialSettings}
         onClose={cancelarRecorte}
-        onConfirm={(file) => {
+        onConfirm={(file, settings) => {
+          cropConfirmedRef.current = true;
+          const originalSource = cropDialogSource ?? undefined;
           setCropDialogSource(null);
           setCropModalOpen(false);
           const replaceIndex = cropDialogType === "banner" ? editingBannerIndex ?? undefined : undefined;
-          void handleUpload(file, cropDialogType, replaceIndex);
+          void handleUpload(file, cropDialogType, replaceIndex, originalSource, settings);
+          setCropDialogInitialSettings(null);
           setEditingBannerIndex(null);
         }}
       />
