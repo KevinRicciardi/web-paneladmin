@@ -49,15 +49,21 @@ type Colores = {
   borde: string;
 };
 
-// Temas predefinidos: cada uno define la paleta completa
-const PRESETS: { nombre: string; colores: Colores }[] = [
-  { nombre: "Azul",     colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#3B82F6", secundario: "#F59E0B", botones: "#3B82F6", cardFondo: "#111111", iconos: "#94A3B8", borde: "#FFFFFF" } },
-  { nombre: "Verde",    colores: { fondo: "#07120C", cabecera: "#0C1F14", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#22C55E", secundario: "#D9F99D", botones: "#22C55E", cardFondo: "#0F1F17", iconos: "#86EFAC", borde: "#FFFFFF" } },
-  { nombre: "Púrpura",  colores: { fondo: "#0F0A16", cabecera: "#1A0F26", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#A855F7", secundario: "#FBC7FF", botones: "#A855F7", cardFondo: "#1A1024", iconos: "#D8B4FE", borde: "#FFFFFF" } },
-  { nombre: "Blanco y Negro", colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#FFFFFF", secundario: "#A3A3A3", botones: "#FFFFFF", cardFondo: "#1A1A1A", iconos: "#A3A3A3", borde: "#FFFFFF" } },
-  { nombre: "Negro y Dorado", colores: { fondo: "#0A0A0A", cabecera: "#000000", texto: "#F5E6C8", textoCabecera: "#F5E6C8", primario: "#D4AF37", secundario: "#FCD34D", botones: "#D4AF37", cardFondo: "#1A1A14", iconos: "#8B7500", borde: "#FFFFFF" } },
-  { nombre: "Rojo",     colores: { fondo: "#0A0A0A", cabecera: "#140000", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#EF4444", secundario: "#FECACA", botones: "#EF4444", cardFondo: "#1A0F0F", iconos: "#FCA5A5", borde: "#FFFFFF" } },
-  { nombre: "Claro",    colores: { fondo: "#FFFFFF", cabecera: "#F3F4F6", texto: "#111827", textoCabecera: "#111827", primario: "#3B82F6", secundario: "#60A5FA", botones: "#3B82F6", cardFondo: "#F9FAFB", iconos: "#6B7280", borde: "#000000" } },
+type TemaBranding = {
+  nombre: string;
+  colores: Colores;
+  fontFamily?: string;
+};
+
+// Cada preset combina una paleta con la tipografía que mejor la acompaña.
+const PRESETS: TemaBranding[] = [
+  { nombre: "Azul", fontFamily: "Inter", colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#3B82F6", secundario: "#F59E0B", botones: "#3B82F6", cardFondo: "#111111", iconos: "#94A3B8", borde: "#FFFFFF" } },
+  { nombre: "Verde", fontFamily: "Montserrat", colores: { fondo: "#07120C", cabecera: "#0C1F14", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#22C55E", secundario: "#D9F99D", botones: "#22C55E", cardFondo: "#0F1F17", iconos: "#86EFAC", borde: "#FFFFFF" } },
+  { nombre: "Púrpura", fontFamily: "Poppins", colores: { fondo: "#0F0A16", cabecera: "#1A0F26", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#A855F7", secundario: "#FBC7FF", botones: "#A855F7", cardFondo: "#1A1024", iconos: "#D8B4FE", borde: "#FFFFFF" } },
+  { nombre: "Blanco y Negro", fontFamily: "Roboto", colores: { fondo: "#000000", cabecera: "#0A0A0A", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#FFFFFF", secundario: "#A3A3A3", botones: "#FFFFFF", cardFondo: "#1A1A1A", iconos: "#A3A3A3", borde: "#FFFFFF" } },
+  { nombre: "Negro y Dorado", fontFamily: "Playfair Display", colores: { fondo: "#0A0A0A", cabecera: "#000000", texto: "#F5E6C8", textoCabecera: "#F5E6C8", primario: "#D4AF37", secundario: "#FCD34D", botones: "#D4AF37", cardFondo: "#1A1A14", iconos: "#8B7500", borde: "#FFFFFF" } },
+  { nombre: "Rojo", fontFamily: "Oswald", colores: { fondo: "#0A0A0A", cabecera: "#140000", texto: "#FFFFFF", textoCabecera: "#FFFFFF", primario: "#EF4444", secundario: "#FECACA", botones: "#EF4444", cardFondo: "#1A0F0F", iconos: "#FCA5A5", borde: "#FFFFFF" } },
+  { nombre: "Claro", fontFamily: "Lato", colores: { fondo: "#FFFFFF", cabecera: "#F3F4F6", texto: "#111827", textoCabecera: "#111827", primario: "#3B82F6", secundario: "#60A5FA", botones: "#3B82F6", cardFondo: "#F9FAFB", iconos: "#6B7280", borde: "#000000" } },
 ];
 
 const CAMPOS: { key: keyof Colores; label: string; description?: string }[] = [
@@ -334,6 +340,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const bannerSwipeStartXRef = useRef<number | null>(null);
   const [previewScreen, setPreviewScreen] = useState<"home" | "news" | "schedule">("home");
   const [previewScheduleDay, setPreviewScheduleDay] = useState("HOY");
+  const [previewExpanded, setPreviewExpanded] = useState(false);
   const [previewPrograms, setPreviewPrograms] = useState<Programa[]>([]);
   const [previewNews, setPreviewNews] = useState<Pick<News, "id" | "title" | "excerpt" | "coverImageUrl" | "publishedAt" | "createdAt" | "updatedAt">[]>([]);
   const [instagramUrl, setInstagramUrl] = useState(inicial.instagramUrl);
@@ -353,8 +360,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [showGuardarTema, setShowGuardarTema] = useState(false);
   const [nombreNuevoTema, setNombreNuevoTema] = useState("");
   const [guardandoTema, setGuardandoTema] = useState(false);
-  const [temasPersonalizados, setTemasPersonalizados] = useState<{ nombre: string; colores: Colores }[]>([]);
-  const [temaAEliminar, setTemaAEliminar] = useState<{ nombre: string; colores: Colores } | null>(null);
+  const [temasPersonalizados, setTemasPersonalizados] = useState<TemaBranding[]>([]);
+  const [temaAEliminar, setTemaAEliminar] = useState<TemaBranding | null>(null);
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropDialogSource, setCropDialogSource] = useState<string | null>(null);
   const [cropDialogInitialSettings, setCropDialogInitialSettings] = useState<CropSettings | null>(null);
@@ -366,7 +373,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [bannerCropSettings, setBannerCropSettings] = useState<Record<string, CropSettings>>({});
   const cropConfirmedRef = useRef(false);
   const guardandoTemaRef = useRef(false);
-  const temasPersonalizadosRef = useRef<{ nombre: string; colores: Colores }[]>([]);
+  const temasPersonalizadosRef = useRef<TemaBranding[]>([]);
   const persistenciaTemasRef = useRef(Promise.resolve());
   
   // Nuevos estados para Branding
@@ -387,7 +394,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [nuevoContenidoNombre, setNuevoContenidoNombre] = useState("");
   const [nuevoContenidoEnlace, setNuevoContenidoEnlace] = useState("");
 
-  const guardarTemasEnBase = async (temas: { nombre: string; colores: Colores }[]) => {
+  const guardarTemasEnBase = async (temas: TemaBranding[]) => {
     const payload = JSON.stringify(temas);
     const guardar = async () => {
       try {
@@ -427,8 +434,12 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       if (!raw) return;
 
       try {
-        const parsed = JSON.parse(raw) as { nombre: string; colores: Partial<Colores> }[];
-        const normalized = parsed.map((t) => ({ nombre: t.nombre, colores: ensureColores(t.colores) }));
+        const parsed = JSON.parse(raw) as { nombre: string; colores: Partial<Colores>; fontFamily?: string }[];
+        const normalized = parsed.map((t) => ({
+          nombre: t.nombre,
+          colores: ensureColores(t.colores),
+          fontFamily: t.fontFamily,
+        }));
         temasPersonalizadosRef.current = normalized;
         setTemasPersonalizados(normalized);
       } catch (e) {
@@ -512,7 +523,46 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const cabeceraPreview = sinSetear(colores.cabecera)
     ? oscurecer(colores.primario, 0.92)
     : colores.cabecera;
-  const programasPreview = previewPrograms.filter((programa) => programa.activo);
+  const fechaProgramacionPreview = new Date();
+  fechaProgramacionPreview.setDate(
+    fechaProgramacionPreview.getDate() +
+      (previewScheduleDay === "AYER" ? -1 : previewScheduleDay === "MAÑANA" ? 1 : 0),
+  );
+  const fechaProgramacionPreviewInput = [
+    fechaProgramacionPreview.getFullYear(),
+    `${fechaProgramacionPreview.getMonth() + 1}`.padStart(2, "0"),
+    `${fechaProgramacionPreview.getDate()}`.padStart(2, "0"),
+  ].join("-");
+  const codigoDiaPreview = (["DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB"] as const)[
+    fechaProgramacionPreview.getDay()
+  ];
+  const programasPreview = previewPrograms.filter((programa) => {
+    if (!programa.activo) return false;
+
+    const fechaInicio = programa.fechaInicio?.slice(0, 10);
+    if (fechaInicio) {
+      const fechaFin = programa.fechaFin?.slice(0, 10) || fechaInicio;
+      return fechaProgramacionPreviewInput >= fechaInicio && fechaProgramacionPreviewInput <= fechaFin;
+    }
+
+    const diasPersonalizados = programa.diasPersonalizados ?? [];
+    if (diasPersonalizados.length > 0) {
+      return diasPersonalizados.includes(codigoDiaPreview);
+    }
+
+    switch (programa.dias) {
+      case "TODOS":
+        return true;
+      case "LUN_VIE":
+        return ["LUN", "MAR", "MIE", "JUE", "VIE"].includes(codigoDiaPreview);
+      case "SABADOS":
+        return codigoDiaPreview === "SAB";
+      case "DOMINGOS":
+        return codigoDiaPreview === "DOM";
+      default:
+        return false;
+    }
+  });
   useEffect(() => {
     if (bannerUrls.length <= 1) {
       setPreviewBannerIndex(0);
@@ -525,6 +575,20 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
     return () => window.clearTimeout(timeoutId);
   }, [bannerUrls, previewBannerIndex]);
+
+  useEffect(() => {
+    if (!previewExpanded) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousDocumentOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousDocumentOverflow;
+    };
+  }, [previewExpanded]);
 
   const handlePreviewBannerPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     bannerSwipeStartXRef.current = event.clientX;
@@ -550,7 +614,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setColores((prev) => ({ ...prev, [key]: val }));
     setSuccess(false);
   };
-  const aplicarPreset = (c: Partial<Colores>) => { setColores(ensureColores(c)); setSuccess(false); };
+  const aplicarPreset = (tema: Pick<TemaBranding, "colores" | "fontFamily">) => {
+    setColores(ensureColores(tema.colores));
+    if (tema.fontFamily) setFontFamily(tema.fontFamily);
+    setSuccess(false);
+  };
 
   const handleUpload = async (
     file: File,
@@ -708,7 +776,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
     guardandoTemaRef.current = true;
     setGuardandoTema(true);
-    const nuevoTema = { nombre: nombreNuevoTema.trim(), colores: ensureColores(colores) };
+    const nuevoTema = { nombre: nombreNuevoTema.trim(), colores: ensureColores(colores), fontFamily };
     const temasActualizados = [...temasPersonalizadosRef.current, nuevoTema];
     temasPersonalizadosRef.current = temasActualizados;
     setTemasPersonalizados(temasActualizados);
@@ -851,8 +919,10 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     "&::-webkit-color-swatch": { border: "none", borderRadius: "4px" },
   } as const;
 
-  const presetActivo = (c: Colores) =>
-    (Object.keys(c) as (keyof Colores)[]).every((k) => c[k].toUpperCase() === colores[k].toUpperCase());
+  const presetActivo = (tema: Pick<TemaBranding, "colores" | "fontFamily">) =>
+    (Object.keys(tema.colores) as (keyof Colores)[]).every((key) => (
+      tema.colores[key].toUpperCase() === colores[key].toUpperCase()
+    )) && (!tema.fontFamily || tema.fontFamily === fontFamily);
 
   const socialMediaValues: Record<SocialMediaKey, string> = {
     instagramUrl,
@@ -1249,9 +1319,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               <CardHeader icon="palette">Temas Predefinidos</CardHeader>
               <Box sx={ { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 1.5 } }>
                 {PRESETS.map((p) => {
-                  const activo = presetActivo(p.colores);
+                  const activo = presetActivo(p);
                   return (
-                    <Box key={p.nombre} onClick={() => aplicarPreset(p.colores)}
+                    <Box key={p.nombre} onClick={() => aplicarPreset(p)}
                       sx={ {
                         cursor: "pointer", border: "2px solid",
                         borderColor: activo ? "primary.main" : alpha(colores.texto, 0.08),
@@ -1266,7 +1336,19 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                           <Box key={i} sx={ { flex: 1, borderRadius: 0.5, bgcolor: c, border: "1px solid", borderColor: borde } } />
                         ))}
                       </Box>
-                      <Typography sx={ { fontSize: 11, fontWeight: 600, textAlign: "center" } }>{p.nombre}</Typography>
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5 }}>
+                        <Box sx={{ minWidth: 0, textAlign: "center" }}>
+                          <Typography sx={{ fontSize: 11, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {p.nombre}
+                          </Typography>
+                          <Typography sx={{ fontFamily: p.fontFamily, fontSize: 9, color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {p.fontFamily}
+                          </Typography>
+                        </Box>
+                        <Typography aria-label={`Tipografía ${p.fontFamily}`} sx={{ flexShrink: 0, fontFamily: p.fontFamily, fontSize: 17, lineHeight: 1 }}>
+                          Aa
+                        </Typography>
+                      </Box>
                     </Box>
                   );
                 })}
@@ -1281,9 +1363,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 <CardHeader icon="favorite">Temas Personalizados</CardHeader>
                 <Box sx={ { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 1.5 } }>
                   {temasPersonalizados.map((p, idx) => {
-                    const activo = presetActivo(p.colores);
+                    const activo = presetActivo(p);
                     return (
-                      <Box key={`custom-theme-${idx}`} onClick={() => aplicarPreset(p.colores)}
+                      <Box key={`custom-theme-${idx}`} onClick={() => aplicarPreset(p)}
                         sx={ {
                           cursor: "pointer", border: "2px solid",
                           borderColor: activo ? "primary.main" : alpha(colores.texto, 0.08),
@@ -1299,7 +1381,10 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                           ))}
                         </Box>
                         <Box sx={ { display: "flex", alignItems: "center", gap: 0.5 } }>
-                          <Typography sx={ { minWidth: 0, flexGrow: 1, fontSize: 11, fontWeight: 600, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }>{p.nombre}</Typography>
+                          <Box sx={{ minWidth: 0, flexGrow: 1, textAlign: "center" }}>
+                            <Typography sx={{ fontSize: 11, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</Typography>
+                            <Typography sx={{ fontSize: 9, color: "text.secondary", fontFamily: p.fontFamily, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.fontFamily ?? "Tipografía actual"}</Typography>
+                          </Box>
                           <Tooltip title="Eliminar tema">
                             <IconButton
                               size="small"
@@ -1450,15 +1535,62 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
         </Box>
 
         {/* ── Columna derecha: Preview ── */}
-        <Box sx={ { position: { md: "sticky" }, top: 24 } }>
+        <Box
+          role={previewExpanded ? "dialog" : undefined}
+          aria-modal={previewExpanded || undefined}
+          aria-label={previewExpanded ? "Vista previa ampliada" : undefined}
+          tabIndex={previewExpanded ? -1 : undefined}
+          onClick={previewExpanded ? () => setPreviewExpanded(false) : undefined}
+          onKeyDown={(event) => {
+            if (previewExpanded && event.key === "Escape") setPreviewExpanded(false);
+          }}
+          sx={previewExpanded ? {
+            position: "fixed",
+            inset: 0,
+            zIndex: 1300,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            p: 2,
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+            boxSizing: "border-box",
+            bgcolor: "rgba(0, 0, 0, 0.78)",
+          } : { position: { md: "sticky" }, top: 24 }}
+        >
+          <Box
+            onClick={(event) => event.stopPropagation()}
+            sx={{
+              width: previewExpanded ? "min(520px, calc(100vw - 32px))" : 440,
+              maxWidth: "100%",
+              mx: "auto",
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+              <Typography variant="subtitle2">Vista previa</Typography>
+              <Tooltip title={previewExpanded ? "Cerrar vista ampliada" : "Ampliar vista previa"}>
+                <IconButton
+                  size="small"
+                  aria-label={previewExpanded ? "Cerrar vista ampliada" : "Ampliar vista previa"}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setPreviewExpanded((expanded) => !expanded);
+                  }}
+                >
+                  <span className="material-symbols-outlined">
+                    {previewExpanded ? "close" : "open_in_full"}
+                  </span>
+                </IconButton>
+              </Tooltip>
+            </Box>
           <Card variant="outlined" sx={ { overflow: "hidden", border: "none", boxShadow: "none", bgcolor: "transparent" } }>
             <Box
               sx={{
-                width: 440,
+                width: previewExpanded ? "100%" : 440,
                 maxWidth: "none",
-                height: 956,
-                minWidth: 440,
-                minHeight: 956,
+                height: previewExpanded ? "min(956px, calc(100dvh - 96px))" : 956,
+                minWidth: previewExpanded ? 0 : 440,
+                minHeight: previewExpanded ? 0 : 956,
                 flex: "none",
                 mx: "auto",
                 bgcolor: fondo,
@@ -1471,10 +1603,10 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 flexDirection: "column",
                 boxShadow: "0 18px 48px rgba(0,0,0,0.24)",
                 fontFamily: fontFamily === "system-ui" ? "system-ui, 'Segoe UI', Roboto, sans-serif" : `${fontFamily}, system-ui, 'Segoe UI', Roboto, sans-serif`,
-                "& *": {
+                "&& *": {
                   fontFamily: fontFamily === "system-ui" ? "system-ui, 'Segoe UI', Roboto, sans-serif" : `${fontFamily}, system-ui, 'Segoe UI', Roboto, sans-serif`,
                 },
-                "& .material-symbols-outlined": {
+                "&& .material-symbols-outlined": {
                   fontFamily: "Material Symbols Outlined",
                   fontFeatureSettings: "'liga' 1",
                 },
@@ -1516,7 +1648,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   noWrap
                   sx={{ minWidth: 0, flex: 1, fontSize: 18, fontWeight: 700, letterSpacing: 1, color: onCabecera }}
                 >
-                  {nombre || "Mi Canal"}
+                  {previewScreen === "home" ? nombre || "Mi Canal" : previewScreen === "news" ? "Noticias" : "Programación"}
                 </Typography>
                 <Box
                   sx={{
@@ -1538,21 +1670,96 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 </Box>
               </Box>
 
+              {previewScreen === "schedule" && (
+                <Box
+                  sx={{
+                    height: 64,
+                    flexShrink: 0,
+                    px: 0.75,
+                    bgcolor: fondo,
+                    borderBottom: "1px solid",
+                    borderColor: borde,
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <IconButton
+                    size="small"
+                    disabled={previewScheduleDay === "AYER"}
+                    onClick={() => setPreviewScheduleDay(previewScheduleDay === "MAÑANA" ? "HOY" : "AYER")}
+                    sx={{ color: colores.iconos, flexShrink: 0 }}
+                    aria-label="Día anterior"
+                  >
+                    <span className="material-symbols-outlined">chevron_left</span>
+                  </IconButton>
+                  <Box sx={{ flex: 1, display: "flex", justifyContent: "center", gap: 0.5 }}>
+                    {[
+                      { label: "Ayer", value: "AYER" },
+                      { label: "Hoy", value: "HOY" },
+                      { label: "Mañana", value: "MAÑANA" },
+                    ].map((day) => (
+                      <Box
+                        key={day.value}
+                        component="button"
+                        type="button"
+                        onClick={() => setPreviewScheduleDay(day.value)}
+                        sx={{
+                          px: 1.15,
+                          py: 0.9,
+                          border: 0,
+                          borderRadius: "999px",
+                          bgcolor: previewScheduleDay === day.value ? colores.botones : "transparent",
+                          color: previewScheduleDay === day.value ? contraste(colores.botones) : textoTenue,
+                          font: "inherit",
+                          fontSize: 13,
+                          fontWeight: previewScheduleDay === day.value ? 800 : 500,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {day.label}
+                      </Box>
+                    ))}
+                  </Box>
+                  <IconButton
+                    size="small"
+                    disabled={previewScheduleDay === "MAÑANA"}
+                    onClick={() => setPreviewScheduleDay(previewScheduleDay === "AYER" ? "HOY" : "MAÑANA")}
+                    sx={{ color: colores.iconos, flexShrink: 0 }}
+                    aria-label="Día siguiente"
+                  >
+                    <span className="material-symbols-outlined">chevron_right</span>
+                  </IconButton>
+                </Box>
+              )}
+
               <Box
                 sx={{
                   flex: 1,
                   minHeight: 0,
                   overflowY: "auto",
+                  overscrollBehavior: "contain",
                   scrollbarWidth: "none",
                   "&::-webkit-scrollbar": { display: "none" },
                 }}
               >
                 {previewScreen === "home" ? (
-                <Box sx={{ px: 2.5, pt: 3, pb: 5 }}>
-                  <Typography sx={{ color: textoTenue, fontSize: 12, fontWeight: 600, letterSpacing: 1.5, mb: 1 }}>
-                    STREAM
-                  </Typography>
-                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+                <Box sx={{ px: 2.5, pt: 0, pb: 5 }}>
+                  <Box
+                    sx={{
+                      width: "calc(100% + 40px)",
+                      mx: "-20px",
+                      aspectRatio: "16 / 9",
+                      bgcolor: "#000000",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Box sx={{ width: 46, height: 46, borderRadius: "50%", bgcolor: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span className="material-symbols-outlined" style={{ color: "#FFFFFF", fontSize: 28 }}>play_arrow</span>
+                    </Box>
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 2, mb: 2.5 }}>
                     <Typography sx={{ color: textoTenue, fontSize: 15, fontWeight: 600 }}>
                       Stream
                     </Typography>
@@ -1561,22 +1768,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                       <Typography sx={{ color: colores.secundario, fontSize: 10, fontWeight: 900 }}>
                         EN VIVO
                       </Typography>
-                    </Box>
-                  </Box>
-                  <Box
-                    sx={{
-                      aspectRatio: "16 / 9",
-                      bgcolor: "#000000",
-                      border: "1px solid",
-                      borderColor: borde,
-                      borderRadius: "14px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Box sx={{ width: 46, height: 46, borderRadius: "50%", bgcolor: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span className="material-symbols-outlined" style={{ color: "#FFFFFF", fontSize: 28 }}>play_arrow</span>
                     </Box>
                   </Box>
 
@@ -1727,10 +1918,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   </Box>
                 </Box>
                 ) : previewScreen === "news" ? (
-                  <Box sx={{ px: 2.5, pt: 3, pb: 5 }}>
-                    <Typography sx={{ color: colores.texto, fontSize: 21, fontWeight: 900, mb: 2 }}>
-                      Noticias
-                    </Typography>
+                  <Box sx={{ px: 2.25, pt: 2.25, pb: 5 }}>
                     {previewNews.length === 0 ? (
                       <Typography sx={{ color: textoTenue, py: 2, fontSize: 13 }}>
                         Todavía no hay noticias publicadas.
@@ -1773,70 +1961,46 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     ))}
                   </Box>
                 ) : (
-                  <Box sx={{ px: 2, pt: 2, pb: 4 }}>
-                    <Typography sx={{ color: colores.texto, fontSize: 21, fontWeight: 900, px: 0.5, mb: 1 }}>
-                      Programación
-                    </Typography>
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, p: 0.75, mb: 1.5, bgcolor: colores.cardFondo, borderRadius: "12px" }}>
-                      {[
-                        { label: "AYER", value: "AYER" },
-                        { label: "HOY", value: "HOY" },
-                        { label: "MAÑANA", value: "MAÑANA" },
-                      ].map((day) => (
-                        <Box
-                          key={day.value}
-                          component="button"
-                          type="button"
-                          onClick={() => setPreviewScheduleDay(day.value)}
-                          sx={{
-                            flex: 1,
-                            py: 1,
-                            border: 0,
-                            borderRadius: "999px",
-                            bgcolor: previewScheduleDay === day.value ? colores.botones : "transparent",
-                            color: previewScheduleDay === day.value ? contraste(colores.botones) : textoTenue,
-                            fontSize: 11,
-                            fontWeight: previewScheduleDay === day.value ? 800 : 600,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {day.label}
-                        </Box>
-                      ))}
-                    </Box>
-                    <Typography sx={{ color: textoTenue, fontSize: 12, px: 0.5, mb: 1.5 }}>
-                      {previewScheduleDay === "HOY" ? "LUNES  ·  5 DE OCTUBRE" : previewScheduleDay === "AYER" ? "DOMINGO  ·  4 DE OCTUBRE" : "MARTES  ·  6 DE OCTUBRE"}
-                    </Typography>
+                  <Box sx={{ px: 2.25, pt: 2.25, pb: 4 }}>
                     {programasPreview.length === 0 ? (
-                      <Typography sx={{ color: textoTenue, px: 0.5, py: 2, fontSize: 13 }}>
-                        Todavía no hay programas para mostrar.
-                      </Typography>
+                      <Box sx={{ display: "flex", minHeight: 230, flexDirection: "column", alignItems: "center", justifyContent: "center", px: 2 }}>
+                        <span className="material-symbols-outlined" style={{ color: alpha(colores.iconos, 0.35), fontSize: 46 }}>calendar_month</span>
+                        <Typography sx={{ color: textoTenue, mt: 1.5, fontSize: 14, textAlign: "center" }}>
+                          No hay programación para este día.
+                        </Typography>
+                      </Box>
                     ) : programasPreview.map((programa, index) => (
                       <Box key={programa.id} sx={{ display: "flex", gap: 1.25, minHeight: 100 }}>
-                        <Typography sx={{ width: 42, pt: 1, color: textoTenue, fontSize: 12, textAlign: "right" }}>
+                        <Typography sx={{ width: 50, pt: 0.75, color: textoTenue, fontSize: 13, textAlign: "right", flexShrink: 0 }}>
                           {programa.horaInicio}
                         </Typography>
-                        <Box sx={{ width: 16, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                          <Box sx={{ width: 10, height: 10, mt: 1, borderRadius: "50%", bgcolor: colores.iconos }} />
+                        <Box sx={{ width: 26, display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+                          <Box sx={{ width: 12, height: 12, mt: 1, border: "2px solid", borderColor: fondo, borderRadius: "50%", bgcolor: colores.iconos }} />
                           {index < programasPreview.length - 1 && <Box sx={{ flex: 1, width: "1px", mt: 0.5, bgcolor: borde }} />}
                         </Box>
-                        <Box sx={{ flex: 1, mb: 1.25, p: 1.25, bgcolor: colores.cardFondo, border: "1px solid", borderColor: borde, borderRadius: "10px" }}>
-                          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                            <Box sx={{ width: 48, height: 48, flex: "0 0 48px", overflow: "hidden", borderRadius: "7px", bgcolor: alpha(colores.iconos, 0.12), display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {programa.imagenUrl ? (
+                        <Box sx={{ flex: 1, minWidth: 0, mb: 2.25, p: 1.5, bgcolor: colores.cardFondo, border: "1px solid", borderColor: borde, borderRadius: "10px", opacity: previewScheduleDay === "HOY" ? 1 : 0.45 }}>
+                          <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
+                            {programa.imagenUrl && (
+                              <Box sx={{ width: 52, height: 52, flex: "0 0 52px", overflow: "hidden", borderRadius: "8px", bgcolor: alpha(colores.iconos, 0.12) }}>
                                 <Box component="img" src={programa.imagenUrl} alt={programa.titulo} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              ) : (
-                                <span className="material-symbols-outlined" style={{ color: colores.iconos, fontSize: 22 }}>image</span>
-                              )}
-                            </Box>
-                            <Box sx={{ minWidth: 0 }}>
-                              <Typography sx={{ color: textoTenue, fontSize: 10, fontWeight: 800, mb: 0.5 }}>
-                                {programa.horaFin ? `${programa.horaInicio} - ${programa.horaFin}` : programa.horaInicio}
-                              </Typography>
-                              <Typography sx={{ color: colores.texto, fontSize: 14, lineHeight: 1.2, fontWeight: 800 }}>
+                              </Box>
+                            )}
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.75 }}>
+                                <Typography sx={{ px: 0.75, py: 0.35, bgcolor: fondo, border: "1px solid", borderColor: borde, borderRadius: "4px", color: textoTenue, fontSize: 9, fontWeight: 800, letterSpacing: 0.5 }}>
+                                  {programa.descripcion?.trim().split(/\s+/)[0]?.toUpperCase() || "PROGRAMA"}
+                                </Typography>
+                                {previewScheduleDay === "HOY" && (
+                                  <span className="material-symbols-outlined" style={{ color: colores.iconos, fontSize: 17 }}>play_arrow</span>
+                                )}
+                              </Box>
+                              <Typography sx={{ color: colores.texto, fontSize: 14, lineHeight: 1.18, fontWeight: 800 }}>
                                 {programa.titulo}
                               </Typography>
                             </Box>
+                            {previewScheduleDay !== "HOY" && (
+                              <span className="material-symbols-outlined" style={{ color: colores.iconos, fontSize: 20 }}>lock_outline</span>
+                            )}
                           </Box>
                         </Box>
                       </Box>
@@ -1863,6 +2027,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
 
           </Card>
         </Box>
+      </Box>
       </Box>
 
       <ImageCropDialog
