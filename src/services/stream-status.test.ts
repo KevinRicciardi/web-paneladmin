@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getSignalStatus, getStreamData } from "./stream.service";
+import { getSignalStatus, getStreamData, invalidateStreamData } from "./stream.service";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -54,5 +54,31 @@ describe("getSignalStatus", () => {
       duration: null,
       videoId: "live-video",
     });
+  });
+
+  it("no reutiliza los datos de un stream anterior cuando cambia la URL", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ isLive: true, viewers: 12 }),
+    } as Response);
+
+    await getStreamData("https://youtube.com/@canal-a", "youtube", "changed-url-cache");
+    await getStreamData("https://youtube.com/@canal-b", "youtube", "changed-url-cache");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("permite actualizar los datos luego de guardar la configuración", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ isLive: true, viewers: 12 }),
+    } as Response);
+    const url = "https://youtube.com/@saved-channel";
+
+    await getStreamData(url, "youtube", "saved-config-cache");
+    invalidateStreamData("saved-config-cache");
+    await getStreamData(url, "youtube", "saved-config-cache");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

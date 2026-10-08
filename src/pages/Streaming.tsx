@@ -21,7 +21,7 @@ import { puedeVerSeccion } from "../utils/permisos";
 import { extractKickChannelName, getKickAudioUrl } from "../services/kick.service";
 import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
 import { buildYoutubeChannelEmbedUrl, buildYoutubeVideoEmbedUrl } from "../services/youtube.service";
-import { getSignalStatus, getStreamData, type StreamData } from "../services/stream.service";
+import { extractYoutubeVideoId, getSignalStatus, getStreamData, invalidateStreamData, type StreamData } from "../services/stream.service";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
@@ -88,12 +88,14 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const canViewPodcast = puedeVerSeccion(perfil, "podcast");
   const t = perfil.tenant;
   const [streamUrl, setStreamUrl] = useState<string>(() => t?.streamUrl ?? "");
+  const [savedStreamUrl, setSavedStreamUrl] = useState<string>(() => t?.streamUrl ?? "");
   const [streamProvider, setStreamProvider] = useState<string>(() => {
     const valor = t?.streamProvider ?? "";
     return valor || "kick";
   });
   const [youtubeChannelId, setYoutubeChannelId] = useState<string | null>(() => t?.youtubeChannelId ?? null);
   const [streamStatusData, setStreamStatusData] = useState<StreamData | null>(null);
+  const [streamRefreshKey, setStreamRefreshKey] = useState(0);
   const [signalLoading, setSignalLoading] = useState(true);
   const [kickAudioUrl, setKickAudioUrl] = useState<string | null>(null);
   const [tipoTransmision, setTipoTransmision] = useState<string>(() => {
@@ -132,8 +134,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     : streamUrl
     ? getStreamingPlatformLabel(streamUrl)
     : null;
-  const youtubeEmbedUrl = buildYoutubeVideoEmbedUrl(streamStatusData?.videoId)
-    ?? buildYoutubeChannelEmbedUrl(youtubeChannelId);
+  const isSavedStreamUrl = streamUrl.trim() === savedStreamUrl.trim();
+  const youtubeVideoId = extractYoutubeVideoId(streamUrl)
+    ?? (isSavedStreamUrl ? streamStatusData?.videoId : null);
+  const youtubeEmbedUrl = buildYoutubeVideoEmbedUrl(youtubeVideoId)
+    ?? (isSavedStreamUrl ? buildYoutubeChannelEmbedUrl(youtubeChannelId) : null);
   const previewEmbedUrl = !esPodcast
     ? streamProvider === "youtube" ? youtubeEmbedUrl : embedUrl
     : null;
@@ -144,8 +149,14 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const audioUrl = rawAudioUrl;
   const useKickIframeFallback = esPodcast && Boolean(channelName) && !audioUrl;
   const kickIframeUrl = useKickIframeFallback && channelName ? `https://player.kick.com/${channelName}` : null;
+  const youtubeAudioEmbedUrl = isSavedStreamUrl
+    ? buildYoutubeChannelEmbedUrl(youtubeChannelId)
+      ?? buildYoutubeVideoEmbedUrl(streamStatusData?.videoId)
+    : buildYoutubeVideoEmbedUrl(extractYoutubeVideoId(streamUrl));
   const externalAudioUrl = streamProvider === "youtube"
-    ? youtubeEmbedUrl ? `${youtubeEmbedUrl}&autoplay=1&playsinline=1` : null
+    ? youtubeAudioEmbedUrl
+      ? `${youtubeAudioEmbedUrl}${youtubeAudioEmbedUrl.includes("?") ? "&" : "?"}autoplay=1&playsinline=1`
+      : null
     : getAutoplayStreamingEmbedUrl(streamUrl, detectStreamingPlatform(streamUrl));
   const useExternalAudioFallback = esPodcast && Boolean(externalAudioUrl)
     && (streamProvider === "youtube" || streamProvider === "twitch");
@@ -171,15 +182,14 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   }, [useKickIframeFallback]);
 
   useEffect(() => {
-    if (!useExternalAudioFallback) {
-      setExternalAudioSrc(null);
-      setExternalAudioPlaying(false);
-    }
-  }, [useExternalAudioFallback]);
+    setExternalAudioSrc(null);
+    setExternalAudioPlaying(false);
+  }, [externalAudioUrl, useExternalAudioFallback]);
 
   useEffect(() => {
     const podcastMode = t?.tipoTransmision === "audio";
     setStreamUrl(t?.streamUrl ?? "");
+    setSavedStreamUrl(t?.streamUrl ?? "");
     setStreamProvider(t?.streamProvider || "kick");
 
     setYoutubeChannelId(t?.youtubeChannelId ?? null);
@@ -198,7 +208,14 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const refreshProviderStreamData = async () => {
-      if (!streamUrl || !streamProvider || streamProvider === "direct" || streamProvider === "other" || !perfil.tenant?.slug) {
+      if (
+        !streamUrl ||
+        streamUrl.trim() !== savedStreamUrl.trim() ||
+        !streamProvider ||
+        streamProvider === "direct" ||
+        streamProvider === "other" ||
+        !perfil.tenant?.slug
+      ) {
         setStreamStatusData(null);
         setSignalLoading(false);
         return;
@@ -214,7 +231,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
           intervalId = setInterval(refreshProviderStreamData, streamProvider === "kick" ? 1000 : 30_000);
         }
 
-        if (!data?.isLive && intervalId) {
+        if (!data?.isLive && streamProvider !== "youtube" && intervalId) {
           clearInterval(intervalId);
           intervalId = null;
         }
@@ -232,7 +249,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       active = false;
       if (intervalId) clearInterval(intervalId);
     };
-  }, [perfil.tenant?.slug, perfil.tenant?.youtubeChannelId, streamProvider, streamUrl]);
+  }, [perfil.tenant?.slug, perfil.tenant?.youtubeChannelId, savedStreamUrl, streamProvider, streamUrl, streamRefreshKey]);
 
   useEffect(() => {
     const fetchKickAudio = async () => {
@@ -463,6 +480,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const handleDescartar = () => {
     const podcastMode = t?.tipoTransmision === "audio";
     setStreamUrl(t?.streamUrl ?? "");
+    setSavedStreamUrl(t?.streamUrl ?? "");
     setStreamProvider(t?.streamProvider ?? "kick");
     setYoutubeChannelId(t?.youtubeChannelId ?? null);
     setTipoTransmision(t?.tipoTransmision ?? "video");
@@ -516,21 +534,17 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         }
       } catch {}
 
-      if (payload.streamUrl) {
-        setStreamUrl(payload.streamUrl);
-      }
-      if (payload.streamProvider) {
-        setStreamProvider(payload.streamProvider);
-      }
+      setStreamUrl(payload.streamUrl);
+      setStreamProvider(payload.streamProvider || "kick");
       setYoutubeChannelId(payload.youtubeChannelId ?? null);
-      if (payload.tipoTransmision) {
-        setTipoTransmision(payload.tipoTransmision);
-      }
-      if (payload.imagenPortada) {
-        setImagenPortada(payload.imagenPortada);
-      }
+      setTipoTransmision(payload.tipoTransmision);
+      setImagenPortada(payload.imagenPortada ?? "");
 
       setSuccess(true);
+      setSavedStreamUrl(payload.streamUrl);
+      setStreamStatusData(null);
+      if (perfil.tenant?.slug) invalidateStreamData(perfil.tenant.slug);
+      setStreamRefreshKey((key) => key + 1);
       try {
         window.dispatchEvent(new CustomEvent("tenantUpdated", {
           detail: payload,
@@ -605,6 +619,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 const value = e.target.value;
                 const detectedProvider = detectStreamingPlatform(value);
                 setStreamUrl(value);
+                setStreamStatusData(null);
+                setPreviewOpen(false);
                 if (isDirectVideoUrl(value) || getDirectAudioUrl(value)) {
                   setStreamProvider("direct");
                 } else if (detectedProvider !== "direct" && detectedProvider !== "other") {
@@ -869,9 +885,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                       title={`${streamProvider} audio player`}
                       allow="autoplay; encrypted-media; picture-in-picture"
                       sx={{
-                        position: "absolute",
-                        width: "1px",
-                        height: "1px",
+                        position: "fixed",
+                        left: "-10000px",
+                        top: 0,
+                        width: "200px",
+                        height: "200px",
                         opacity: 0,
                         overflow: "hidden",
                         pointerEvents: "none",
