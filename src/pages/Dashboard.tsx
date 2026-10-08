@@ -95,7 +95,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
 
         setStreamData(data);
 
-        if (!data?.isLive) {
+        if (!data?.isLive && streamProvider !== "youtube") {
           if (streamInterval) {
             clearInterval(streamInterval);
             streamInterval = null;

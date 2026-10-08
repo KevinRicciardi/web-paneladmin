@@ -194,7 +194,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
         setStreamStatusData(data);
 
-        if (data?.isLive && !intervalId) {
+        if ((data?.isLive || streamProvider === "youtube") && !intervalId) {
           intervalId = setInterval(refreshProviderStreamData, streamProvider === "kick" ? 1000 : 30_000);
         }
 
@@ -216,7 +216,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       active = false;
       if (intervalId) clearInterval(intervalId);
     };
-  }, [perfil.tenant?.slug, streamProvider, streamUrl]);
+  }, [perfil.tenant?.slug, perfil.tenant?.youtubeChannelId, streamProvider, streamUrl]);
 
   useEffect(() => {
     const fetchKickAudio = async () => {
