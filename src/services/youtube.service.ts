@@ -9,3 +9,11 @@ export function buildYoutubeChannelEmbedUrl(
 
   return `https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(channelId.trim())}`;
 }
+
+export function buildYoutubeVideoEmbedUrl(
+  videoId: string | null | undefined,
+): string | null {
+  if (!videoId || !videoId.trim()) return null;
+
+  return `https://www.youtube.com/embed/${encodeURIComponent(videoId.trim())}`;
+}
