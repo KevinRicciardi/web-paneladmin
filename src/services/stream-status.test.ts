@@ -30,4 +30,29 @@ describe("getSignalStatus", () => {
     expect(second).toBe(first);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("conserva el estado en vivo aunque YouTube no pueda devolver métricas", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        isLive: true,
+        viewers: null,
+        startedAt: null,
+        videoId: "live-video",
+      }),
+    } as Response);
+
+    const data = await getStreamData(
+      "https://youtube.com/canal",
+      "youtube",
+      "youtube-quota-limited",
+    );
+
+    expect(data).toMatchObject({
+      isLive: true,
+      viewerCount: null,
+      duration: null,
+      videoId: "live-video",
+    });
+  });
 });
