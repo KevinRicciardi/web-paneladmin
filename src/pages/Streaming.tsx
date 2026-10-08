@@ -7,6 +7,9 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogContent,
+  IconButton,
   TextField,
   Typography,
 } from "@mui/material";
@@ -17,7 +20,7 @@ import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
 import { extractKickChannelName, getKickAudioUrl } from "../services/kick.service";
 import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
-import { buildYoutubeChannelEmbedUrl } from "../services/youtube.service";
+import { buildYoutubeChannelEmbedUrl, buildYoutubeVideoEmbedUrl } from "../services/youtube.service";
 import { getSignalStatus, getStreamData, type StreamData } from "../services/stream.service";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -66,16 +69,27 @@ function CardHeader({ icon, children }: { icon: string; children: React.ReactNod
   );
 }
 
+function StreamVideoFrame({ src, title }: { src: string; title: string }) {
+  return (
+    <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
+      <Box
+        component="iframe"
+        src={src}
+        title={title}
+        allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+        sx={ { position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" } }
+      />
+    </Box>
+  );
+}
+
 export default function Streaming({ perfil }: { perfil: Perfil }) {
   const canViewStreaming = puedeVerSeccion(perfil, "streaming");
   const canViewPodcast = puedeVerSeccion(perfil, "podcast");
   const t = perfil.tenant;
-  const [streamUrl, setStreamUrl] = useState<string>(() => (
-    t?.tipoTransmision === "audio" ? t.podcastUrl || t.streamUrl : t?.streamUrl
-  ) ?? "");
+  const [streamUrl, setStreamUrl] = useState<string>(() => t?.streamUrl ?? "");
   const [streamProvider, setStreamProvider] = useState<string>(() => {
-    const valor = (t?.tipoTransmision === "audio" ? t.podcastProvider || t.streamProvider : t?.streamProvider)
-      ?? "";
+    const valor = t?.streamProvider ?? "";
     return valor || "kick";
   });
   const [youtubeChannelId, setYoutubeChannelId] = useState<string | null>(() => t?.youtubeChannelId ?? null);
@@ -93,6 +107,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioLoadError, setAudioLoadError] = useState("");
   const [audioReady, setAudioReady] = useState(false);
@@ -117,7 +132,11 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     : streamUrl
     ? getStreamingPlatformLabel(streamUrl)
     : null;
-  const youtubeEmbedUrl = buildYoutubeChannelEmbedUrl(youtubeChannelId);
+  const youtubeEmbedUrl = buildYoutubeVideoEmbedUrl(streamStatusData?.videoId)
+    ?? buildYoutubeChannelEmbedUrl(youtubeChannelId);
+  const previewEmbedUrl = !esPodcast
+    ? streamProvider === "youtube" ? youtubeEmbedUrl : embedUrl
+    : null;
   const channelName = streamUrl ? extractKickChannelName(streamUrl) : null;
   const rawAudioUrl = kickAudioUrl || (streamUrl ? getDirectAudioUrl(streamUrl) : null);
   const directVideoUrl = esPodcast && streamUrl && isDirectVideoUrl(streamUrl) ? streamUrl : null;
@@ -160,11 +179,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
   useEffect(() => {
     const podcastMode = t?.tipoTransmision === "audio";
-    const configuredUrl = podcastMode ? t?.podcastUrl || t?.streamUrl : t?.streamUrl;
-    setStreamUrl(configuredUrl ?? "");
-
-    const configuredProvider = podcastMode ? t?.podcastProvider || t?.streamProvider : t?.streamProvider;
-    setStreamProvider(configuredProvider || "kick");
+    setStreamUrl(t?.streamUrl ?? "");
+    setStreamProvider(t?.streamProvider || "kick");
 
     setYoutubeChannelId(t?.youtubeChannelId ?? null);
 
@@ -175,7 +191,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     }
 
     setImagenPortada(podcastMode ? t?.podcastImagenPortada || t?.imagenPortada || "" : t?.imagenPortada ?? "");
-  }, [t?.streamUrl, t?.streamProvider, t?.youtubeChannelId, t?.tipoTransmision, t?.imagenPortada, t?.podcastUrl, t?.podcastProvider, t?.podcastImagenPortada]);
+  }, [t?.streamUrl, t?.streamProvider, t?.youtubeChannelId, t?.tipoTransmision, t?.imagenPortada, t?.podcastImagenPortada]);
 
   useEffect(() => {
     let active = true;
@@ -446,8 +462,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
 
   const handleDescartar = () => {
     const podcastMode = t?.tipoTransmision === "audio";
-    setStreamUrl(podcastMode ? t?.podcastUrl || t?.streamUrl || "" : t?.streamUrl ?? "");
-    setStreamProvider(podcastMode ? t?.podcastProvider || t?.streamProvider || "direct" : t?.streamProvider ?? "kick");
+    setStreamUrl(t?.streamUrl ?? "");
+    setStreamProvider(t?.streamProvider ?? "kick");
     setYoutubeChannelId(t?.youtubeChannelId ?? null);
     setTipoTransmision(t?.tipoTransmision ?? "video");
     setImagenPortada(podcastMode ? t?.podcastImagenPortada || t?.imagenPortada || "" : t?.imagenPortada ?? "");
@@ -465,11 +481,6 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         streamProvider,
         tipoTransmision,
         imagenPortada,
-        ...(esPodcast ? {
-          podcastUrl: streamUrl,
-          podcastProvider: streamProvider,
-          podcastImagenPortada: imagenPortada,
-        } : {}),
       };
       const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
@@ -496,9 +507,6 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         streamProvider: string;
         tipoTransmision: string;
         imagenPortada: string;
-        podcastUrl?: string;
-        podcastProvider?: string;
-        podcastImagenPortada?: string;
         youtubeChannelId?: string | null;
       } = tenantPayload;
       try {
@@ -612,7 +620,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
               }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>
-              Poné tu link de Kick, Twitch o YouTube.
+              Este link se comparte entre Video y Podcast. Podés usar Kick, Twitch o YouTube.
             </Typography>
 
             {/* Tipo de transmisión */}
@@ -632,12 +640,8 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                       const nextIsPodcast = op.val === "audio";
                       setTipoTransmision(op.val);
                       if (nextIsPodcast) {
-                        setStreamUrl(t?.podcastUrl || t?.streamUrl || "");
-                        setStreamProvider(t?.podcastProvider || t?.streamProvider || "direct");
                         setImagenPortada(t?.podcastImagenPortada || t?.imagenPortada || "");
                       } else {
-                        setStreamUrl(t?.streamUrl ?? "");
-                        setStreamProvider(t?.streamProvider ?? "kick");
                         setImagenPortada(t?.imagenPortada ?? "");
                       }
                       setSuccess(false);
@@ -720,22 +724,23 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>
               Vista Previa del Programa
             </Typography>
-            <Typography sx={ { fontSize: 14, opacity: 0.5 } }>
+            <IconButton
+              aria-label="Ampliar vista previa del video"
+              title="Ampliar vista previa"
+              size="small"
+              disabled={!previewEmbedUrl}
+              onClick={() => setPreviewOpen(true)}
+              sx={ { opacity: previewEmbedUrl ? 0.75 : 0.35 } }
+            >
               <span className="material-symbols-outlined">open_in_full</span>
-            </Typography>
+            </IconButton>
           </Box>
           <CardContent>
             {!esPodcast && streamProvider === "twitch" ? (
               embedUrl ? (
-                <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
-                  <Box
-                    component="iframe"
-                    src={embedUrl}
-                    title="Vista previa del stream de Twitch"
-                    allow="autoplay; fullscreen; picture-in-picture"
-                    sx={ { position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" } }
-                  />
-                </Box>
+                previewOpen
+                  ? <Box sx={ { width: "100%", aspectRatio: "16 / 9" } } />
+                  : <StreamVideoFrame src={embedUrl} title="Vista previa del stream de Twitch" />
               ) : (
                 <Box
                   sx={ {
@@ -756,15 +761,9 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
               )
             ) : !esPodcast && streamProvider === "youtube" ? (
               youtubeEmbedUrl ? (
-                <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
-                  <Box
-                    component="iframe"
-                    src={youtubeEmbedUrl}
-                    title="Vista previa del stream de YouTube"
-                    allow="autoplay; fullscreen; picture-in-picture"
-                    sx={ { position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" } }
-                  />
-                </Box>
+                previewOpen
+                  ? <Box sx={ { width: "100%", aspectRatio: "16 / 9" } } />
+                  : <StreamVideoFrame src={youtubeEmbedUrl} title="Vista previa del stream de YouTube" />
               ) : (
                 <Box
                   sx={ {
@@ -787,15 +786,9 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 </Box>
               )
             ) : !esPodcast && embedUrl ? (
-              <Box sx={ { position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider" } }>
-                <Box
-                  component="iframe"
-                  src={embedUrl}
-                  title="Vista previa del stream"
-                  allow="autoplay; fullscreen; picture-in-picture"
-                  sx={ { position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" } }
-                />
-              </Box>
+              previewOpen
+                ? <Box sx={ { width: "100%", aspectRatio: "16 / 9" } } />
+                : <StreamVideoFrame src={embedUrl} title="Vista previa del stream" />
             ) : esPodcast ? (
               useExternalAudioFallback ? (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -1184,6 +1177,40 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         </Card>
 
       </Box>
+
+      <Dialog
+        open={previewOpen && Boolean(previewEmbedUrl)}
+        onClose={() => setPreviewOpen(false)}
+        maxWidth="lg"
+        fullWidth
+        aria-label="Vista previa ampliada del stream"
+        slotProps={ {
+          backdrop: { sx: { bgcolor: "rgba(0, 0, 0, 0.88)" } },
+          paper: { sx: { bgcolor: "transparent", boxShadow: "none", overflow: "visible" } },
+        } }
+      >
+        <DialogContent sx={ { p: { xs: 1, sm: 2 }, position: "relative", overflow: "visible" } }>
+          {previewEmbedUrl && (
+            <>
+              <StreamVideoFrame src={previewEmbedUrl} title="Vista ampliada del stream" />
+              <IconButton
+                aria-label="Cerrar vista previa ampliada"
+                onClick={() => setPreviewOpen(false)}
+                sx={ {
+                  position: "absolute",
+                  top: { xs: 8, sm: 18 },
+                  right: { xs: 8, sm: 18 },
+                  color: "common.white",
+                  bgcolor: "rgba(0, 0, 0, 0.7)",
+                  "&:hover": { bgcolor: "rgba(0, 0, 0, 0.9)" },
+                } }
+              >
+                <span className="material-symbols-outlined">close</span>
+              </IconButton>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ImageCropDialog
         open={cropOpen}

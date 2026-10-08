@@ -1,7 +1,7 @@
 import type { KickStreamData } from "./kick.service";
 
 export type StreamProvider = "kick" | "youtube" | "twitch" | null;
-export type StreamData = KickStreamData;
+export type StreamData = KickStreamData & { videoId?: string | null };
 
 export type SignalStatus = {
   label: "Conectado" | "Desconectado";
@@ -114,6 +114,7 @@ async function getYoutubeStreamData(tenantSlug: string): Promise<StreamData | nu
     viewers?: number | null;
     title?: string | null;
     thumbnail?: string | null;
+    videoId?: string | null;
     startedAt?: string | null;
   };
   const duration = calcularDuracionStream(data.isLive, data.startedAt);
@@ -124,6 +125,7 @@ async function getYoutubeStreamData(tenantSlug: string): Promise<StreamData | nu
     duration,
     title: data.title ?? "",
     thumbnail: data.thumbnail ?? "",
+    videoId: data.videoId ?? null,
   };
 }
 
