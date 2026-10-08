@@ -16,6 +16,11 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const STREAM_DATA_CACHE_TTL_MS = 5_000;
 const streamDataCache = new Map<string, { data: StreamData | null; expiresAt: number }>();
 const streamDataRequests = new Map<string, Promise<StreamData | null>>();
+const streamDataVersions = new Map<string, number>();
+
+export function invalidateStreamData(tenantSlug: string) {
+  streamDataVersions.set(tenantSlug, (streamDataVersions.get(tenantSlug) ?? 0) + 1);
+}
 
 export function getSignalStatus(
   provider: string | StreamProvider | null | undefined,
@@ -159,13 +164,13 @@ async function getTenantStreamData(tenantSlug: string): Promise<StreamData | nul
 }
 
 export async function getStreamData(
-  _url: string,
+  url: string,
   provider: StreamProvider,
   tenantSlug?: string,
 ): Promise<StreamData | null> {
   if (!tenantSlug || !provider) return null;
 
-  const cacheKey = `${provider}:${tenantSlug}`;
+  const cacheKey = `${provider}:${tenantSlug}:${url}:${streamDataVersions.get(tenantSlug) ?? 0}`;
   const cached = streamDataCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.data;
 
