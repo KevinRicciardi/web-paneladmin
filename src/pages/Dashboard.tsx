@@ -151,7 +151,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
               <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>Espectadores en Línea</Typography>
             </Box>
             <Box sx={ { display: "flex", alignItems: "flex-end", gap: 1 } }>
-              <Typography sx={ { fontSize: 36, fontWeight: 800 } }>{streamData ? formatViewers(streamData.viewerCount) : "—"}</Typography>
+              <Typography sx={ { fontSize: 36, fontWeight: 800 } }>{streamData?.viewerCount != null ? formatViewers(streamData.viewerCount) : "—"}</Typography>
               {loadingStream && <CircularProgress size={20} />}
             </Box>
           </CardContent>
@@ -166,7 +166,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
             <Box sx={ { display: "flex", alignItems: "flex-start", gap: 1 } }>
               <Box sx={ { flex: 1 } }>
                 <Typography sx={ { fontSize: 14, fontWeight: 700, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: expandTitle ? undefined : 2, WebkitBoxOrient: "vertical", overflow: expandTitle ? "visible" : "hidden" } }>
-                  {streamData?.isLive && streamData.title ? streamData.title : "Sin transmisión"}
+                  {streamData?.isLive ? streamData.title || "En vivo" : "Sin transmisión"}
                 </Typography>
               </Box>
               {streamData?.isLive && streamData.title && streamData.title.length > 60 && (
@@ -191,7 +191,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
             <Box sx={ { display: "flex", justifyContent: "space-between", mb: 1 } }>
               <Typography sx={ { fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", color: "text.secondary", fontFamily: "monospace" } }>Tiempo en Aire</Typography>
             </Box>
-            <Typography sx={ { fontSize: 36, fontWeight: 800 } }>{streamData?.isLive ? formatDuration(streamData.duration) : "—"}</Typography>
+            <Typography sx={ { fontSize: 36, fontWeight: 800 } }>{streamData?.isLive && streamData.duration != null ? formatDuration(streamData.duration) : "—"}</Typography>
           </CardContent>
         </Card>
 
@@ -334,4 +334,3 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
     </Box>
   );
 }
-
