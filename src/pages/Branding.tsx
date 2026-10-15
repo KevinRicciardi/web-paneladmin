@@ -11,8 +11,9 @@ import {
 import {
   Alert, Box, Button, Card, CardContent, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, IconButton, InputAdornment, TextField, Tooltip, Typography, Select, MenuItem,
-  alpha,
+  alpha, type Theme,
 } from "@mui/material";
+import GeneradorTemaDialog from "../components/GeneradorTemaDialog";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import ImageCropDialog, { type CropSettings } from "../components/ImageCropDialog";
 import { subirACloudinary } from "../utils/cloudinary";
@@ -620,6 +621,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setSuccess(false);
   };
 
+  const [showGenerador, setShowGenerador] = useState(false);
+
   const handleUpload = async (
     file: File,
     tipo: "logo" | "banner",
@@ -913,8 +916,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   // input color visible en línea (evita que el picker se abra "arriba")
   const colorInputSx = {
     width: 46, height: 40, minWidth: 46, p: 0.5, m: 0,
-    border: "1px solid", borderColor: borde, borderRadius: 1,
-    bgcolor: alpha(colores.texto, 0.08), cursor: "pointer",
+    border: "1px solid", borderColor: "divider", borderRadius: 1,
+    bgcolor: (theme: Theme) => alpha(theme.palette.text.primary, 0.08), cursor: "pointer",
     "&::-webkit-color-swatch-wrapper": { padding: 0 },
     "&::-webkit-color-swatch": { border: "none", borderRadius: "4px" },
   } as const;
@@ -1036,8 +1039,8 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             pointerEvents: "none",
             px: 2,
             py: 1,
-            bgcolor: colores.cardFondo,
-            color: colores.texto,
+            bgcolor: "background.paper",
+            color: "text.primary",
             border: "2px solid",
             borderColor: "#FFFFFF",
             borderRadius: 1.5,
@@ -1142,7 +1145,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     <span
                       className="material-symbols-outlined"
                       aria-hidden="true"
-                      style={{ color: colores.texto, opacity: 0.5, cursor: "grab" }}
+                      style={{ opacity: 0.5, cursor: "grab" }}
                     >
                       drag_indicator
                     </span>
@@ -1260,19 +1263,19 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                 onDrop={(e) => handleDrop(e, "logo")}
                 onClick={() => !uploadingLogo && logoInputRef.current?.click()}
                 sx={ {
-                  border: "2px dashed", borderColor: logoUrl ? colores.primario : borde,
+                  border: "2px dashed", borderColor: logoUrl ? "primary.main" : "divider",
                   borderRadius: 2, p: 4, textAlign: "center", cursor: "pointer",
-                  bgcolor: logoUrl ? alpha(colores.primario, 0.12) : alpha(colores.texto, 0.03),
+                  bgcolor: logoUrl ? (theme: Theme) => alpha(theme.palette.primary.main, 0.12) : (theme: Theme) => alpha(theme.palette.text.primary, 0.03),
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                   gap: 1, transition: "all 0.2s",
-                  "&:hover": { bgcolor: alpha(colores.texto, 0.05), borderColor: colores.primario },
+                  "&:hover": { bgcolor: (theme: Theme) => alpha(theme.palette.text.primary, 0.05), borderColor: "primary.main" },
                 } }
               >
                 {uploadingLogo ? <CircularProgress size={40} /> : logoUrl ? (
                   <Box component="img" src={logoUrl} sx={ { maxHeight: 110, maxWidth: "100%", objectFit: "contain", borderRadius: 1 } } />
                 ) : (
                   <>
-                    <Box sx={ { width: 64, height: 64, borderRadius: "50%", bgcolor: alpha(colores.texto, 0.04), display: "flex", alignItems: "center", justifyContent: "center", mb: 1, fontSize: 30 } }>
+                    <Box sx={ { width: 64, height: 64, borderRadius: "50%", bgcolor: (theme: Theme) => alpha(theme.palette.text.primary, 0.04), display: "flex", alignItems: "center", justifyContent: "center", mb: 1, fontSize: 30 } }>
                       <span className="material-symbols-outlined">file_upload</span>
                     </Box>
                     <Typography variant="body1">Arrastrá y soltá tu logo aquí</Typography>
@@ -1324,16 +1327,16 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     <Box key={p.nombre} onClick={() => aplicarPreset(p)}
                       sx={ {
                         cursor: "pointer", border: "2px solid",
-                        borderColor: activo ? "primary.main" : alpha(colores.texto, 0.08),
+                        borderColor: activo ? "primary.main" : (theme: Theme) => alpha(theme.palette.text.primary, 0.08),
                         borderRadius: 2, p: 1, display: "flex", flexDirection: "column", gap: 0.75,
                         transition: "all 0.15s",
-                        bgcolor: alpha(colores.texto, 0.02),
-                        "&:hover": { borderColor: colores.primario, transform: "translateY(-2px)" },
+                        bgcolor: (theme: Theme) => alpha(theme.palette.text.primary, 0.02),
+                        "&:hover": { borderColor: "primary.main", transform: "translateY(-2px)" },
                       } }
                     >
                       <Box sx={ { display: "flex", gap: 0.5, height: 24 } }>
                         {[p.colores.primario, p.colores.botones, p.colores.cardFondo, p.colores.iconos].map((c, i) => (
-                          <Box key={i} sx={ { flex: 1, borderRadius: 0.5, bgcolor: c, border: "1px solid", borderColor: borde } } />
+                          <Box key={i} sx={ { flex: 1, borderRadius: 0.5, bgcolor: c, border: "1px solid", borderColor: "divider" } } />
                         ))}
                       </Box>
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5 }}>
@@ -1352,6 +1355,29 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                     </Box>
                   );
                 })}
+                <Box
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setShowGenerador(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setShowGenerador(true);
+                    }
+                  }}
+                  sx={ {
+                    cursor: "pointer", border: "2px dashed",
+                    borderColor: (theme: Theme) => alpha(theme.palette.text.primary, 0.2),
+                    borderRadius: 2, p: 1, minHeight: 72,
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0.5,
+                    color: "text.secondary",
+                    transition: "all 0.15s",
+                    "&:hover, &:focus-visible": { borderColor: "primary.main", color: "primary.main", transform: "translateY(-2px)", outline: "none" },
+                  } }
+                >
+                  <span className="material-symbols-outlined" style={ { fontSize: 24 } }>add</span>
+                  <Typography sx={ { fontSize: 11, fontWeight: 600 } }>Nuevo tema</Typography>
+                </Box>
               </Box>
             </CardContent>
           </Card>
@@ -1368,16 +1394,16 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                       <Box key={`custom-theme-${idx}`} onClick={() => aplicarPreset(p)}
                         sx={ {
                           cursor: "pointer", border: "2px solid",
-                          borderColor: activo ? "primary.main" : alpha(colores.texto, 0.08),
+                          borderColor: activo ? "primary.main" : (theme: Theme) => alpha(theme.palette.text.primary, 0.08),
                           borderRadius: 2, p: 1, display: "flex", flexDirection: "column", gap: 0.75,
                           transition: "all 0.15s",
-                          bgcolor: alpha(colores.texto, 0.02),
-                          "&:hover": { borderColor: colores.primario, transform: "translateY(-2px)" },
+                          bgcolor: (theme: Theme) => alpha(theme.palette.text.primary, 0.02),
+                          "&:hover": { borderColor: "primary.main", transform: "translateY(-2px)" },
                         } }
                       >
                         <Box sx={ { display: "flex", gap: 0.5, height: 24 } }>
                           {[p.colores.primario, p.colores.botones, p.colores.cardFondo, p.colores.iconos].map((c, i) => (
-                            <Box key={i} sx={ { flex: 1, borderRadius: 0.5, bgcolor: c, border: "1px solid", borderColor: borde } } />
+                            <Box key={i} sx={ { flex: 1, borderRadius: 0.5, bgcolor: c, border: "1px solid", borderColor: "divider" } } />
                           ))}
                         </Box>
                         <Box sx={ { display: "flex", alignItems: "center", gap: 0.5 } }>
@@ -1463,11 +1489,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   onDrop={(e) => handleDrop(e, "banner")}
                   onClick={() => !uploadingBanner && bannerInputRef.current?.click()}
                   sx={ {
-                    border: "2px dashed", borderColor: borde,
+                    border: "2px dashed", borderColor: "divider",
                     borderRadius: 2, cursor: "pointer", minHeight: 96, overflow: "hidden",
                     display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                    gap: 1, bgcolor: alpha(colores.texto, 0.03), transition: "all 0.2s",
-                    "&:hover": { bgcolor: alpha(colores.texto, 0.05), borderColor: "primary.main" },
+                    gap: 1, bgcolor: (theme: Theme) => alpha(theme.palette.text.primary, 0.03), transition: "all 0.2s",
+                    "&:hover": { bgcolor: (theme: Theme) => alpha(theme.palette.text.primary, 0.05), borderColor: "primary.main" },
                   } }
                 >
                   <Box sx={ { py: 2, textAlign: "center" } }>
@@ -1482,7 +1508,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
               ) : (
                 <Box sx={{ display: "grid", gap: 1.5 }}>
                   {bannerUrls.map((bannerUrl, index) => (
-                    <Box key={`${bannerUrl}-${index}`} sx={{ position: "relative", borderRadius: 2, overflow: "hidden", border: index === bannerActivoIndex ? "2px solid" : "1px solid", borderColor: index === bannerActivoIndex ? "primary.main" : borde }}>
+                    <Box key={`${bannerUrl}-${index}`} sx={{ position: "relative", borderRadius: 2, overflow: "hidden", border: index === bannerActivoIndex ? "2px solid" : "1px solid", borderColor: index === bannerActivoIndex ? "primary.main" : "divider" }}>
                       <Box component="img" src={bannerUrl} sx={{ width: "100%", height: 96, objectFit: "cover", display: "block" }} />
                       <Box sx={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 0.5 }}>
                         <Button
@@ -2047,6 +2073,18 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           setCropDialogInitialSettings(null);
           setEditingBannerIndex(null);
         }}
+      />
+
+      {/* Modal para generar un tema nuevo a partir de un color */}
+      <GeneradorTemaDialog
+        open={showGenerador}
+        onClose={() => setShowGenerador(false)}
+        onAplicar={(paleta) => {
+          aplicarPreset({ colores: paleta });
+          setShowGenerador(false);
+        }}
+        campos={CAMPOS}
+        colorInputSx={colorInputSx}
       />
 
       {/* Modal para guardar como tema personalizado */}
