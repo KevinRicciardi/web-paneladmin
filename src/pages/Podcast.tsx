@@ -9,8 +9,6 @@ import {
   actualizarPodcast, crearPodcast, eliminarPodcast, listarMisPodcasts,
 } from "../services/podcast.service";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
-import { auth } from "../firebase";
-import { extractKickChannelName, getKickAudioUrl } from "../services/kick.service";
 import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl } from "../services/streaming-media";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -63,17 +61,6 @@ function isDirectVideoUrl(url: string) {
   return /\.(mp4|m4v|webm|ogv|m3u8)$/.test(url.trim().toLowerCase().split(/[?#]/)[0]);
 }
 
-function getPlaybackError(error: unknown) {
-  const typedError = error as { status?: number; code?: string; message?: string };
-  if (typedError.status === 400) return "La URL de audio no es válida.";
-  if (typedError.status === 401) return "Tu sesión expiró. Volvé a iniciar sesión.";
-  if (typedError.status === 404 && typedError.code === "STREAM_OFFLINE") return "El canal de Kick no está transmitiendo actualmente.";
-  if (typedError.status === 404 && typedError.code === "CHANNEL_NOT_FOUND") return "No se encontró el canal de Kick.";
-  if (typedError.status === 502 && typedError.code === "PLAYBACK_URL_UNAVAILABLE") return "Kick no proporcionó una URL de reproducción disponible.";
-  if (typedError.status === 503) return "Kick no está disponible en este momento.";
-  return typedError.message || "No se pudo reproducir el audio.";
-}
-
 export default function Podcast({ perfil }: { perfil: Perfil }) {
   const tenantId = perfil.tenantId;
   const [liveUrl, setLiveUrl] = useState(perfil.tenant.podcastUrl ?? "");
@@ -83,7 +70,6 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   const [livePlaying, setLivePlaying] = useState(false);
   const [liveEmbedUrl, setLiveEmbedUrl] = useState("");
   const [liveResolvedUrl, setLiveResolvedUrl] = useState("");
-  const [liveLoading, setLiveLoading] = useState(false);
   const [liveReady, setLiveReady] = useState(false);
   const liveAudioRef = useRef<HTMLAudioElement>(null);
   const liveVideoRef = useRef<HTMLVideoElement>(null);
@@ -108,7 +94,6 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [playbackError, setPlaybackError] = useState("");
-  const liveKickChannel = extractKickChannelName(liveUrl);
   const currentEmbedUrl = current?.streamUrl
     ? getAutoplayStreamingEmbedUrl(current.streamUrl, current.platformType)
     : null;
@@ -133,9 +118,10 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   }, [perfil.tenant.podcastUrl, perfil.tenant.podcastProvider, perfil.tenant.podcastImagenPortada]);
 
   useEffect(() => {
-    const channelName = extractKickChannelName(liveUrl);
-    setLiveResolvedUrl(channelName ? "" : liveUrl.trim());
-    setLiveReady(Boolean(!channelName && isDirectAudioUrl(liveUrl)));
+    const platform = detectStreamingPlatform(liveUrl);
+    const usesEmbed = ["youtube", "twitch", "kick"].includes(platform);
+    setLiveResolvedUrl(usesEmbed ? "" : liveUrl.trim());
+    setLiveReady(Boolean(!usesEmbed && isDirectAudioUrl(liveUrl)));
   }, [liveUrl]);
 
   useEffect(() => {
@@ -238,23 +224,8 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
       catch { setError("No se pudo reproducir el video en vivo."); setLivePlaying(false); }
       return;
     }
-    if (liveKickChannel) {
-      setLiveLoading(true);
-      setError("");
-      livePlayRequestedRef.current = true;
-      try {
-        const token = await auth.currentUser?.getIdToken();
-        const resolvedUrl = await getKickAudioUrl(liveKickChannel, token);
-        if (!resolvedUrl) throw new Error("No se obtuvo una URL de audio válida.");
-        setLiveResolvedUrl(resolvedUrl);
-      } catch (resolveError) {
-        livePlayRequestedRef.current = false;
-        setError(getPlaybackError(resolveError));
-      } finally { setLiveLoading(false); }
-      return;
-    }
     const livePlatform = detectStreamingPlatform(liveUrl);
-    if (livePlatform === "youtube" || livePlatform === "twitch") {
+    if (livePlatform === "youtube" || livePlatform === "twitch" || livePlatform === "kick") {
       const embedUrl = getAutoplayStreamingEmbedUrl(liveUrl, livePlatform);
       if (!embedUrl) {
         setError("No se pudo generar el reproductor oficial para esta URL.");
@@ -505,7 +476,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
           <CardContent>
             <Box sx={{ position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", border: "1px solid", borderColor: "divider", bgcolor: "action.hover", backgroundImage: liveCover ? `url(${liveCover})` : undefined, backgroundSize: "cover", backgroundPosition: "center", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Box sx={{ position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,0.35)" }} />
-              <Button variant="contained" onClick={() => void toggleLivePreview()} disabled={liveLoading} startIcon={<span className="material-symbols-outlined">{livePlaying ? "pause" : "play_arrow"}</span>} sx={{ zIndex: 1 }}>{liveLoading ? "Conectando..." : livePlaying ? "Pausar señal" : "Reproducir señal"}</Button>
+              <Button variant="contained" onClick={() => void toggleLivePreview()} startIcon={<span className="material-symbols-outlined">{livePlaying ? "pause" : "play_arrow"}</span>} sx={{ zIndex: 1 }}>{livePlaying ? "Pausar señal" : "Reproducir señal"}</Button>
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>La vista previa reproduce solamente audio.</Typography>
           </CardContent>
