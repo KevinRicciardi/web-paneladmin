@@ -1,14 +1,21 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { auth, googleProvider } from "../firebase";
-import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { FirebaseError } from "firebase/app";
 import {
   Box,
   Button,
   Card,
   CardContent,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
+  Link,
   TextField,
   Typography,
   Alert,
@@ -21,12 +28,72 @@ interface LoginProps {
   error?: string;
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function mensajeErrorReset(err: unknown): string {
+  if (err instanceof FirebaseError) {
+    switch (err.code) {
+      case "auth/invalid-email":
+        return "El correo electrónico no es válido.";
+      case "auth/too-many-requests":
+        return "Hiciste demasiados intentos. Esperá unos minutos.";
+      case "auth/network-request-failed":
+        return "No se pudo conectar. Revisá tu conexión a internet.";
+    }
+  }
+  return "No se pudo enviar el enlace. Intentá de nuevo.";
+}
+
 export default function Login({ error }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errorLocal, setErrorLocal] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetSending, setResetSending] = useState(false);
+  const [resetSentTo, setResetSentTo] = useState("");
+
+  const abrirReset = () => {
+    setResetEmail(email.trim());
+    setResetError("");
+    setResetSentTo("");
+    setResetOpen(true);
+  };
+
+  const cerrarReset = () => {
+    if (resetSending) return;
+    setResetOpen(false);
+  };
+
+  const enviarReset = async (e: FormEvent) => {
+    e.preventDefault();
+    const emailNormalizado = resetEmail.trim().toLowerCase();
+
+    if (!emailNormalizado) {
+      setResetError("Ingresá tu correo electrónico.");
+      return;
+    }
+    if (!EMAIL_REGEX.test(emailNormalizado)) {
+      setResetError("El correo electrónico no es válido.");
+      return;
+    }
+
+    setResetError("");
+    setResetSending(true);
+    try {
+      await sendPasswordResetEmail(auth, emailNormalizado);
+      setResetSentTo(emailNormalizado);
+    } catch (err) {
+      console.error(err);
+      setResetError(mensajeErrorReset(err));
+    } finally {
+      setResetSending(false);
+    }
+  };
 
   const loginEmail = async (e: FormEvent) => {
     e.preventDefault();
@@ -133,6 +200,11 @@ export default function Login({ error }: LoginProps) {
                     },
                   }}
                 />
+                <Box sx={ { display: "flex", justifyContent: "flex-end", mt: "4px !important" } }>
+                  <Link component="button" type="button" variant="body2" underline="hover" onClick={abrirReset}>
+                    ¿Olvidaste tu contraseña?
+                  </Link>
+                </Box>
                 <Button type="submit" variant="contained" fullWidth size="large" disabled={loading}>
                   {loading ? "Ingresando..." : "Iniciar sesión"}
                 </Button>
@@ -160,6 +232,56 @@ export default function Login({ error }: LoginProps) {
           Acceso restringido a administradores autorizados.
         </Typography>
       </Container>
+
+      <Dialog open={resetOpen} onClose={cerrarReset} fullWidth maxWidth="xs">
+        {resetSentTo ? (
+          <>
+            <DialogTitle sx={ { fontWeight: 700 } }>Revisá tu correo</DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                Si existe una cuenta asociada a <strong>{resetSentTo}</strong>, vas a recibir un enlace
+                para cambiar la contraseña. Revisá también la carpeta de spam.
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions sx={ { px: 3, pb: 3 } }>
+              <Button onClick={cerrarReset} variant="contained" fullWidth>
+                Entendido
+              </Button>
+            </DialogActions>
+          </>
+        ) : (
+          <form onSubmit={enviarReset} noValidate>
+            <DialogTitle sx={ { fontWeight: 700 } }>Recuperar contraseña</DialogTitle>
+            <DialogContent>
+              <DialogContentText sx={ { mb: 2 } }>
+                Ingresá el correo asociado a tu cuenta y te enviaremos un enlace para crear una
+                contraseña nueva.
+              </DialogContentText>
+              <TextField
+                label="Correo electrónico"
+                placeholder="nombre@correo.com"
+                type="email"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                fullWidth
+                autoFocus
+                autoComplete="email"
+                disabled={resetSending}
+                error={Boolean(resetError)}
+                helperText={resetError || " "}
+              />
+            </DialogContent>
+            <DialogActions sx={ { px: 3, pb: 3 } }>
+              <Button onClick={cerrarReset} disabled={resetSending}>
+                Cancelar
+              </Button>
+              <Button type="submit" variant="contained" disabled={resetSending}>
+                {resetSending ? "Enviando..." : "Enviar enlace"}
+              </Button>
+            </DialogActions>
+          </form>
+        )}
+      </Dialog>
     </Box>
   );
 }
