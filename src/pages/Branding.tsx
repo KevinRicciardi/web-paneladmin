@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faFacebookF,
   faInstagram,
-  faLinkedinIn,
+  faLinkedin,
   faTiktok,
   faXTwitter,
   faYoutube,
@@ -99,7 +99,7 @@ const PREVIEW_SOCIAL_ICONS = {
   tiktokUrl: faTiktok,
   facebookUrl: faFacebookF,
   twitterUrl: faXTwitter,
-  linkedinUrl: faLinkedinIn,
+  linkedinUrl: faLinkedin,
 };
 
 const PREVIEW_SOCIAL_COLORS: Record<SocialMediaKey, string> = {
@@ -996,7 +996,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       icon: key.startsWith("custom:") || key === "websiteUrl" ? null : PREVIEW_SOCIAL_ICONS[socialKey],
       iconColor: key.startsWith("custom:") || key === "websiteUrl"
         ? colores.botones
-        : key === "twitterUrl" || key === "tiktokUrl" || key === "linkedinUrl"
+        : key === "twitterUrl" || key === "tiktokUrl"
           ? contraste(colores.cardFondo)
         : PREVIEW_SOCIAL_COLORS[socialKey],
       isSymbol: key === "websiteUrl",
