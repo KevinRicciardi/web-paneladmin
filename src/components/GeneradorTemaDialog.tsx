@@ -57,6 +57,7 @@ const GeneradorTemaDialog = memo(function GeneradorTemaDialog({
           >
             <ToggleButton value="oscuro">Oscuro</ToggleButton>
             <ToggleButton value="claro">Claro</ToggleButton>
+            <ToggleButton value="tono">Tono único</ToggleButton>
           </ToggleButtonGroup>
         </Box>
         {paleta ? (

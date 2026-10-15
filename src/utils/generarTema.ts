@@ -2,7 +2,7 @@
 // Trabaja en HSL: mantiene el tono (hue) del color elegido y varía
 // saturación y luminosidad para armar fondos, cards, iconos, etc.
 
-export type ModoTema = "oscuro" | "claro";
+export type ModoTema = "oscuro" | "claro" | "tono";
 
 export type PaletaGenerada = {
   fondo: string;
@@ -59,10 +59,36 @@ function brillo(hex: string): number {
 }
 
 export function generarTema(colorBase: string, modo: ModoTema): PaletaGenerada {
-  const { h, s } = hexAHsl(colorBase);
+  const { h, s, l } = hexAHsl(colorBase);
   const b = brillo(colorBase);
   // Un gris no tiene tono: si se le sube la saturación aparece un tinte rojo.
   const sAcento = s < 8 ? 0 : s + 10;
+
+  if (modo === "tono") {
+    // Toda la app del mismo color: el fondo es el color elegido, cabecera y
+    // cards son variantes un poco más oscuras (o más claras si el color ya es
+    // casi negro), y el resto se elige claro u oscuro según el brillo del fondo
+    // para que se pueda leer.
+    const direccion = l < 15 ? 1 : -1;
+    const fondo = colorBase.toUpperCase();
+    const cabecera = hsl(h, s, l + direccion * 8);
+    const cardFondo = hsl(h, s, l + direccion * 5);
+    const fondoClaro = b > 0.6;
+    const texto = fondoClaro ? hsl(h, Math.min(s, 30), 12) : "#FFFFFF";
+    const acento = fondoClaro ? hsl(h, s, 18) : hsl(h, sAcento, 93);
+    return {
+      fondo,
+      cabecera,
+      cardFondo,
+      texto,
+      textoCabecera: texto,
+      primario: acento,
+      botones: acento,
+      secundario: fondoClaro ? hsl(h, sAcento, 28) : hsl(h, sAcento, 80),
+      iconos: fondoClaro ? hsl(h, s, 25) : hsl(h, s * 0.6, 85),
+      borde: fondoClaro ? "#000000" : "#FFFFFF",
+    };
+  }
 
   if (modo === "oscuro") {
     // Sobre fondo oscuro el color de marca no puede ser demasiado oscuro.
