@@ -14,11 +14,10 @@ import {
   Typography,
 } from "@mui/material";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
-import { auth } from "../firebase";
 import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
-import { extractKickChannelName, getKickAudioUrl } from "../services/kick.service";
+import { extractKickChannelName } from "../services/kick.service";
 import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
 import { buildYoutubeChannelEmbedUrl, buildYoutubeVideoEmbedUrl } from "../services/youtube.service";
 import { extractYoutubeVideoId, getSignalStatus, getStreamData, invalidateStreamData, type StreamData } from "../services/stream.service";
@@ -97,7 +96,6 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [streamStatusData, setStreamStatusData] = useState<StreamData | null>(null);
   const [streamRefreshKey, setStreamRefreshKey] = useState(0);
   const [signalLoading, setSignalLoading] = useState(true);
-  const [kickAudioUrl, setKickAudioUrl] = useState<string | null>(null);
   const [tipoTransmision, setTipoTransmision] = useState<string>(() => {
     const valor = t?.tipoTransmision ?? "";
     return valor || "video";
@@ -143,7 +141,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
     ? streamProvider === "youtube" ? youtubeEmbedUrl : embedUrl
     : null;
   const channelName = streamUrl ? extractKickChannelName(streamUrl) : null;
-  const rawAudioUrl = kickAudioUrl || (streamUrl ? getDirectAudioUrl(streamUrl) : null);
+  const rawAudioUrl = streamUrl ? getDirectAudioUrl(streamUrl) : null;
   const directVideoUrl = esPodcast && streamUrl && isDirectVideoUrl(streamUrl) ? streamUrl : null;
   const isHlsStream = rawAudioUrl ? isHlsUrl(rawAudioUrl) : false;
   const audioUrl = rawAudioUrl;
@@ -250,26 +248,6 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       if (intervalId) clearInterval(intervalId);
     };
   }, [perfil.tenant?.slug, perfil.tenant?.youtubeChannelId, savedStreamUrl, streamProvider, streamUrl, streamRefreshKey]);
-
-  useEffect(() => {
-    const fetchKickAudio = async () => {
-      if (!channelName || !esPodcast) {
-        setKickAudioUrl(null);
-        return;
-      }
-
-      try {
-        const token = await auth.currentUser?.getIdToken();
-        const audioUrl = await getKickAudioUrl(channelName, token);
-        setKickAudioUrl(audioUrl);
-      } catch (error) {
-        console.error("Error fetching Kick audio url:", error);
-        setKickAudioUrl(null);
-      }
-    };
-
-    void fetchKickAudio();
-  }, [channelName, esPodcast]);
 
   useEffect(() => {
     setAudioReady(false);
