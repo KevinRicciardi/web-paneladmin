@@ -1,4 +1,5 @@
 import { memo, useRef, useState, useEffect } from "react";
+import { enlacesDelTenant, parsearTemas } from "../utils/temas";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faFacebookF,
@@ -313,6 +314,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     twitterUrl: t?.twitterUrl ?? "",
     linkedinUrl: t?.linkedinUrl ?? "",
     fontFamily: t?.fontFamily ?? "system-ui",
+    ...enlacesDelTenant(t),
     colores: {
       fondo: t?.colorFondo ?? "#000000",
       cabecera: t?.colorCabecera ?? "#000000",
@@ -406,31 +408,42 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [nuevoContenidoNombre, setNuevoContenidoNombre] = useState("");
   const [nuevoContenidoEnlace, setNuevoContenidoEnlace] = useState("");
 
-  const guardarTemasEnBase = async (temas: TemaBranding[]) => {
+  // Devuelve true si quedó guardado. Al guardarse también se actualiza el
+  // perfil que comparte todo el panel: sin eso, al salir de Branding y volver
+  // (o al cambiar el perfil por otra pantalla) la lista se releía de una copia
+  // vieja y el tema nuevo "desaparecía" (o el borrado reaparecía).
+  const guardarTemasEnBase = async (temas: TemaBranding[]): Promise<boolean> => {
     const payload = JSON.stringify(temas);
-    const guardar = async () => {
+    const guardar = async (): Promise<boolean> => {
       try {
-      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
-      if (!token) throw new Error("No hay una sesión autenticada.");
-      if (!token) return;
+        const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
+        if (!token) throw new Error("No hay una sesión autenticada.");
 
-      const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ temasPersonalizados: payload }),
-      });
+        const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ temasPersonalizados: payload }),
+        });
 
-      if (!res.ok) {
-        throw new Error("No se pudo guardar el tema en la base de datos");
-      }
+        if (!res.ok) {
+          throw new Error("No se pudo guardar el tema en la base de datos");
+        }
+
+        try {
+          window.dispatchEvent(new CustomEvent("tenantUpdated", { detail: { temasPersonalizados: payload } }));
+        } catch {
+          // Si el evento no se puede despachar, el tema igual quedó guardado.
+        }
+        return true;
       } catch {
-        setError("No se pudo guardar el tema en la base de datos");
+        setError("No se pudo guardar el tema. Intentá de nuevo.");
+        return false;
       }
     };
 
     const siguienteGuardado = persistenciaTemasRef.current.then(guardar, guardar);
-    persistenciaTemasRef.current = siguienteGuardado;
-    await siguienteGuardado;
+    persistenciaTemasRef.current = siguienteGuardado.then(() => undefined);
+    return siguienteGuardado;
   };
 
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -440,23 +453,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setUltimoGuardado(inicial);
 
     const cargarTemas = async () => {
-      const tenantTemas = (perfil.tenant as any)?.temasPersonalizados;
-      const raw = tenantTemas;
+      const normalized = parsearTemas((perfil.tenant as any)?.temasPersonalizados, ensureColores);
 
-      if (!raw) return;
+      // Sin nada guardado, o con un contenido roto, se deja la lista como está.
+      if (!normalized) return;
 
-      try {
-        const parsed = JSON.parse(raw) as { nombre: string; colores: Partial<Colores>; fontFamily?: string }[];
-        const normalized = parsed.map((t) => ({
-          nombre: t.nombre,
-          colores: ensureColores(t.colores),
-          fontFamily: t.fontFamily,
-        }));
-        temasPersonalizadosRef.current = normalized;
-        setTemasPersonalizados(normalized);
-      } catch (e) {
-        console.error("Error cargando temas personalizados", e);
-      }
+      temasPersonalizadosRef.current = normalized;
+      setTemasPersonalizados(normalized);
     };
 
     cargarTemas();
@@ -791,11 +794,19 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     guardandoTemaRef.current = true;
     setGuardandoTema(true);
     const nuevoTema = { nombre: nombreNuevoTema.trim(), colores: ensureColores(colores), fontFamily };
-    const temasActualizados = [...temasPersonalizadosRef.current, nuevoTema];
+    const temasAnteriores = temasPersonalizadosRef.current;
+    const temasActualizados = [...temasAnteriores, nuevoTema];
     temasPersonalizadosRef.current = temasActualizados;
     setTemasPersonalizados(temasActualizados);
     try {
-      await guardarTemasEnBase(temasActualizados);
+      const guardado = await guardarTemasEnBase(temasActualizados);
+      if (!guardado) {
+        // No quedó en la base: se saca de la lista y el diálogo sigue abierto
+        // para reintentar, en vez de mostrar un tema que se perdería al recargar.
+        temasPersonalizadosRef.current = temasAnteriores;
+        setTemasPersonalizados(temasAnteriores);
+        return;
+      }
       setSuccess(true);
       setShowGuardarTema(false);
       setNombreNuevoTema("");
@@ -810,10 +821,16 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     if (!tema) return;
 
     setTemaAEliminar(null);
-    const temasActualizados = temasPersonalizadosRef.current.filter((temaGuardado) => temaGuardado !== tema);
+    const temasAnteriores = temasPersonalizadosRef.current;
+    const temasActualizados = temasAnteriores.filter((temaGuardado) => temaGuardado !== tema);
     temasPersonalizadosRef.current = temasActualizados;
     setTemasPersonalizados(temasActualizados);
-    await guardarTemasEnBase(temasActualizados);
+    const guardado = await guardarTemasEnBase(temasActualizados);
+    if (!guardado) {
+      temasPersonalizadosRef.current = temasAnteriores;
+      setTemasPersonalizados(temasAnteriores);
+      return;
+    }
     setSuccess(true);
   };
 
@@ -853,7 +870,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           websiteUrl,
           socialMediasJson: JSON.stringify(selectedSocialMedias),
           otherContentJson: JSON.stringify(otherContentList),
-          temasPersonalizados: JSON.stringify(temasPersonalizadosRef.current),
         }),
       });
       if (!res.ok) {
@@ -904,7 +920,6 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
             colorTextoCabecera: colores.textoCabecera,
             colorPrimario: colores.primario,
             colorSecundario: colores.secundario,
-            temasPersonalizados: JSON.stringify(temasPersonalizadosRef.current),
             colorBotones: colores.botones,
             colorCardFondo: colores.cardFondo,
             colorIconos: colores.iconos,
