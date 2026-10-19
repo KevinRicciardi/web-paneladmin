@@ -76,6 +76,36 @@ export async function invitarAdministrador(email: string, cargo?: string): Promi
   return data.user;
 }
 
+export async function invitarSuperAdministrador(email: string): Promise<Administrador> {
+  const headers = await getAuthHeaders();
+
+  const res = await fetch(`${API_URL}/users/super-administradores`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ email }),
+  });
+
+  const data = await parseResponse<{ user: Administrador }>(res);
+  return data.user;
+}
+
+export async function actualizarRolAdministrador(
+  id: number,
+  rol: Administrador["rol"],
+  cargo?: string | null,
+): Promise<Administrador> {
+  const headers = await getAuthHeaders();
+
+  const res = await fetch(`${API_URL}/users/${id}/role`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ rol, cargo }),
+  });
+
+  const data = await parseResponse<{ user: Administrador }>(res);
+  return data.user;
+}
+
 export async function reenviarInvitacion(id: number): Promise<void> {
   const headers = await getAuthHeaders();
 

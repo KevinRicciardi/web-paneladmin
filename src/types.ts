@@ -220,6 +220,7 @@ export interface Administrador {
   id: number;
   email: string;
   cargo?: string | null;
+  rol: "MEGA_ADMIN" | "SUPER_ADMIN" | "ADMIN" | "MODERADOR" | "USUARIO_FINAL";
   status: EstadoAdministrador;
   tenantId: number;
   createdAt: string;
