@@ -4,6 +4,11 @@ let tokenCache: { uid: string; value: string; expiresAt: number } | null = null;
 let tokenRequest: Promise<string> | null = null;
 const TOKEN_CACHE_DURATION = 50_000;
 
+export function limpiarTokenCache() {
+  tokenCache = null;
+  tokenRequest = null;
+}
+
 export async function getCachedAuthHeaders() {
   const user = auth.currentUser;
   if (!user) {

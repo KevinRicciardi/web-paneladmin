@@ -7,6 +7,7 @@ import type { Perfil } from "./types";
 import { getCachedAuthHeaders } from "./services/authenticatedFetch";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ErrorConexion from "./components/ErrorConexion";
+import { limpiarCachesDeSesion } from "./utils/sesion";
 
 const Login = lazy(() => import("./pages/Login"));
 const Layout = lazy(() => import("./components/Layout"));
@@ -33,15 +34,23 @@ function App() {
   // El servidor no respondió (o falló): se conserva la sesión y se ofrece reintentar.
   const [falloServidor, setFalloServidor] = useState(false);
   const fetchPerfilRef = useRef<(user: any | null) => Promise<void>>(async () => {});
+  const uidActualRef = useRef<string | null>(null);
 
   useEffect(() => {
     let unsub = () => {};
     const fetchPerfil = async (currentUser: any | null) => {
       if (!currentUser) {
+        limpiarCachesDeSesion();
+        uidActualRef.current = null;
         setPerfil(null);
         setLoading(false);
         return;
       }
+      // Entró un usuario distinto al anterior: sus datos no se mezclan con los del otro.
+      if (uidActualRef.current && uidActualRef.current !== currentUser.uid) {
+        limpiarCachesDeSesion();
+      }
+      uidActualRef.current = currentUser.uid;
       try {
         const { Authorization } = await getCachedAuthHeaders();
         const res = await fetch(`${API_URL}/me`, {
