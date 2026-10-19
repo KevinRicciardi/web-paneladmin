@@ -17,6 +17,7 @@ import GeneradorTemaDialog from "../components/GeneradorTemaDialog";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import ImageCropDialog, { type CropSettings } from "../components/ImageCropDialog";
 import { subirACloudinary } from "../utils/cloudinary";
+import { normalizarHex } from "../utils/colores";
 import type { News, Perfil, Programa } from "../types";
 import { listarProgramacionPorSlug } from "../services/schedule.service";
 import { listarNoticiasPublicadasPorSlug } from "../services/news.service";
@@ -165,7 +166,17 @@ const EditorColor = memo(function EditorColor({
   }, [value]);
 
   const confirmar = () => {
-    if (valueLocal !== value) onChange(valueLocal);
+    // Un valor que no sea un color hex válido rompía la pantalla entera:
+    // MUI lanza una excepción en alpha()/darken() al renderizar la vista
+    // previa. Se normaliza ("FF0000" -> "#FF0000") o, si no se puede
+    // interpretar, se vuelve al color anterior sin guardar nada.
+    const normalizado = normalizarHex(valueLocal);
+    if (!normalizado) {
+      setValueLocal(value);
+      return;
+    }
+    setValueLocal(normalizado);
+    if (normalizado !== value) onChange(normalizado);
   };
 
   return (

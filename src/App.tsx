@@ -1,10 +1,12 @@
-import { lazy, Suspense, useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Box, CircularProgress } from "@mui/material";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import type { Perfil } from "./types";
 import { getCachedAuthHeaders } from "./services/authenticatedFetch";
+import ErrorBoundary from "./components/ErrorBoundary";
+import ErrorConexion from "./components/ErrorConexion";
 
 const Login = lazy(() => import("./pages/Login"));
 const Layout = lazy(() => import("./components/Layout"));
@@ -28,6 +30,9 @@ function App() {
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // El servidor no respondió (o falló): se conserva la sesión y se ofrece reintentar.
+  const [falloServidor, setFalloServidor] = useState(false);
+  const fetchPerfilRef = useRef<(user: any | null) => Promise<void>>(async () => {});
 
   useEffect(() => {
     let unsub = () => {};
@@ -42,25 +47,34 @@ function App() {
         const res = await fetch(`${API_URL}/me`, {
           headers: { Authorization },
         });
-        if (!res.ok) throw new Error("No se pudo validar el usuario");
+        // Solo un 401/403 significa "esta sesión no sirve". Un 5xx o un corte
+        // de red no: ahí se mantiene la sesión y se muestra "Reintentar".
+        if (res.status === 401 || res.status === 403) {
+          setError("Tu sesión no es válida. Iniciá sesión de nuevo.");
+          await signOut(auth);
+          setPerfil(null);
+          return;
+        }
+        if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
         const data: Perfil = await res.json();
         if (!ROLES_ADMIN.includes(data.rol)) {
           setError("Tu usuario no tiene permisos de administrador.");
           await signOut(auth);
           setPerfil(null);
         } else {
+          setError("");
+          setFalloServidor(false);
           setPerfil(data);
         }
       } catch (err) {
         console.error(err);
-        setError("Error al validar el usuario con el servidor.");
-        await signOut(auth);
-        setPerfil(null);
+        setFalloServidor(true);
       } finally {
         setLoading(false);
       }
     };
 
+    fetchPerfilRef.current = fetchPerfil;
     unsub = onAuthStateChanged(auth, fetchPerfil);
 
     const onTenantUpdated = async (ev: Event) => {
@@ -91,6 +105,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ErrorBoundary>
       <Suspense fallback={<Box sx={{ display: "flex", justifyContent: "center", mt: 10 }}><CircularProgress /></Box>}>
         <Routes>
         {/* Pública: se llega acá sin sesión iniciada, desde el link del
@@ -104,6 +119,18 @@ function App() {
               <Box sx={ { display: "flex", justifyContent: "center", mt: 10 } }>
                 <CircularProgress />
               </Box>
+            ) : falloServidor ? (
+              <ErrorConexion
+                onReintentar={() => {
+                  setLoading(true);
+                  setFalloServidor(false);
+                  void fetchPerfilRef.current(auth.currentUser);
+                }}
+                onCerrarSesion={() => {
+                  setFalloServidor(false);
+                  void signOut(auth);
+                }}
+              />
             ) : !perfil ? (
               <Login error={error} />
             ) : (
@@ -122,12 +149,16 @@ function App() {
                   <Route path="/configuracion" element={<Configuracion perfil={perfil} />} />
                   <Route path="/soporte" element={<Soporte perfil={perfil} />} />
                 </Route>
+                {/* Cualquier otra dirección (un marcador viejo, un error de
+                    tipeo) vuelve al inicio en vez de mostrar una pantalla vacía. */}
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             )
           }
         />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

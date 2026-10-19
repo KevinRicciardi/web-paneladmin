@@ -139,8 +139,8 @@ export default function Login({ error }: LoginProps) {
               Ingresá tus credenciales para acceder al panel.
             </Typography>
 
-            {(error || errorLocal) && (
-              <Alert severity="error" sx={ { mb: 2 } }>{error || errorLocal}</Alert>
+            {(errorLocal || error) && (
+              <Alert severity="error" sx={ { mb: 2 } }>{errorLocal || error}</Alert>
             )}
 
             <form onSubmit={loginEmail}>
