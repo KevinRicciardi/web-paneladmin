@@ -25,3 +25,4 @@ dist-ssr
 
 # Isolated worktrees for agent-driven development
 .worktrees/
+.env
