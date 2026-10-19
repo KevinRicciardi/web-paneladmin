@@ -1,43 +1,19 @@
 import { auth } from "../firebase";
+import { getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
 import type { Programa, ProgramaPayload } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
-let tokenCache: { value: string; expiresAt: number } | null = null;
-let tokenRequest: Promise<string> | null = null;
 let listadoProgramacionEnCurso: Promise<Programa[]> | null = null;
 let listadoProgramacionCache: { userId: string; data: Programa[]; expiresAt: number } | null = null;
 const DURACION_CACHE_LISTADO = 30_000;
 
-async function getAuthHeaders() {
-  const now = Date.now();
-  if (tokenCache && tokenCache.expiresAt > now) {
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${tokenCache.value}`,
-    };
-  }
-
-  tokenRequest ??= auth.currentUser?.getIdToken() ?? Promise.reject(new Error("No hay usuario autenticado"));
-
-  let token: string;
-  try {
-    token = await tokenRequest;
-  } finally {
-    tokenRequest = null;
-  }
-
-  if (!token) {
-    throw new Error("No hay usuario autenticado");
-  }
-
-  tokenCache = { value: token, expiresAt: now + 50_000 };
-
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
+/** Se llama al cerrar sesión o al entrar otro usuario: el listado cacheado es del anterior. */
+export function limpiarCacheProgramacion() {
+  listadoProgramacionCache = null;
+  listadoProgramacionEnCurso = null;
 }
+
 
 async function parseResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
