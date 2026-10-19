@@ -324,25 +324,6 @@ export default function Estadisticas() {
                     </Stack>
                   )}
 
-                  <Divider sx={{ my: 3 }} />
-
-                  <Box
-                    sx={{
-                      borderRadius: 2,
-                      border: "1px dashed",
-                      borderColor: "divider",
-                      py: 4,
-                      textAlign: "center",
-                      color: "text.secondary",
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 28, opacity: 0.5 }}>
-                      map
-                    </span>
-                    <Typography variant="body2" sx={{ mt: 1 }}>
-                      Mapa interactivo próximamente
-                    </Typography>
-                  </Box>
                 </CardContent>
               </Card>
 
