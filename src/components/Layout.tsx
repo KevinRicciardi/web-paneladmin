@@ -2,6 +2,7 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
+import ErrorBoundary from "./ErrorBoundary";
 
 const drawerWidth = 280;
 
@@ -204,7 +205,9 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
 
       <Box component="main" sx={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", p: 3 }}>
         <Box sx={{ flex: 1 }}>
-          <Outlet />
+          <ErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </Box>
         <Box
           component="footer"
