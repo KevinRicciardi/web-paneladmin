@@ -33,7 +33,14 @@ import {
   actualizarPrograma,
   eliminarPrograma,
 } from "../services/schedule.service";
-import { ajustarFinAlCambiarInicio, esRangoHorarioValido } from "./programacion.utils";
+import {
+  ajustarFinAlCambiarInicio,
+  esRangoHorarioValido,
+  horaDentroDelPrograma,
+  partesDeFechaCalendario,
+  seSolapanHorarios,
+  terminaAlDiaSiguiente,
+} from "./programacion.utils";
 
 // Lista completa: se usa para traducir a texto el campo "dias" de programas
 // ya guardados (incluye opciones viejas que ya no se pueden crear desde acá).
@@ -222,10 +229,10 @@ function formatearRangoFechas(fechaInicio?: string | null, fechaFin?: string | n
   }
 
   if (!fechaFin || fechaFin === fechaInicio) {
-    return fechaInicio;
+    return formatearFechaParaMostrar(fechaInicio);
   }
 
-  return `${fechaInicio} → ${fechaFin}`;
+  return `${formatearFechaParaMostrar(fechaInicio)} → ${formatearFechaParaMostrar(fechaFin)}`;
 }
 
 const ProgramaTableRow = memo(function ProgramaTableRow({
@@ -354,11 +361,12 @@ function parsearFechaInput(valor: string) {
     return null;
   }
 
-  const soloFecha = /^\d{4}-\d{2}-\d{2}$/;
-  if (soloFecha.test(valor)) {
-    const [año, mes, dia] = valor.split("-");
-    const fecha = new Date(Number(año), Number(mes) - 1, Number(dia));
-    return Number.isNaN(fecha.getTime()) ? null : fecha;
+  // La API devuelve "2026-10-20T00:00:00.000Z" para el 20 de octubre; con
+  // new Date() eso es el 19 a las 21 hs en Argentina. Se lee como fecha de
+  // calendario.
+  const partes = partesDeFechaCalendario(valor);
+  if (partes) {
+    return new Date(partes.año, partes.mes - 1, partes.dia);
   }
 
   const fechaISO = new Date(valor);
@@ -387,11 +395,6 @@ function obtenerDiasCalendario(fecha: Date) {
   }
 
   return dias;
-}
-
-function convertirHoraAMinutos(hora: string) {
-  const [horas, minutos] = hora.split(":").map(Number);
-  return horas * 60 + minutos;
 }
 
 function obtenerCodigoDia(fecha: string | Date | null | undefined) {
@@ -499,21 +502,8 @@ function obtenerCodigosDiasParaPrograma(programa: Programa) {
   }
 }
 
-function seSolapanHorarios(inicioA: string, finA: string, inicioB: string, finB: string) {
-  const inicioAMinutos = convertirHoraAMinutos(inicioA);
-  const finAMinutos = convertirHoraAMinutos(finA);
-  const inicioBMinutos = convertirHoraAMinutos(inicioB);
-  const finBMinutos = convertirHoraAMinutos(finB);
-
-  return inicioAMinutos < finBMinutos && inicioBMinutos < finAMinutos;
-}
-
 function esHorarioOcupado(programa: Programa, horario: string) {
-  const horarioInicio = convertirHoraAMinutos(programa.horaInicio);
-  const horarioFin = convertirHoraAMinutos(programa.horaFin);
-  const horarioSeleccionado = convertirHoraAMinutos(horario);
-
-  return horarioSeleccionado >= horarioInicio && horarioSeleccionado < horarioFin;
+  return horaDentroDelPrograma(programa.horaInicio, programa.horaFin, horario);
 }
 
 function esRangoHorarioOcupado(programa: Programa, horaInicio: string, horaFin: string) {
@@ -550,6 +540,8 @@ export default function Programacion() {
     }
   });
   const [error, setError] = useState<string | null>(null);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const [recarga, setRecarga] = useState(0);
 
   const [abierto, setAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
@@ -632,7 +624,7 @@ export default function Programacion() {
 
     void (async () => {
       try {
-        setError(null);
+        setErrorCarga(null);
 
         const data = await listarMiProgramacion();
         if (!active) return;
@@ -643,7 +635,7 @@ export default function Programacion() {
         } catch {}
       } catch (e) {
         if (!active) return;
-        setError(e instanceof Error ? e.message : "Error al cargar");
+        setErrorCarga(e instanceof Error && e.message ? e.message : "No se pudo cargar la programación.");
       } finally {
         if (active) {
           setCargando(false);
@@ -654,7 +646,7 @@ export default function Programacion() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [recarga]);
 
   const abrirNuevo = () => {
     setEditandoId(null);
@@ -866,8 +858,12 @@ export default function Programacion() {
       setError("Esperá a que termine de subir la imagen.");
       return;
     }
+    if (modoDias === "PERSONALIZADO" && diasSeleccionados.length === 0) {
+      setError("Elegí al menos un día de la semana.");
+      return;
+    }
     if (!esRangoHorarioValido(form.horaInicio, form.horaFin)) {
-      setError("La hora de fin debe ser posterior a la hora de inicio.");
+      setError("La hora de inicio y la de fin no pueden ser iguales.");
       return;
     }
 
@@ -1027,15 +1023,16 @@ export default function Programacion() {
       });
   }, [programas, editandoId, modoFecha, fechaReferencia, diasSeleccionados]);
 
+  const rangoHorarioInvalido = !esRangoHorarioValido(form.horaInicio, form.horaFin);
+  const terminaAlDiaSiguienteForm = terminaAlDiaSiguiente(form.horaInicio, form.horaFin);
   const conflictoHoraInicio = form.horaInicio
     ? horariosOcupados.find((programa) => esHorarioOcupado(programa, form.horaInicio))
     : undefined;
   const conflictoHoraFin = form.horaFin
     ? horariosOcupados.find((programa) => esHorarioOcupado(programa, form.horaFin))
     : undefined;
-  const rangoHorarioInvalido = !esRangoHorarioValido(form.horaInicio, form.horaFin);
   const conflictoHorarioRango =
-    form.horaInicio && form.horaFin && form.horaInicio < form.horaFin
+    form.horaInicio && form.horaFin && !rangoHorarioInvalido
       ? horariosOcupados.find((programa) =>
           esRangoHorarioOcupado(programa, form.horaInicio, form.horaFin),
         )
@@ -1145,10 +1142,27 @@ export default function Programacion() {
           </Stack>
         </Box>
 
+        {errorCarga && programas.length > 0 && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 2 }}
+            action={<Button color="inherit" size="small" onClick={() => setRecarga((n) => n + 1)}>Reintentar</Button>}
+          >
+            No se pudo actualizar la programación; se muestra la última copia guardada.
+          </Alert>
+        )}
         {cargando ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress />
           </Box>
+        ) : vista !== "calendario" && programas.length === 0 && errorCarga ? (
+          <Alert
+            severity="error"
+            sx={{ my: 2 }}
+            action={<Button color="inherit" size="small" onClick={() => setRecarga((n) => n + 1)}>Reintentar</Button>}
+          >
+            No se pudo cargar la programación. {errorCarga}
+          </Alert>
         ) : vista !== "calendario" && programas.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 4 }} align="center">
             Todavía no cargaste programación.
@@ -1694,10 +1708,15 @@ export default function Programacion() {
                 </Select>
               </FormControl>
             </Stack>
+            {terminaAlDiaSiguienteForm && !rangoHorarioInvalido && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                Este programa termina al día siguiente ({form.horaInicio} a {form.horaFin} del día de después).
+              </Alert>
+            )}
             {(rangoHorarioInvalido || conflictoHorarioRango || conflictoHoraInicio || conflictoHoraFin) && (
               <Alert severity="warning" sx={{ mt: 1 }}>
                 {rangoHorarioInvalido ? (
-                  <span>La hora de fin debe ser posterior a la hora de inicio.</span>
+                  <span>La hora de inicio y la de fin no pueden ser iguales.</span>
                 ) : conflictoHorarioRango ? (
                   <span>
                     El rango {form.horaInicio} — {form.horaFin} se superpone con "{conflictoHorarioRango.titulo}" ({descripcionPrograma(conflictoHorarioRango)}).

@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   ajustarFinAlCambiarInicio,
   esRangoHorarioValido,
+  horaDentroDelPrograma,
+  partesDeFechaCalendario,
+  seSolapanHorarios,
   shouldShowLoadingState,
+  terminaAlDiaSiguiente,
 } from "./programacion.utils";
 
 describe("shouldShowLoadingState", () => {
@@ -20,17 +24,62 @@ describe("shouldShowLoadingState", () => {
 });
 
 describe("validación de rango horario", () => {
-  it("ajusta el fin al nuevo inicio si queda antes", () => {
-    expect(ajustarFinAlCambiarInicio("14:00", "12:00")).toBe("14:00");
-  });
-
-  it("mantiene el fin si ya es posterior al inicio", () => {
+  it("ya no corrige la hora de fin: una fin anterior es un programa nocturno", () => {
+    expect(ajustarFinAlCambiarInicio("22:00", "02:00")).toBe("02:00");
     expect(ajustarFinAlCambiarInicio("14:00", "16:00")).toBe("16:00");
   });
 
-  it("no permite guardar rangos iguales o invertidos", () => {
+  it("solo rechaza el rango vacío (inicio igual a fin)", () => {
     expect(esRangoHorarioValido("14:00", "14:00")).toBe(false);
-    expect(esRangoHorarioValido("15:00", "14:00")).toBe(false);
+    expect(esRangoHorarioValido("", "14:00")).toBe(false);
+    expect(esRangoHorarioValido("15:00", "14:00")).toBe(true);
     expect(esRangoHorarioValido("14:00", "14:30")).toBe(true);
+  });
+
+  it("avisa cuando el programa termina al día siguiente", () => {
+    expect(terminaAlDiaSiguiente("22:00", "02:00")).toBe(true);
+    expect(terminaAlDiaSiguiente("10:00", "12:00")).toBe(false);
+    expect(terminaAlDiaSiguiente("10:00", "10:00")).toBe(false);
+  });
+});
+
+describe("horarios que cruzan la medianoche", () => {
+  it("una hora cae dentro de un programa nocturno antes y después de las 00:00", () => {
+    expect(horaDentroDelPrograma("22:00", "02:00", "23:00")).toBe(true);
+    expect(horaDentroDelPrograma("22:00", "02:00", "01:00")).toBe(true);
+    expect(horaDentroDelPrograma("22:00", "02:00", "02:00")).toBe(false);
+    expect(horaDentroDelPrograma("22:00", "02:00", "12:00")).toBe(false);
+  });
+
+  it("en un programa normal sigue valiendo inicio <= hora < fin", () => {
+    expect(horaDentroDelPrograma("10:00", "12:00", "10:00")).toBe(true);
+    expect(horaDentroDelPrograma("10:00", "12:00", "12:00")).toBe(false);
+  });
+
+  it("detecta el solapamiento entre un nocturno y otro de madrugada", () => {
+    expect(seSolapanHorarios("22:00", "02:00", "01:00", "03:00")).toBe(true);
+    expect(seSolapanHorarios("22:00", "02:00", "02:00", "04:00")).toBe(false);
+    expect(seSolapanHorarios("22:00", "02:00", "23:00", "23:30")).toBe(true);
+  });
+
+  it("los rangos normales se comportan como siempre", () => {
+    expect(seSolapanHorarios("10:00", "12:00", "11:00", "13:00")).toBe(true);
+    expect(seSolapanHorarios("10:00", "12:00", "12:00", "14:00")).toBe(false);
+  });
+});
+
+describe("partesDeFechaCalendario", () => {
+  it("lee la fecha tal cual la guardó la API, sin correrla por la zona horaria", () => {
+    expect(partesDeFechaCalendario("2026-10-20T00:00:00.000Z")).toEqual({ año: 2026, mes: 10, dia: 20 });
+  });
+
+  it("acepta una fecha sola", () => {
+    expect(partesDeFechaCalendario("2026-10-20")).toEqual({ año: 2026, mes: 10, dia: 20 });
+  });
+
+  it("rechaza texto que no es una fecha o una fecha imposible", () => {
+    expect(partesDeFechaCalendario("")).toBeNull();
+    expect(partesDeFechaCalendario("hoy")).toBeNull();
+    expect(partesDeFechaCalendario("2026-02-31")).toBeNull();
   });
 });
