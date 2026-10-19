@@ -250,11 +250,20 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
       if (cargoInvitado === SUPER_ADMIN_CARGO) {
         await invitarSuperAdministrador(email.trim());
       } else {
-        if (!CARGOS_ADMINISTRADOR.some((cargoDisponible) => cargoDisponible === cargoInvitado)) {
+        const esAdministradorSinCargo = cargoInvitado === ADMIN_SIN_CARGO;
+        if (
+          !esAdministradorSinCargo &&
+          !CARGOS_ADMINISTRADOR.some(
+            (cargoDisponible) => cargoDisponible === cargoInvitado,
+          )
+        ) {
           setErrorModal("Elegí un cargo.");
           return;
         }
-        await invitarAdministrador(email.trim(), cargoInvitado);
+        await invitarAdministrador(
+          email.trim(),
+          esAdministradorSinCargo ? undefined : cargoInvitado,
+        );
       }
       setModalAbierto(false);
       setSuccess("Invitación enviada correctamente.");
@@ -516,6 +525,7 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
               <MenuItem value="">
                 <em>Elegir cargo</em>
               </MenuItem>
+              <MenuItem value={ADMIN_SIN_CARGO}>Administrador</MenuItem>
               {CARGOS_ADMINISTRADOR.map((cargoDisponible) => (
                 <MenuItem key={cargoDisponible} value={cargoDisponible}>
                   {cargoDisponible}
