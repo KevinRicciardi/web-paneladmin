@@ -20,6 +20,7 @@ import {
   Typography,
 } from "@mui/material";
 import NoticiaEditorForm from "../components/NoticiaEditorForm";
+import { resumenDeContenido, textoPlanoDeContenido } from "../utils/textoNoticia";
 import type { News, NewsStatus } from "../types";
 import {
   actualizarNoticia,
@@ -57,14 +58,9 @@ function timeAgo(value?: string | null) {
 }
 
 function excerptFrom(news: News) {
-  return (
-    news.excerpt ||
-    news.content?.replace(/[#*_>`-]/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 120) ||
-    "Sin contenido"
-  );
+  // El resumen guardado de noticias viejas puede traer etiquetas HTML: se
+  // limpia al mostrarlo.
+  return resumenDeContenido(news.excerpt || news.content || "", 120) || "Sin contenido";
 }
 
 function statusLabel(status: NewsStatus) {
@@ -107,8 +103,8 @@ export default function Noticias() {
     return noticias.filter((item) => {
       return (
         item.title.toLowerCase().includes(term) ||
-        item.content?.toLowerCase().includes(term) ||
-        (item.excerpt ?? "").toLowerCase().includes(term)
+        textoPlanoDeContenido(item.content ?? "").toLowerCase().includes(term) ||
+        textoPlanoDeContenido(item.excerpt ?? "").toLowerCase().includes(term)
       );
     });
   }, [noticias, search]);

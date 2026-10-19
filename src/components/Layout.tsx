@@ -1,7 +1,10 @@
 ﻿import { Box, Divider, Drawer, List, ListItemButton, ListItemText, Typography } from "@mui/material";
+import { signOut } from "firebase/auth";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { auth } from "../firebase";
 import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
+import ErrorBoundary from "./ErrorBoundary";
 
 const drawerWidth = 280;
 
@@ -198,13 +201,36 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
                 </ListItemButton>
               );
             })}
+
+            <ListItemButton
+              onClick={() => void signOut(auth)}
+              sx={{
+                borderRadius: 2,
+                mb: 1,
+                py: 1.5,
+                justifyContent: "flex-start",
+                color: "text.secondary",
+                "&:hover": { bgcolor: "rgba(255,255,255,0.05)" },
+              }}
+            >
+              <ListItemText
+                primary={
+                  <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 1 }}>
+                    <span className="material-symbols-outlined">logout</span>
+                    <Typography sx={{ fontWeight: 700 }}>Cerrar sesión</Typography>
+                  </Box>
+                }
+              />
+            </ListItemButton>
           </Box>
         </Box>
       </Drawer>
 
       <Box component="main" sx={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", p: 3 }}>
         <Box sx={{ flex: 1 }}>
-          <Outlet />
+          <ErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </Box>
         <Box
           component="footer"

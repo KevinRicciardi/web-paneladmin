@@ -19,6 +19,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { esEstadoFinal, pasoActivoDeSolicitud } from "../utils/solicitudes";
 import type {
   BuildRequest,
   BuildRequestPublishInfoPayload,
@@ -35,12 +36,8 @@ import { subirACloudinary } from "../utils/cloudinary";
 const MIN_SCREENSHOTS = 2;
 const MAX_SCREENSHOTS = 8;
 
-// Estados en los que ya no tiene sentido seguir operando sobre la
-// solicitud — igual que en el backend (src/build-requests/build-requests.service.ts).
-const ESTADOS_FINALES: BuildRequestStatus[] = ["PUBLISHED", "FAILED", "CANCELLED"];
-
 function esActiva(solicitud: BuildRequest) {
-  return !ESTADOS_FINALES.includes(solicitud.status);
+  return !esEstadoFinal(solicitud.status);
 }
 
 function ErrorSnackbar({ error, onClose }: { error: string; onClose: () => void }) {
@@ -127,6 +124,7 @@ export default function GenerarApp({ perfil }: { perfil: Perfil }) {
   const [solicitudes, setSolicitudes] = useState<BuildRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pidiendoNuevaVersion, setPidiendoNuevaVersion] = useState(false);
 
   const cargar = async () => {
     setLoading(true);
@@ -162,7 +160,10 @@ export default function GenerarApp({ perfil }: { perfil: Perfil }) {
 
   const ultima = solicitudes[0];
   const activa = ultima && esActiva(ultima) ? ultima : null;
-  const historial = solicitudes.filter((s) => s.id !== activa?.id);
+  // Una app ya publicada se muestra como publicada. Antes, al terminar, la
+  // pantalla volvía al formulario vacío como si nunca se hubiera pedido nada.
+  const publicada = !activa && !pidiendoNuevaVersion && ultima?.status === "PUBLISHED" ? ultima : null;
+  const historial = solicitudes.filter((s) => s.id !== (activa ?? publicada)?.id);
 
   return (
     <Box>
@@ -186,8 +187,19 @@ export default function GenerarApp({ perfil }: { perfil: Perfil }) {
         </Box>
       ) : activa ? (
         <EstadoEnVivo solicitud={activa} onActualizada={cargar} />
+      ) : publicada ? (
+        <EstadoEnVivo
+          solicitud={publicada}
+          onActualizada={cargar}
+          onNuevaVersion={() => setPidiendoNuevaVersion(true)}
+        />
       ) : (
-        <NuevaSolicitud onCreada={cargar} />
+        <NuevaSolicitud
+          onCreada={() => {
+            setPidiendoNuevaVersion(false);
+            void cargar();
+          }}
+        />
       )}
 
       {historial.length > 0 && (
@@ -217,11 +229,16 @@ export default function GenerarApp({ perfil }: { perfil: Perfil }) {
 function EstadoEnVivo({
   solicitud,
   onActualizada,
+  onNuevaVersion,
 }: {
   solicitud: BuildRequest;
   onActualizada: () => void;
+  onNuevaVersion?: () => void;
 }) {
-  const pasoActivo = PASOS.findIndex((p) => p.status === solicitud.status);
+  const pasoActivo = pasoActivoDeSolicitud(
+    solicitud.status,
+    PASOS.map((p) => p.status),
+  );
 
   return (
     <Card variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.03)", borderColor: "divider" }}>
@@ -249,7 +266,17 @@ function EstadoEnVivo({
             </Stepper>
 
             {solicitud.status === "PUBLISHED" && (
-              <Alert severity="success" sx={{ mt: 2 }}>
+              <Alert
+                severity="success"
+                sx={{ mt: 2 }}
+                action={
+                  onNuevaVersion ? (
+                    <Button color="inherit" size="small" onClick={onNuevaVersion}>
+                      Pedir una nueva versión
+                    </Button>
+                  ) : undefined
+                }
+              >
                 Tu app ya está publicada en Google Play.
               </Alert>
             )}
