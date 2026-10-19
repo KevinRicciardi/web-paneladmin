@@ -12,15 +12,20 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
   MenuItem,
+  Select,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
 import { CARGOS_ADMINISTRADOR, type Administrador } from "../types";
+import type { Perfil } from "../types";
 import {
+  actualizarRolAdministrador,
   cancelarInvitacion,
   invitarAdministrador,
+  invitarSuperAdministrador,
   listarAdministradores,
   reenviarInvitacion,
 } from "../services/administradores.service";
@@ -39,7 +44,60 @@ function estadoChip(status: Administrador["status"]) {
     : { label: "Pendiente de activación", color: "warning" as const };
 }
 
-export default function Administradores() {
+const SUPER_ADMIN_CARGO = "ROLE:SUPER_ADMIN";
+const ADMIN_SIN_CARGO = "ROLE:ADMIN";
+const ADMIN_CARGO_PREFIX = "CARGO:ADMIN:";
+type ValorCargo = string;
+const NOMBRE_ROL: Record<Administrador["rol"], string> = {
+  MEGA_ADMIN: "Mega administrador",
+  SUPER_ADMIN: "Super administrador",
+  ADMIN: "Administrador",
+  MODERADOR: "Moderador",
+  USUARIO_FINAL: "Usuario final",
+};
+
+function valorCargoActual(admin: Administrador): ValorCargo {
+  const rol = rolAdministrador(admin.rol);
+  if (rol === "SUPER_ADMIN") return SUPER_ADMIN_CARGO;
+  if (rol === "ADMIN") {
+    return admin.cargo ? `${ADMIN_CARGO_PREFIX}${admin.cargo}` : ADMIN_SIN_CARGO;
+  }
+  if (rol) return `ROLE:${rol}`;
+  return admin.cargo ? `${ADMIN_CARGO_PREFIX}${admin.cargo}` : "";
+}
+
+function rolAdministrador(value: unknown): Administrador["rol"] | undefined {
+  if (typeof value !== "string") return undefined;
+  return Object.prototype.hasOwnProperty.call(NOMBRE_ROL, value)
+    ? (value as Administrador["rol"])
+    : undefined;
+}
+
+function etiquetaCargoActual(admin: Administrador) {
+  const rol = rolAdministrador(admin.rol);
+  if (rol === "ADMIN") return admin.cargo || NOMBRE_ROL.ADMIN;
+  if (rol) return NOMBRE_ROL[rol];
+  return admin.cargo || "Cargo no disponible";
+}
+
+function etiquetaValorCargo(value: ValorCargo) {
+  if (value === SUPER_ADMIN_CARGO) {
+    return NOMBRE_ROL.SUPER_ADMIN;
+  }
+  if (value === ADMIN_SIN_CARGO || value === "ADMIN") {
+    return NOMBRE_ROL.ADMIN;
+  }
+  if (value.startsWith(ADMIN_CARGO_PREFIX)) {
+    return value.slice(ADMIN_CARGO_PREFIX.length);
+  }
+  if (value.startsWith("ROLE:")) {
+    const rol = value.slice("ROLE:".length) as Administrador["rol"];
+    return NOMBRE_ROL[rol] || rol;
+  }
+  return value;
+}
+
+export default function Administradores({ perfil }: { perfil: Perfil }) {
   const [administradores, setAdministradores] = useState<Administrador[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -47,40 +105,120 @@ export default function Administradores() {
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [email, setEmail] = useState("");
-  const [cargo, setCargo] = useState("");
+  const [cargoInvitado, setCargoInvitado] = useState("");
   const [invitando, setInvitando] = useState(false);
   const [errorModal, setErrorModal] = useState("");
 
   const [accionandoId, setAccionandoId] = useState<number | null>(null);
+  const [guardandoCambios, setGuardandoCambios] = useState(false);
+  const [cambiosPendientes, setCambiosPendientes] = useState<Record<number, ValorCargo>>({});
   const [aCancelar, setACancelar] = useState<Administrador | null>(null);
   const [cancelando, setCancelando] = useState(false);
 
   const cargar = async () => {
-    let hasCache = false;
-    try {
-      const cached = sessionStorage.getItem("administradores_cache");
-      if (cached) {
-        const parsed = JSON.parse(cached) as Administrador[];
-        setAdministradores(parsed);
-        hasCache = true;
-      }
-    } catch {
-      // Una caché inválida no debe impedir la carga desde la API.
-    }
-
-    setLoading(!hasCache);
+    setLoading(true);
     setError("");
 
     try {
       const data = await listarAdministradores();
       setAdministradores(data);
-      try { sessionStorage.setItem("administradores_cache", JSON.stringify(data)); } catch {}
+      setCambiosPendientes({});
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron cargar los administradores");
     } finally {
       setLoading(false);
     }
   };
+
+  const valorCargoPendiente = (admin: Administrador) =>
+    cambiosPendientes[admin.id] ?? valorCargoActual(admin);
+
+  const descartarCambios = () => setCambiosPendientes({});
+
+  const guardarCambios = async () => {
+    const pendientes = administradores.filter(
+      (admin) =>
+        admin.id !== perfil.id &&
+        cambiosPendientes[admin.id] !== undefined &&
+        cambiosPendientes[admin.id] !== valorCargoActual(admin),
+    );
+    if (pendientes.length === 0) return;
+
+    setGuardandoCambios(true);
+    setError("");
+    const errores: string[] = [];
+    let guardados = 0;
+
+    for (const admin of pendientes) {
+      const value = cambiosPendientes[admin.id];
+      let rol: Administrador["rol"];
+      let cargo: string | null = null;
+
+      if (value === SUPER_ADMIN_CARGO || value === "ROLE:SUPER_ADMIN") {
+        rol = "SUPER_ADMIN";
+      } else if (value === ADMIN_SIN_CARGO || value === "ROLE:ADMIN" || value === "ADMIN") {
+        rol = "ADMIN";
+      } else if (value.startsWith(ADMIN_CARGO_PREFIX)) {
+        rol = "ADMIN";
+        cargo = value.slice(ADMIN_CARGO_PREFIX.length);
+      } else if (CARGOS_ADMINISTRADOR.some((cargoDisponible) => cargoDisponible === value)) {
+        rol = "ADMIN";
+        cargo = value;
+      } else {
+        errores.push(`${admin.email}: el cargo seleccionado no es válido`);
+        continue;
+      }
+
+      if (admin.rol === rol && (admin.cargo || null) === cargo) {
+        setCambiosPendientes((actuales) => {
+          const siguientes = { ...actuales };
+          delete siguientes[admin.id];
+          return siguientes;
+        });
+        continue;
+      }
+
+      try {
+        const actualizado = await actualizarRolAdministrador(admin.id, rol, cargo);
+        setAdministradores((usuarios) =>
+          usuarios.map((usuario) =>
+            usuario.id === admin.id
+              ? { ...usuario, rol: actualizado.rol, cargo: actualizado.cargo }
+              : usuario,
+          ),
+        );
+        setCambiosPendientes((actuales) => {
+          const siguientes = { ...actuales };
+          delete siguientes[admin.id];
+          return siguientes;
+        });
+        guardados += 1;
+      } catch (err) {
+        errores.push(
+          `${admin.email}: ${err instanceof Error ? err.message : "error al guardar"}`,
+        );
+      }
+    }
+
+    setGuardandoCambios(false);
+    if (errores.length > 0) {
+      setError(`No se pudieron guardar algunos cambios: ${errores.join("; ")}`);
+    }
+    if (guardados > 0) {
+      setSuccess(
+        guardados === 1
+          ? "Se guardó 1 cambio."
+          : `Se guardaron ${guardados} cambios.`,
+      );
+    }
+  };
+
+  const hayCambiosPendientes = administradores.some(
+    (admin) =>
+      admin.id !== perfil.id &&
+      cambiosPendientes[admin.id] !== undefined &&
+      cambiosPendientes[admin.id] !== valorCargoActual(admin),
+  );
 
   useEffect(() => {
     void cargar();
@@ -94,7 +232,7 @@ export default function Administradores() {
 
   const abrirModal = () => {
     setEmail("");
-    setCargo("");
+    setCargoInvitado("");
     setErrorModal("");
     setModalAbierto(true);
   };
@@ -109,7 +247,15 @@ export default function Administradores() {
     setErrorModal("");
 
     try {
-      await invitarAdministrador(email.trim(), cargo || undefined);
+      if (cargoInvitado === SUPER_ADMIN_CARGO) {
+        await invitarSuperAdministrador(email.trim());
+      } else {
+        if (!CARGOS_ADMINISTRADOR.some((cargoDisponible) => cargoDisponible === cargoInvitado)) {
+          setErrorModal("Elegí un cargo.");
+          return;
+        }
+        await invitarAdministrador(email.trim(), cargoInvitado);
+      }
       setModalAbierto(false);
       setSuccess("Invitación enviada correctamente.");
       await cargar();
@@ -169,7 +315,7 @@ export default function Administradores() {
             Administradores
           </Typography>
           <Typography color="text.secondary">
-            Invitá y gestioná a los administradores internos de tu equipo.
+            Invitá usuarios y gestioná los roles y cargos de tu equipo.
           </Typography>
         </Box>
 
@@ -207,10 +353,10 @@ export default function Administradores() {
           ) : administradores.length === 0 ? (
             <Box sx={{ textAlign: "center", py: 8, px: 3 }}>
               <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>
-                Todavía no invitaste a ningún administrador
+                Todavía no hay usuarios en este equipo
               </Typography>
               <Typography color="text.secondary" sx={{ mb: 3 }}>
-                Invitá a alguien de tu equipo para que te ayude a gestionar la aplicación.
+                Invitá a alguien de tu equipo para que tenga acceso a la aplicación.
               </Typography>
               <Button variant="contained" onClick={abrirModal}>
                 Invitar administrador
@@ -245,25 +391,76 @@ export default function Administradores() {
                         />
                       </Box>
                       <Typography color="text.secondary" variant="body2">
-                        {admin.cargo || "Sin cargo asignado"} · Invitado el {formatFecha(admin.createdAt)}
+                        {etiquetaCargoActual(admin)}
+                        {" · Invitado el "}{formatFecha(admin.createdAt)}
                       </Typography>
                     </Box>
 
-                    {pendiente && (
-                      <Stack direction="row" spacing={1}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={accionandoId === admin.id}
-                          onClick={() => reenviar(admin)}
-                        >
-                          {accionandoId === admin.id ? "Enviando..." : "Reenviar invitación"}
-                        </Button>
-                        <Button size="small" color="error" onClick={() => setACancelar(admin)}>
-                          Cancelar invitación
-                        </Button>
-                      </Stack>
-                    )}
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{ alignItems: "center", flexWrap: "wrap" }}
+                    >
+                      {perfil.rol === "SUPER_ADMIN" && admin.id !== perfil.id && (
+                        <FormControl size="small" sx={{ minWidth: 220 }}>
+                          <Select
+                            value={valorCargoPendiente(admin)}
+                            displayEmpty
+                            disabled={guardandoCambios}
+                            renderValue={(value) =>
+                              value ? etiquetaValorCargo(value) : "Rol no disponible"
+                            }
+                            onChange={(event) => {
+                              setCambiosPendientes((pendientes) => ({
+                                ...pendientes,
+                                [admin.id]: event.target.value,
+                              }));
+                            }}
+                          >
+                            <MenuItem value={SUPER_ADMIN_CARGO}>
+                              {NOMBRE_ROL.SUPER_ADMIN}
+                            </MenuItem>
+                            <MenuItem value={ADMIN_SIN_CARGO}>
+                              {NOMBRE_ROL.ADMIN}
+                            </MenuItem>
+                            {admin.rol === "ADMIN" &&
+                              admin.cargo &&
+                              !CARGOS_ADMINISTRADOR.some(
+                                (cargoDisponible) => cargoDisponible === admin.cargo,
+                              ) && (
+                                <MenuItem
+                                  value={`${ADMIN_CARGO_PREFIX}${admin.cargo}`}
+                                >
+                                  {admin.cargo}
+                                </MenuItem>
+                              )}
+                            {CARGOS_ADMINISTRADOR.map((cargoDisponible) => (
+                              <MenuItem
+                                key={cargoDisponible}
+                                value={`${ADMIN_CARGO_PREFIX}${cargoDisponible}`}
+                              >
+                                {cargoDisponible}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      )}
+                      {pendiente && (
+                        <>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            disabled={accionandoId === admin.id}
+                            onClick={() => reenviar(admin)}
+                          >
+                            {accionandoId === admin.id ? "Enviando..." : "Reenviar invitación"}
+                          </Button>
+                          <Button size="small" color="error" onClick={() => setACancelar(admin)}>
+                            Cancelar invitación
+                          </Button>
+                        </>
+                      )}
+                    </Stack>
                   </Box>
                 );
               })}
@@ -271,6 +468,28 @@ export default function Administradores() {
           )}
         </CardContent>
       </Card>
+
+      {perfil.rol === "SUPER_ADMIN" && (
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ justifyContent: "flex-end", mt: 2 }}
+        >
+          <Button
+            disabled={guardandoCambios || !hayCambiosPendientes}
+            onClick={descartarCambios}
+          >
+            Descartar cambios
+          </Button>
+          <Button
+            variant="contained"
+            disabled={guardandoCambios || !hayCambiosPendientes}
+            onClick={() => void guardarCambios()}
+          >
+            {guardandoCambios ? "Guardando..." : "Guardar cambios"}
+          </Button>
+        </Stack>
+      )}
 
       <Dialog open={modalAbierto} onClose={() => !invitando && setModalAbierto(false)} fullWidth maxWidth="xs">
         <DialogTitle>Invitar administrador</DialogTitle>
@@ -290,18 +509,19 @@ export default function Administradores() {
             <TextField
               select
               label="Cargo"
-              value={cargo}
-              onChange={(e) => setCargo(e.target.value)}
+              value={cargoInvitado}
+              onChange={(e) => setCargoInvitado(e.target.value)}
               fullWidth
             >
               <MenuItem value="">
-                <em>Sin especificar</em>
+                <em>Elegir cargo</em>
               </MenuItem>
-              {CARGOS_ADMINISTRADOR.map((c) => (
-                <MenuItem key={c} value={c}>
-                  {c}
+              {CARGOS_ADMINISTRADOR.map((cargoDisponible) => (
+                <MenuItem key={cargoDisponible} value={cargoDisponible}>
+                  {cargoDisponible}
                 </MenuItem>
               ))}
+              <MenuItem value={SUPER_ADMIN_CARGO}>Super administrador</MenuItem>
             </TextField>
 
             <Typography variant="caption" color="text.secondary">

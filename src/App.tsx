@@ -116,7 +116,7 @@ function App() {
                   <Route path="/programacion" element={<Programacion />} />
                   <Route path="/noticias" element={<Noticias />} />
                   <Route path="/estadisticas" element={<Estadisticas />} />
-                  <Route path="/administradores" element={<Administradores />} />
+                  <Route path="/administradores" element={<Administradores perfil={perfil} />} />
                   <Route path="/generar-app" element={<GenerarApp perfil={perfil} />} />
                   <Route path="/solicitudes-apps" element={<SolicitudesApps />} />
                   <Route path="/configuracion" element={<Configuracion perfil={perfil} />} />
