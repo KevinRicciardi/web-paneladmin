@@ -209,7 +209,7 @@ export const CARGOS_ADMINISTRADOR = [
 // realmente aplica los permisos, esto es nada más para la UI.
 export const SECCIONES_POR_CARGO: Record<string, string[]> = {
   "Operador de Streaming": ["streaming", "programacion"],
-  "Editor de Contenido": ["noticias", "programacion", "podcast"],
+  "Editor de Contenido": ["noticias", "programacion"],
   Programador: ["programacion"],
   Analista: ["estadisticas"],
   "Diseñador/Branding": ["branding"],
