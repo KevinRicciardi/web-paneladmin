@@ -8,6 +8,7 @@ import {
   Chip,
   CircularProgress,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
@@ -17,6 +18,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { BuildRequest, BuildRequestStatus } from "../types";
+import { confirmacionDeEstado } from "../utils/solicitudes";
 import {
   actualizarEstadoSolicitud,
   descargarAab,
@@ -210,10 +212,12 @@ function DetalleSolicitud({
   const [aplicando, setAplicando] = useState<BuildRequestStatus | null>(null);
   const [descargando, setDescargando] = useState(false);
   const [error, setError] = useState("");
+  const [porConfirmar, setPorConfirmar] = useState<BuildRequestStatus | null>(null);
 
   useEffect(() => {
     setInternalNotes(solicitud?.internalNotes ?? "");
     setError("");
+    setPorConfirmar(null);
   }, [solicitud?.id]);
 
   if (!solicitud) return null;
@@ -353,7 +357,7 @@ function DetalleSolicitud({
                     variant="contained"
                     size="small"
                     disabled={aplicando !== null}
-                    onClick={() => aplicar(status)}
+                    onClick={() => (confirmacionDeEstado(status) ? setPorConfirmar(status) : aplicar(status))}
                   >
                     {aplicando === status ? "Guardando..." : `Pasar a ${statusLabel(status)}`}
                   </Button>
@@ -365,6 +369,30 @@ function DetalleSolicitud({
           )}
         </Stack>
       </DialogContent>
+
+      <Dialog open={porConfirmar !== null} onClose={() => setPorConfirmar(null)}>
+        <DialogTitle>{porConfirmar ? confirmacionDeEstado(porConfirmar)?.titulo : ""}</DialogTitle>
+        <DialogContent>
+          <Typography>{porConfirmar ? confirmacionDeEstado(porConfirmar)?.mensaje : ""}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPorConfirmar(null)} disabled={aplicando !== null}>
+            Volver
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={aplicando !== null}
+            onClick={async () => {
+              const estado = porConfirmar;
+              setPorConfirmar(null);
+              if (estado) await aplicar(estado);
+            }}
+          >
+            {porConfirmar ? confirmacionDeEstado(porConfirmar)?.boton : "Confirmar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }

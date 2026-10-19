@@ -12,6 +12,24 @@ export function detectStreamingPlatform(url: string): PodcastPlatformType {
   }
 }
 
+/**
+ * El modo Podcast (solo audio) únicamente funciona con YouTube: Kick y Twitch
+ * no entregan el audio por separado. El link tiene que ser completo (con
+ * https://).
+ */
+export function esLinkDeYoutube(url: string): boolean {
+  try {
+    const { protocol } = new URL(url.trim());
+    if (protocol !== "https:" && protocol !== "http:") return false;
+  } catch {
+    return false;
+  }
+  return detectStreamingPlatform(url.trim()) === "youtube";
+}
+
+export const MENSAJE_PODCAST_SOLO_YOUTUBE =
+  "El modo Podcast solo funciona con un link de YouTube. Cambiá el link o elegí Video y Audio.";
+
 export function getStreamingEmbedUrl(url: string): string | null {
   try {
     const parsed = new URL(url);

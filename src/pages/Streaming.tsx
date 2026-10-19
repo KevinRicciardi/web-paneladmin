@@ -18,7 +18,7 @@ import ImageCropDialog from "../components/ImageCropDialog";
 import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
 import { extractKickChannelName } from "../services/kick.service";
-import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
+import { MENSAJE_PODCAST_SOLO_YOUTUBE, detectStreamingPlatform, esLinkDeYoutube, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
 import { buildYoutubeChannelEmbedUrl, buildYoutubeVideoEmbedUrl } from "../services/youtube.service";
 import { extractYoutubeVideoId, getSignalStatus, getStreamData, invalidateStreamData, type StreamData } from "../services/stream.service";
 
@@ -124,6 +124,10 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const esPodcast = tipoTransmision === "audio";
+  // Podcast solo funciona con YouTube: sin un link de YouTube no se puede
+  // elegir ni guardar ese modo.
+  const linkEsYoutube = esLinkDeYoutube(streamUrl);
+  const podcastSinYoutube = esPodcast && !linkEsYoutube;
   const embedUrl = streamUrl ? getStreamingEmbedUrl(streamUrl) : null;
   const plataforma = streamProvider === "youtube"
     ? "YouTube"
@@ -468,6 +472,10 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   };
 
   const handleGuardar = async () => {
+    if (podcastSinYoutube) {
+      setError(MENSAJE_PODCAST_SOLO_YOUTUBE);
+      return;
+    }
     setLoading(true);
     setSuccess(false);
     setError("");
@@ -614,7 +622,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
               }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>
-              Este link se comparte entre Video y Podcast. Podés usar Kick, Twitch o YouTube.
+              Este link se comparte entre Video y Podcast. Para Video podés usar Kick, Twitch o YouTube; para Podcast tiene que ser de YouTube.
             </Typography>
 
             {/* Tipo de transmisión */}
@@ -627,10 +635,14 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 { val: "audio", label: "Solo Audio (Podcast)" },
               ].map((op) => {
                 const activo = tipoTransmision === op.val;
+                const bloqueada = op.val === "audio" && !linkEsYoutube;
                 return (
                   <Box
                     key={op.val}
+                    aria-disabled={bloqueada}
+                    title={bloqueada ? MENSAJE_PODCAST_SOLO_YOUTUBE : undefined}
                     onClick={() => {
+                      if (bloqueada) return;
                       const nextIsPodcast = op.val === "audio";
                       setTipoTransmision(op.val);
                       if (nextIsPodcast) {
@@ -641,12 +653,13 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                       setSuccess(false);
                     }}
                     sx={ {
-                      textAlign: "center", py: 1.25, cursor: "pointer",
+                      textAlign: "center", py: 1.25, cursor: bloqueada ? "not-allowed" : "pointer",
+                      opacity: bloqueada ? 0.5 : 1,
                       fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
                       bgcolor: activo ? "primary.main" : "transparent",
                       color: activo ? "primary.contrastText" : "text.primary",
                       transition: "all 0.15s",
-                      "&:hover": { bgcolor: activo ? "primary.main" : "action.hover" },
+                      "&:hover": { bgcolor: activo ? "primary.main" : bloqueada ? "transparent" : "action.hover" },
                     } }
                   >
                     {op.label}
@@ -654,6 +667,17 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 );
               })}
             </Box>
+            {(podcastSinYoutube || !linkEsYoutube) && (
+              <Typography
+                variant="caption"
+                color={podcastSinYoutube ? "error" : "text.secondary"}
+                sx={{ display: "block", mt: -2, mb: 3 }}
+              >
+                {podcastSinYoutube
+                  ? MENSAJE_PODCAST_SOLO_YOUTUBE
+                  : "Solo Audio (Podcast) se habilita cuando el link es de YouTube."}
+              </Typography>
+            )}
 
             {/* Imagen de portada (solo podcast) */}
             {esPodcast && (
@@ -1231,7 +1255,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         <Button
           variant="contained"
           onClick={handleGuardar}
-          disabled={loading || uploadingPortada}
+          disabled={loading || uploadingPortada || podcastSinYoutube}
           startIcon={loading ? <CircularProgress size={18} color="inherit" /> : undefined}
           sx={ { minWidth: 200 } }
         >

@@ -1,43 +1,18 @@
-import { auth } from "../firebase";
+import { getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
 import type { News, NewsPayload } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
-let tokenCache: { value: string; expiresAt: number } | null = null;
-let tokenRequest: Promise<string> | null = null;
 let noticiasCache: { data: News[]; expiresAt: number } | null = null;
 let noticiasRequest: Promise<News[]> | null = null;
 const DURACION_CACHE_NOTICIAS = 30_000;
 
-async function getAuthHeaders() {
-  const now = Date.now();
-  if (tokenCache && tokenCache.expiresAt > now) {
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${tokenCache.value}`,
-    };
-  }
-
-  tokenRequest ??= auth.currentUser?.getIdToken() ?? Promise.reject(new Error("No hay usuario autenticado"));
-
-  let token: string;
-  try {
-    token = await tokenRequest;
-  } finally {
-    tokenRequest = null;
-  }
-
-  if (!token) {
-    throw new Error("No hay usuario autenticado");
-  }
-
-  tokenCache = { value: token, expiresAt: now + 50_000 };
-
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
+/** Se llama al cerrar sesión o al entrar otro usuario: la lista cacheada es del anterior. */
+export function limpiarCacheNoticias() {
+  noticiasCache = null;
+  noticiasRequest = null;
 }
+
 
 async function parseResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
