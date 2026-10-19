@@ -5,6 +5,10 @@ import { Link as RouterLink } from "react-router-dom";
 import type { Perfil } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+// Correo de soporte de la plataforma. Antes estaba escrito a mano un
+// "ayuda@webpanel.com" que no existe; ahora se configura al desplegar el panel
+// y, si no se configura, simplemente no se muestra.
+const SOPORTE_EMAIL = ((import.meta.env.VITE_SOPORTE_EMAIL as string | undefined) ?? "").trim();
 
 function whatsappHref(value: string) {
   const trimmed = value.trim();
@@ -173,18 +177,18 @@ export default function Soporte({ perfil }: { perfil: Perfil }) {
             <Typography color="text.secondary" sx={{ mb: 1 }}>
               Si necesitas asistencia, puedes escribirnos a nuestro canal de soporte para resolver dudas o problemas.
             </Typography>
-            <Typography sx={{ mb: 1 }}>
-              <Link
-                href="https://mail.google.com/mail/u/0/?view=cm&to=ayuda@webpanel.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                underline="hover"
-                color="info.main"
-                sx={{ fontWeight: 600 }}
-              >
-                ayuda@webpanel.com
-              </Link>
-            </Typography>
+            {SOPORTE_EMAIL && (
+              <Typography sx={{ mb: 1 }}>
+                <Link
+                  href={`mailto:${SOPORTE_EMAIL}`}
+                  underline="hover"
+                  color="info.main"
+                  sx={{ fontWeight: 600 }}
+                >
+                  {SOPORTE_EMAIL}
+                </Link>
+              </Typography>
+            )}
             {emailContacto ? (
               <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", mb: 1 }}>
                 <Link
