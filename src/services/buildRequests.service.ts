@@ -1,4 +1,5 @@
 import { getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
+import { crearConsultaCacheada } from "../utils/consultaCacheada";
 import type { BuildRequest, BuildRequestPublishInfoPayload } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -53,12 +54,18 @@ export async function crearSolicitud(payload: CrearSolicitudPayload): Promise<Bu
   return parseResponse<BuildRequest>(res);
 }
 
-export async function listarMisSolicitudes(): Promise<BuildRequest[]> {
+// En caché: al volver a "Generar App" se muestra al instante y se actualiza
+// en segundo plano.
+const consultaMisSolicitudes = crearConsultaCacheada(async () => {
   const headers = await getAuthHeaders();
 
   const res = await fetch(`${API_URL}/build-requests/mi-tenant`, { headers });
   return parseResponse<BuildRequest[]>(res);
-}
+});
+
+export const listarMisSolicitudes = () => consultaMisSolicitudes.obtener("lista");
+export const misSolicitudesEnCache = () => consultaMisSolicitudes.enCache("lista");
+export const precargarMisSolicitudes = () => consultaMisSolicitudes.precargar("lista");
 
 export async function editarSolicitud(
   id: number,

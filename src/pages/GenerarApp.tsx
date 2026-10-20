@@ -30,6 +30,7 @@ import {
   crearSolicitud,
   editarSolicitud,
   listarMisSolicitudes,
+  misSolicitudesEnCache,
 } from "../services/buildRequests.service";
 import { subirACloudinary } from "../utils/cloudinary";
 
@@ -121,13 +122,15 @@ const EMPTY_PUBLISH_INFO: BuildRequestPublishInfoPayload = {
 };
 
 export default function GenerarApp({ perfil }: { perfil: Perfil }) {
-  const [solicitudes, setSolicitudes] = useState<BuildRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Si ya se cargó antes (o se precargó desde el menú) se muestra al instante.
+  const [solicitudes, setSolicitudes] = useState<BuildRequest[]>(() => misSolicitudesEnCache() ?? []);
+  const [loading, setLoading] = useState(() => misSolicitudesEnCache() === null);
   const [error, setError] = useState("");
   const [pidiendoNuevaVersion, setPidiendoNuevaVersion] = useState(false);
 
+  // Actualiza en segundo plano: si ya se muestra algo, no lo tapa con el
+  // spinner (antes, después de guardar, toda la página parpadeaba).
   const cargar = async () => {
-    setLoading(true);
     setError("");
 
     try {
