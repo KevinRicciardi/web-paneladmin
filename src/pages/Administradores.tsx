@@ -15,18 +15,23 @@ import {
   FormControl,
   MenuItem,
   Select,
+  Skeleton,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { CARGOS_ADMINISTRADOR, type Administrador } from "../types";
 import type { Perfil } from "../types";
 import {
   actualizarRolAdministrador,
+  administradoresEnCache,
   cancelarInvitacion,
+  guardarAdministradoresEnCache,
   invitarAdministrador,
   invitarSuperAdministrador,
   listarAdministradores,
+  quitarAccesoAdministrador,
   reenviarInvitacion,
 } from "../services/administradores.service";
 
@@ -98,8 +103,11 @@ function etiquetaValorCargo(value: ValorCargo) {
 }
 
 export default function Administradores({ perfil }: { perfil: Perfil }) {
-  const [administradores, setAdministradores] = useState<Administrador[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Si ya se cargó antes (o se precargó desde el menú) se muestra al instante.
+  const [administradores, setAdministradores] = useState<Administrador[]>(
+    () => administradoresEnCache() ?? [],
+  );
+  const [loading, setLoading] = useState(() => administradoresEnCache() === null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -114,20 +122,32 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
   const [cambiosPendientes, setCambiosPendientes] = useState<Record<number, ValorCargo>>({});
   const [aCancelar, setACancelar] = useState<Administrador | null>(null);
   const [cancelando, setCancelando] = useState(false);
+  const [aQuitar, setAQuitar] = useState<Administrador | null>(null);
+  const [quitando, setQuitando] = useState(false);
 
+  const puedeQuitarAcceso = perfil.rol === "SUPER_ADMIN" || perfil.rol === "MEGA_ADMIN";
+  const cantidadSuperAdmins = administradores.filter((admin) => admin.rol === "SUPER_ADMIN").length;
+
+  // Actualiza la lista en segundo plano: si ya se está mostrando algo, no
+  // vuelve a poner el spinner ni descarta los cambios de rol sin guardar.
   const cargar = async () => {
-    setLoading(true);
-    setError("");
-
     try {
       const data = await listarAdministradores();
       setAdministradores(data);
-      setCambiosPendientes({});
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron cargar los administradores");
     } finally {
       setLoading(false);
     }
+  };
+
+  const sacarDeLaLista = (id: number) => {
+    setAdministradores((actuales) => actuales.filter((admin) => admin.id !== id));
+    setCambiosPendientes((actuales) => {
+      const siguientes = { ...actuales };
+      delete siguientes[id];
+      return siguientes;
+    });
   };
 
   const valorCargoPendiente = (admin: Administrador) =>
@@ -224,6 +244,12 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
     void cargar();
   }, []);
 
+  // Mantiene la caché al día con los cambios hechos en la página (invitar,
+  // cancelar, quitar acceso, cambiar roles) sin tener que volver a pedir todo.
+  useEffect(() => {
+    if (!loading) guardarAdministradoresEnCache(administradores);
+  }, [administradores, loading]);
+
   useEffect(() => {
     if (!success) return;
     const timer = window.setTimeout(() => setSuccess(""), 3000);
@@ -247,8 +273,9 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
     setErrorModal("");
 
     try {
+      let invitado: Administrador;
       if (cargoInvitado === SUPER_ADMIN_CARGO) {
-        await invitarSuperAdministrador(email.trim());
+        invitado = await invitarSuperAdministrador(email.trim());
       } else {
         const esAdministradorSinCargo = cargoInvitado === ADMIN_SIN_CARGO;
         if (
@@ -260,14 +287,23 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
           setErrorModal("Elegí un cargo.");
           return;
         }
-        await invitarAdministrador(
+        invitado = await invitarAdministrador(
           email.trim(),
           esAdministradorSinCargo ? undefined : cargoInvitado,
         );
       }
+      setAdministradores((actuales) => [
+        invitado,
+        ...actuales.filter((admin) => admin.id !== invitado.id),
+      ]);
       setModalAbierto(false);
-      setSuccess("Invitación enviada correctamente.");
-      await cargar();
+      // Si ya tenía cuenta en la app (por ejemplo, un admin al que se le quitó
+      // el acceso), la API le devuelve el acceso directo y queda activo.
+      setSuccess(
+        invitado.status === "ACTIVE"
+          ? `${invitado.email} ya tenía cuenta en la app: se le devolvió el acceso al panel.`
+          : "Invitación enviada correctamente.",
+      );
     } catch (err) {
       setErrorModal(err instanceof Error ? err.message : "No se pudo enviar la invitación");
     } finally {
@@ -297,13 +333,32 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
 
     try {
       await cancelarInvitacion(aCancelar.id);
+      sacarDeLaLista(aCancelar.id);
       setSuccess(`Invitación a ${aCancelar.email} cancelada.`);
       setACancelar(null);
-      await cargar();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cancelar la invitación");
     } finally {
       setCancelando(false);
+    }
+  };
+
+  const confirmarQuitarAcceso = async () => {
+    if (!aQuitar) return;
+
+    setQuitando(true);
+    setError("");
+
+    try {
+      await quitarAccesoAdministrador(aQuitar.id);
+      sacarDeLaLista(aQuitar.id);
+      setSuccess(`${aQuitar.email} ya no tiene acceso al panel.`);
+      setAQuitar(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo quitar el acceso");
+      setAQuitar(null);
+    } finally {
+      setQuitando(false);
     }
   };
 
@@ -356,9 +411,14 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
       <Card variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.03)", borderColor: "divider" }}>
         <CardContent sx={{ p: 0 }}>
           {loading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
-              <CircularProgress />
-            </Box>
+            <Stack divider={<Divider />}>
+              {[0, 1, 2].map((fila) => (
+                <Box key={fila} sx={{ p: 2.5 }}>
+                  <Skeleton variant="text" width="40%" sx={{ fontSize: "1.1rem" }} />
+                  <Skeleton variant="text" width="25%" />
+                </Box>
+              ))}
+            </Stack>
           ) : administradores.length === 0 ? (
             <Box sx={{ textAlign: "center", py: 8, px: 3 }}>
               <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>
@@ -469,6 +529,26 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
                           </Button>
                         </>
                       )}
+                      {!pendiente && puedeQuitarAcceso && admin.id !== perfil.id && admin.rol !== "MEGA_ADMIN" && (
+                        admin.rol === "SUPER_ADMIN" && cantidadSuperAdmins <= 1 ? (
+                          <Tooltip title="Tiene que quedar al menos un super administrador">
+                            <span>
+                              <Button size="small" color="error" disabled>
+                                Quitar acceso
+                              </Button>
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <Button
+                            size="small"
+                            color="error"
+                            disabled={guardandoCambios}
+                            onClick={() => setAQuitar(admin)}
+                          >
+                            Quitar acceso
+                          </Button>
+                        )
+                      )}
                     </Stack>
                   </Box>
                 );
@@ -563,6 +643,27 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
           </Button>
           <Button color="error" variant="contained" onClick={confirmarCancelar} disabled={cancelando}>
             {cancelando ? <CircularProgress size={18} color="inherit" /> : "Cancelar invitación"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(aQuitar)} onClose={() => !quitando && setAQuitar(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Quitar acceso al panel</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 1.5 }}>
+            ¿Quitarle el acceso al panel a <strong>{aQuitar?.email}</strong>?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Va a dejar de poder entrar al panel, pero conserva su cuenta en la app como usuario común.
+            Si más adelante lo querés volver a sumar, invitalo de nuevo con el mismo email.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAQuitar(null)} disabled={quitando}>
+            Volver
+          </Button>
+          <Button color="error" variant="contained" onClick={confirmarQuitarAcceso} disabled={quitando}>
+            {quitando ? <CircularProgress size={18} color="inherit" /> : "Quitar acceso"}
           </Button>
         </DialogActions>
       </Dialog>

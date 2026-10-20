@@ -2,6 +2,7 @@
 import { signOut } from "firebase/auth";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
+import { precargarAdministradores } from "../services/administradores.service";
 import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
 import ErrorBoundary from "./ErrorBoundary";
@@ -41,7 +42,7 @@ const routePreloaders: Record<string, () => Promise<unknown>> = {
   "/noticias": () => import("../pages/Noticias"),
   "/podcast": () => import("../pages/Streaming"),
   "/estadisticas": () => import("../pages/Estadisticas"),
-  "/administradores": () => import("../pages/Administradores"),
+  "/administradores": () => Promise.all([import("../pages/Administradores"), precargarAdministradores()]),
   "/generar-app": () => import("../pages/GenerarApp"),
   "/solicitudes-apps": () => import("../pages/SolicitudesApps"),
   "/configuracion": () => import("../pages/Configuracion"),
