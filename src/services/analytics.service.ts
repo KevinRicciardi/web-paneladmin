@@ -1,4 +1,5 @@
 import { getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
+import { crearConsultaCacheada } from "../utils/consultaCacheada";
 import type { Estadisticas, PeriodoEstadisticas } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -22,12 +23,20 @@ async function parseResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function obtenerEstadisticas(periodo: PeriodoEstadisticas): Promise<Estadisticas> {
-  const headers = await getAuthHeaders();
+// Una entrada de caché por período: volver a la página o cambiar entre
+// períodos ya vistos (o precargados) es instantáneo.
+const consultaEstadisticas = crearConsultaCacheada(
+  async (periodo: PeriodoEstadisticas): Promise<Estadisticas> => {
+    const headers = await getAuthHeaders();
 
-  const res = await fetch(`${API_URL}/analytics/mi-tenant/estadisticas?periodo=${periodo}`, {
-    headers,
-  });
+    const res = await fetch(`${API_URL}/analytics/mi-tenant/estadisticas?periodo=${periodo}`, {
+      headers,
+    });
 
-  return parseResponse<Estadisticas>(res);
-}
+    return parseResponse<Estadisticas>(res);
+  },
+);
+
+export const obtenerEstadisticas = consultaEstadisticas.obtener;
+export const estadisticasEnCache = consultaEstadisticas.enCache;
+export const precargarEstadisticas = consultaEstadisticas.precargar;

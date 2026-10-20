@@ -13,7 +13,11 @@ import {
   Typography,
 } from "@mui/material";
 import type { Estadisticas as EstadisticasData, PeriodoEstadisticas } from "../types";
-import { obtenerEstadisticas } from "../services/analytics.service";
+import {
+  estadisticasEnCache,
+  obtenerEstadisticas,
+  precargarEstadisticas,
+} from "../services/analytics.service";
 
 const PERIODOS: { value: PeriodoEstadisticas; label: string }[] = [
   { value: "7d", label: "Últimos 7 días" },
@@ -113,30 +117,25 @@ function EstadoVacio({ icono, texto }: { icono: string; texto: string }) {
 
 export default function Estadisticas() {
   const [periodo, setPeriodo] = useState<PeriodoEstadisticas>("30d");
-  const [datos, setDatos] = useState<EstadisticasData | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Si ya se vio (o se precargó desde el menú) se muestra al instante.
+  const [datos, setDatos] = useState<EstadisticasData | null>(() => estadisticasEnCache("30d"));
+  const [loading, setLoading] = useState(() => estadisticasEnCache("30d") === null);
   const [error, setError] = useState("");
+
+  const cambiarPeriodo = (nuevo: PeriodoEstadisticas) => {
+    setPeriodo(nuevo);
+    setError("");
+    const enCache = estadisticasEnCache(nuevo);
+    if (enCache) setDatos(enCache);
+    setLoading(true);
+  };
 
   useEffect(() => {
     let activo = true;
-    const cacheKey = `estadisticas_cache_${periodo}`;
-
-    try {
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) setDatos(JSON.parse(cached) as EstadisticasData);
-    } catch {
-      // Una caché inválida no debe impedir la carga desde la API.
-    }
-
-    setLoading(true);
-    setError("");
 
     obtenerEstadisticas(periodo)
       .then((res) => {
-        if (activo) {
-          setDatos(res);
-          try { sessionStorage.setItem(cacheKey, JSON.stringify(res)); } catch {}
-        }
+        if (activo) setDatos(res);
       })
       .catch((err) => {
         if (activo) {
@@ -145,6 +144,11 @@ export default function Estadisticas() {
       })
       .finally(() => {
         if (activo) setLoading(false);
+        // Con el período actual ya cargado, se traen los otros por detrás
+        // para que cambiar de período sea instantáneo.
+        PERIODOS.forEach(({ value }) => {
+          if (value !== periodo) void precargarEstadisticas(value);
+        });
       });
 
     return () => {
@@ -181,7 +185,7 @@ export default function Estadisticas() {
 
         <Select
           value={periodo}
-          onChange={(event) => setPeriodo(event.target.value as PeriodoEstadisticas)}
+          onChange={(event) => cambiarPeriodo(event.target.value as PeriodoEstadisticas)}
           size="small"
           sx={{ minWidth: 200, fontWeight: 700 }}
         >

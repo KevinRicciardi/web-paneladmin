@@ -1,6 +1,7 @@
 import { limpiarTokenCache } from "../services/authenticatedFetch";
 import { limpiarCacheNoticias } from "../services/news.service";
 import { limpiarCacheProgramacion } from "../services/schedule.service";
+import { limpiarConsultasCacheadas } from "./consultaCacheada";
 
 /// Borra todo lo que el panel guarda "de la sesión": noticias, programación,
 /// administradores y estadísticas cacheados, y el token. Sin esto, al cerrar
@@ -14,5 +15,6 @@ export function limpiarCachesDeSesion() {
   }
   limpiarCacheNoticias();
   limpiarCacheProgramacion();
+  limpiarConsultasCacheadas();
   limpiarTokenCache();
 }

@@ -3,6 +3,8 @@ import { signOut } from "firebase/auth";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
 import { precargarAdministradores } from "../services/administradores.service";
+import { precargarEstadisticas } from "../services/analytics.service";
+import { precargarMisSolicitudes } from "../services/buildRequests.service";
 import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
 import ErrorBoundary from "./ErrorBoundary";
@@ -41,9 +43,9 @@ const routePreloaders: Record<string, () => Promise<unknown>> = {
   "/programacion": () => import("../pages/Programacion"),
   "/noticias": () => import("../pages/Noticias"),
   "/podcast": () => import("../pages/Streaming"),
-  "/estadisticas": () => import("../pages/Estadisticas"),
+  "/estadisticas": () => Promise.all([import("../pages/Estadisticas"), precargarEstadisticas("30d")]),
   "/administradores": () => Promise.all([import("../pages/Administradores"), precargarAdministradores()]),
-  "/generar-app": () => import("../pages/GenerarApp"),
+  "/generar-app": () => Promise.all([import("../pages/GenerarApp"), precargarMisSolicitudes()]),
   "/solicitudes-apps": () => import("../pages/SolicitudesApps"),
   "/configuracion": () => import("../pages/Configuracion"),
   "/soporte": () => import("../pages/Soporte"),

@@ -3,10 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const limpiarTokenCache = vi.fn();
 const limpiarCacheNoticias = vi.fn();
 const limpiarCacheProgramacion = vi.fn();
+const limpiarConsultasCacheadas = vi.fn();
 
 vi.mock("../services/authenticatedFetch", () => ({ limpiarTokenCache: () => limpiarTokenCache() }));
 vi.mock("../services/news.service", () => ({ limpiarCacheNoticias: () => limpiarCacheNoticias() }));
 vi.mock("../services/schedule.service", () => ({ limpiarCacheProgramacion: () => limpiarCacheProgramacion() }));
+vi.mock("./consultaCacheada", () => ({ limpiarConsultasCacheadas: () => limpiarConsultasCacheadas() }));
 
 import { limpiarCachesDeSesion } from "./sesion";
 
@@ -25,6 +27,7 @@ describe("limpiarCachesDeSesion", () => {
     expect(clear).toHaveBeenCalledTimes(1);
     expect(limpiarCacheNoticias).toHaveBeenCalledTimes(1);
     expect(limpiarCacheProgramacion).toHaveBeenCalledTimes(1);
+    expect(limpiarConsultasCacheadas).toHaveBeenCalledTimes(1);
     expect(limpiarTokenCache).toHaveBeenCalledTimes(1);
   });
 
