@@ -537,7 +537,10 @@ export default function Noticias() {
                     status,
                   })
                 }
-                onGuardado={actualizarListado}
+                onGuardado={(noticia) => {
+                  actualizarListado(noticia);
+                  setRedactorExpandido(false);
+                }}
               />
             </CardContent>
           </Card>
