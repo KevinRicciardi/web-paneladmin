@@ -44,12 +44,33 @@ function mensajeErrorReset(err: unknown): string {
   return "No se pudo enviar el enlace. Intentá de nuevo.";
 }
 
+function mensajeErrorGoogle(err: unknown): string {
+  if (err instanceof FirebaseError) {
+    switch (err.code) {
+      case "auth/unauthorized-domain":
+        return "Este dominio no está autorizado en Firebase Authentication. Agregalo en Authentication > Settings > Authorized domains.";
+      case "auth/operation-not-allowed":
+        return "El acceso con Google no está habilitado en Firebase Authentication.";
+      case "auth/popup-blocked":
+        return "El navegador bloqueó la ventana de Google. Permití las ventanas emergentes y volvé a intentarlo.";
+      case "auth/popup-closed-by-user":
+        return "Se cerró la ventana de Google antes de completar el inicio de sesión.";
+      case "auth/network-request-failed":
+        return "No se pudo conectar con Google. Revisá tu conexión e intentá de nuevo.";
+      case "auth/cancelled-popup-request":
+        return "Ya hay un inicio de sesión en curso. Esperá un momento e intentá de nuevo.";
+    }
+  }
+  return "No se pudo iniciar sesión con Google. Intentá de nuevo.";
+}
+
 export default function Login({ error }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errorLocal, setErrorLocal] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingGoogle, setLoadingGoogle] = useState(false);
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
@@ -111,11 +132,14 @@ export default function Login({ error }: LoginProps) {
 
   const loginGoogle = async () => {
     setErrorLocal("");
+    setLoadingGoogle(true);
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err) {
       console.error(err);
-      setErrorLocal("No se pudo iniciar sesión con Google.");
+      setErrorLocal(mensajeErrorGoogle(err));
+    } finally {
+      setLoadingGoogle(false);
     }
   };
 
@@ -217,8 +241,8 @@ export default function Login({ error }: LoginProps) {
               </Typography>
             </Divider>
 
-            <Button onClick={loginGoogle} variant="outlined" fullWidth size="large">
-              Iniciar sesión con Google
+            <Button onClick={loginGoogle} variant="outlined" fullWidth size="large" disabled={loadingGoogle}>
+              {loadingGoogle ? "Conectando con Google..." : "Iniciar sesión con Google"}
             </Button>
           </CardContent>
         </Card>
