@@ -1,8 +1,16 @@
 import { useState } from "react";
-import { Box, Button, Card, CardContent, IconButton, Link, Stack, TextField, Typography } from "@mui/material";
+import { Box, Button, Card, CardContent, IconButton, Link, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import { Link as RouterLink } from "react-router-dom";
 import type { Perfil } from "../types";
+import {
+  armarNumeroInternacional,
+  esNumeroValido,
+  formatearNumero,
+  OTRO_PAIS,
+  PAISES,
+  separarNumero,
+} from "../utils/telefono";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 // Correo de soporte de la plataforma. Antes estaba escrito a mano un
@@ -29,6 +37,20 @@ export default function Soporte({ perfil }: { perfil: Perfil }) {
   const [successWhatsapp, setSuccessWhatsapp] = useState("");
   const whatsappLink = whatsappHref(whatsapp);
 
+  // Al editar, el número se separa en país (desplegable) y número local.
+  const [paisWhatsapp, setPaisWhatsapp] = useState("54");
+  const [numeroWhatsapp, setNumeroWhatsapp] = useState("");
+  const numeroArmado = armarNumeroInternacional(paisWhatsapp, numeroWhatsapp);
+
+  const abrirEdicionContactos = () => {
+    const { codigo, nacional } = separarNumero(whatsapp);
+    setPaisWhatsapp(codigo);
+    setNumeroWhatsapp(nacional);
+    setErrorWhatsapp("");
+    setSuccessWhatsapp("");
+    setEditandoWhatsapp(true);
+  };
+
   const guardarContactos = async () => {
     try {
       setGuardandoWhatsapp(true);
@@ -38,12 +60,15 @@ export default function Soporte({ perfil }: { perfil: Perfil }) {
       if (emailContacto && !/^\S+@\S+\.\S+$/.test(emailContacto)) {
         throw new Error("Ingresá un correo electrónico válido.");
       }
+      if (numeroArmado && !esNumeroValido(numeroArmado)) {
+        throw new Error("El número de WhatsApp no es válido. Revisá el país y que no falte ni sobre ningún dígito.");
+      }
 
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          whatsappUrl: whatsapp.trim() || null,
+          whatsappUrl: numeroArmado || null,
           supportEmail: emailContacto.trim() || null,
         }),
       });
@@ -51,13 +76,13 @@ export default function Soporte({ perfil }: { perfil: Perfil }) {
       if (!res.ok) throw new Error("No se pudieron guardar los contactos.");
 
       const updatedTenant = await res.json();
-      setWhatsapp(updatedTenant.whatsappUrl?.trim() ?? whatsapp.trim());
+      setWhatsapp(updatedTenant.whatsappUrl?.trim() ?? numeroArmado);
       setEmailContacto(updatedTenant.supportEmail?.trim() ?? emailContacto.trim());
       setEditandoWhatsapp(false);
       setSuccessWhatsapp("Contactos actualizados.");
       window.dispatchEvent(new CustomEvent("tenantUpdated", {
         detail: {
-          whatsappUrl: updatedTenant.whatsappUrl ?? (whatsapp.trim() || null),
+          whatsappUrl: updatedTenant.whatsappUrl ?? (numeroArmado || null),
           supportEmail: updatedTenant.supportEmail ?? (emailContacto.trim() || null),
         },
       }));
@@ -267,15 +292,41 @@ export default function Soporte({ perfil }: { perfil: Perfil }) {
                   fullWidth
                   helperText="Se mostrará junto al correo de soporte principal."
                 />
-                <TextField
-                  label="Número de WhatsApp"
-                  value={whatsapp}
-                  onChange={(event) => setWhatsapp(event.target.value)}
-                  placeholder="5491112345678 o https://wa.me/5491112345678"
-                  size="small"
-                  fullWidth
-                  helperText="Podés ingresar el número con código de país o un enlace wa.me."
-                />
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ alignItems: { sm: "flex-start" } }}>
+                  <TextField
+                    select
+                    label="País"
+                    value={paisWhatsapp}
+                    onChange={(event) => setPaisWhatsapp(event.target.value)}
+                    size="small"
+                    sx={{ minWidth: { sm: 220 } }}
+                  >
+                    {PAISES.map((pais) => (
+                      <MenuItem key={pais.codigo} value={pais.codigo}>
+                        {pais.nombre} (+{pais.codigo})
+                      </MenuItem>
+                    ))}
+                    <MenuItem value={OTRO_PAIS}>Otro país (escribir con código)</MenuItem>
+                  </TextField>
+                  <TextField
+                    label="Número de WhatsApp"
+                    value={numeroWhatsapp}
+                    onChange={(event) => setNumeroWhatsapp(event.target.value)}
+                    placeholder={paisWhatsapp === OTRO_PAIS ? "81 90 1234 5678" : "11 1234 5678"}
+                    size="small"
+                    fullWidth
+                    error={Boolean(numeroArmado) && !esNumeroValido(numeroArmado)}
+                    helperText={
+                      numeroArmado
+                        ? esNumeroValido(numeroArmado)
+                          ? `Se va a guardar como ${formatearNumero(numeroArmado)}`
+                          : "Revisá el número: parece que falta o sobra algún dígito."
+                        : paisWhatsapp === "54"
+                          ? "Sin el 0 ni el 15. Por ejemplo: 11 1234 5678."
+                          : "Sin el 0 del principio."
+                    }
+                  />
+                </Stack>
                 <Stack direction="row" spacing={1}>
                   <Button variant="contained" size="small" onClick={guardarContactos} disabled={guardandoWhatsapp}>
                     {guardandoWhatsapp ? "Guardando..." : "Guardar contactos"}
@@ -287,7 +338,7 @@ export default function Soporte({ perfil }: { perfil: Perfil }) {
               </Stack>
             ) : null}
             {puedeEditarContacto && !editandoWhatsapp ? (
-              <Button variant="outlined" size="small" onClick={() => setEditandoWhatsapp(true)} sx={{ mt: 1 }}>
+              <Button variant="outlined" size="small" onClick={abrirEdicionContactos} sx={{ mt: 1 }}>
                 {whatsappLink || emailContacto ? "Editar contactos" : "Agregar contactos"}
               </Button>
             ) : null}
