@@ -33,8 +33,10 @@ import {
   actualizarPrograma,
   eliminarPrograma,
 } from "../services/schedule.service";
+import { useScrollAlAviso } from "../utils/useScrollAlAviso";
 import {
   ajustarFinAlCambiarInicio,
+  avisoDeHorario,
   esRangoHorarioValido,
   horaDentroDelPrograma,
   partesDeFechaCalendario,
@@ -539,7 +541,15 @@ export default function Programacion() {
       return true;
     }
   });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorBase] = useState<string | null>(null);
+  // Cuenta cuántas veces se mostró un error: el mismo mensaje puede repetirse
+  // (Guardar dos veces seguidas) y aun así la ventana tiene que volver a subir.
+  const [erroresMostrados, setErroresMostrados] = useState(0);
+  const setError = (valor: string | null) => {
+    setErrorBase(valor);
+    if (valor) setErroresMostrados((n) => n + 1);
+  };
+  const avisoErrorRef = useScrollAlAviso(erroresMostrados);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
 
@@ -648,7 +658,13 @@ export default function Programacion() {
     };
   }, [recarga]);
 
+  const cerrarFormulario = () => {
+    setAbierto(false);
+    setError(null);
+  };
+
   const abrirNuevo = () => {
+    setError(null);
     setEditandoId(null);
     setForm({ ...FORM_VACIO });
     setDiasSeleccionados(["LUN", "MAR", "MIE", "JUE", "VIE"]);
@@ -675,12 +691,14 @@ export default function Programacion() {
   };
 
   const duplicarPrograma = (programa: Programa) => {
+    setError(null);
     prepararFormularioEdicion(programa);
     setEditandoId(null);
     setAbierto(true);
   };
 
   const abrirEdicion = (p: Programa) => {
+    setError(null);
     prepararFormularioEdicion(p);
     setAbierto(true);
 
@@ -1038,6 +1056,13 @@ export default function Programacion() {
         )
       : undefined;
 
+  const avisoHorario = avisoDeHorario({
+    rangoInvalido: rangoHorarioInvalido,
+    hayConflictoDeRango: Boolean(conflictoHorarioRango),
+    hayConflictoEnInicio: Boolean(conflictoHoraInicio),
+    hayConflictoEnFin: Boolean(conflictoHoraFin),
+  });
+
   const calendarioDisabled = modoFecha === "NINGUNO";
 
   const programasOrdenados = useMemo(
@@ -1331,7 +1356,7 @@ export default function Programacion() {
 
       <Dialog
         open={abierto}
-        onClose={() => setAbierto(false)}
+        onClose={cerrarFormulario}
         fullWidth
         maxWidth="md"
         slotProps={{ paper: { sx: { bgcolor: "#000000", color: "#ffffff", border: "1px solid #2a2a2a" } } }}
@@ -1342,7 +1367,7 @@ export default function Programacion() {
         <DialogContent sx={{ bgcolor: "#000000", color: "#ffffff" }}>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {error && (
-              <Alert severity="error" onClose={() => setError(null)}>
+              <Alert ref={avisoErrorRef} severity="error" onClose={() => setError(null)}>
                 {error}
               </Alert>
             )}
@@ -1713,11 +1738,11 @@ export default function Programacion() {
                 Este programa termina al día siguiente ({form.horaInicio} a {form.horaFin} del día de después).
               </Alert>
             )}
-            {(rangoHorarioInvalido || conflictoHorarioRango || conflictoHoraInicio || conflictoHoraFin) && (
-              <Alert severity="warning" sx={{ mt: 1 }}>
-                {rangoHorarioInvalido ? (
+            {avisoHorario && (
+              <Alert severity={avisoHorario.severidad} sx={{ mt: 1 }}>
+                {avisoHorario.tipo === "rangoInvalido" ? (
                   <span>La hora de inicio y la de fin no pueden ser iguales.</span>
-                ) : conflictoHorarioRango ? (
+                ) : avisoHorario.tipo === "superposicion" && conflictoHorarioRango ? (
                   <span>
                     El rango {form.horaInicio} — {form.horaFin} se superpone con "{conflictoHorarioRango.titulo}" ({descripcionPrograma(conflictoHorarioRango)}).
                   </span>
@@ -1725,15 +1750,15 @@ export default function Programacion() {
                   <>
                     {conflictoHoraInicio && (
                       <span>
-                        Horario de inicio ocupado por "{conflictoHoraInicio.titulo}" ({descripcionPrograma(conflictoHoraInicio)}).
+                        El horario de inicio coincide con "{conflictoHoraInicio.titulo}" ({descripcionPrograma(conflictoHoraInicio)}).{" "}
                       </span>
                     )}
                     {conflictoHoraFin && (
                       <span>
-                        {conflictoHoraInicio ? " " : ""}
-                        Horario de fin ocupado por "{conflictoHoraFin.titulo}" ({descripcionPrograma(conflictoHoraFin)}).
+                        El horario de fin coincide con "{conflictoHoraFin.titulo}" ({descripcionPrograma(conflictoHoraFin)}).{" "}
                       </span>
                     )}
+                    <span>Podés guardar igual.</span>
                   </>
                 )}
               </Alert>
@@ -1748,7 +1773,7 @@ export default function Programacion() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ bgcolor: "#000000", color: "#ffffff" }}>
-          <Button onClick={() => setAbierto(false)}>Cancelar</Button>
+          <Button onClick={cerrarFormulario}>Cancelar</Button>
           <Button variant="contained" onClick={guardar} disabled={guardando || rangoHorarioInvalido || Boolean(conflictoHorarioRango)}>
             {guardando ? "Guardando..." : "Guardar"}
           </Button>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ajustarFinAlCambiarInicio,
+  avisoDeHorario,
   esRangoHorarioValido,
   horaDentroDelPrograma,
   partesDeFechaCalendario,
@@ -40,6 +41,29 @@ describe("validación de rango horario", () => {
     expect(terminaAlDiaSiguiente("22:00", "02:00")).toBe(true);
     expect(terminaAlDiaSiguiente("10:00", "12:00")).toBe(false);
     expect(terminaAlDiaSiguiente("10:00", "10:00")).toBe(false);
+  });
+});
+
+describe("avisoDeHorario", () => {
+  const base = { rangoInvalido: false, hayConflictoDeRango: false, hayConflictoEnInicio: false, hayConflictoEnFin: false };
+
+  it("sin conflictos no hay aviso", () => {
+    expect(avisoDeHorario(base)).toBeNull();
+  });
+
+  it("un rango inválido o una superposición real avisan en amarillo, porque no dejan guardar", () => {
+    expect(avisoDeHorario({ ...base, rangoInvalido: true })).toEqual({ tipo: "rangoInvalido", severidad: "warning" });
+    expect(avisoDeHorario({ ...base, hayConflictoDeRango: true })).toEqual({ tipo: "superposicion", severidad: "warning" });
+  });
+
+  it("si solo el fin (o el inicio) coincide con otro programa, avisa en azul: deja guardar igual", () => {
+    expect(avisoDeHorario({ ...base, hayConflictoEnFin: true })).toEqual({ tipo: "extremos", severidad: "info" });
+    expect(avisoDeHorario({ ...base, hayConflictoEnInicio: true })).toEqual({ tipo: "extremos", severidad: "info" });
+  });
+
+  it("lo que impide guardar tiene prioridad sobre lo que solo informa", () => {
+    expect(avisoDeHorario({ ...base, hayConflictoDeRango: true, hayConflictoEnFin: true })?.severidad).toBe("warning");
+    expect(avisoDeHorario({ ...base, rangoInvalido: true, hayConflictoEnInicio: true })?.tipo).toBe("rangoInvalido");
   });
 });
 

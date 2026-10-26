@@ -8,6 +8,29 @@ export function shouldShowLoadingState({
   return !hasCache && !hasLoadedOnce;
 }
 
+export type AvisoDeHorario =
+  | { tipo: "rangoInvalido"; severidad: "warning" }
+  | { tipo: "superposicion"; severidad: "warning" }
+  /** El inicio o el fin coinciden con otro programa pero no se pisan: deja guardar. */
+  | { tipo: "extremos"; severidad: "info" };
+
+/**
+ * Qué aviso mostrar debajo de las horas. Amarillo (warning) solo si algo
+ * impide guardar; azul (info) si el panel deja guardar igual y solo quiere que
+ * se sepa. Antes todo salía amarillo y parecía que no se podía guardar.
+ */
+export function avisoDeHorario(estado: {
+  rangoInvalido: boolean;
+  hayConflictoDeRango: boolean;
+  hayConflictoEnInicio: boolean;
+  hayConflictoEnFin: boolean;
+}): AvisoDeHorario | null {
+  if (estado.rangoInvalido) return { tipo: "rangoInvalido", severidad: "warning" };
+  if (estado.hayConflictoDeRango) return { tipo: "superposicion", severidad: "warning" };
+  if (estado.hayConflictoEnInicio || estado.hayConflictoEnFin) return { tipo: "extremos", severidad: "info" };
+  return null;
+}
+
 // Un programa nocturno (22:00 a 02:00) termina al día siguiente, así que ya no
 // se corrige la hora de fin al cambiar el inicio: una fin "anterior" es válida.
 export function ajustarFinAlCambiarInicio(_horaInicio: string, horaFin: string) {
