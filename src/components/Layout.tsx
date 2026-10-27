@@ -1,4 +1,5 @@
-﻿import { Box, Divider, Drawer, FormControl, List, ListItemButton, ListItemText, MenuItem, Select, Typography } from "@mui/material";
+﻿import { useState } from "react";
+import { Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Drawer, FormControl, List, ListItemButton, ListItemText, MenuItem, Select, Typography } from "@mui/material";
 import { signOut } from "firebase/auth";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
@@ -58,6 +59,18 @@ function preloadRoute(path: string) {
 export default function Layout({ perfil }: { perfil: Perfil }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [confirmarSalida, setConfirmarSalida] = useState(false);
+  const [saliendo, setSaliendo] = useState(false);
+  const cerrarSesion = async () => {
+    setSaliendo(true);
+    try {
+      // Al salir, App deja de mostrar el Layout: no hace falta cerrar el modal.
+      await signOut(auth);
+    } catch (error) {
+      console.error(error);
+      setSaliendo(false);
+    }
+  };
   const brandName = perfil.tenant?.nombre || "StreamManager";
   const nombreUsuario = perfil.name?.trim() || perfil.email.split("@")[0];
   const etiquetaRol =
@@ -231,7 +244,7 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
             })}
 
             <ListItemButton
-              onClick={() => void signOut(auth)}
+              onClick={() => setConfirmarSalida(true)}
               sx={{
                 borderRadius: 2,
                 mb: 1,
@@ -253,6 +266,19 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
           </Box>
         </Box>
       </Drawer>
+
+      <Dialog open={confirmarSalida} onClose={() => !saliendo && setConfirmarSalida(false)}>
+        <DialogTitle>Cerrar sesión</DialogTitle>
+        <DialogContent>
+          <Typography>¿Querés cerrar la sesión de {perfil.email}?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmarSalida(false)} disabled={saliendo}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={() => void cerrarSesion()} disabled={saliendo}>
+            {saliendo ? <CircularProgress size={18} color="inherit" /> : "Cerrar sesión"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Box component="main" sx={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", p: 3 }}>
         <Box sx={{ flex: 1 }}>

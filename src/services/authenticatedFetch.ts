@@ -5,11 +5,27 @@ let tokenRequest: Promise<string> | null = null;
 const TOKEN_CACHE_DURATION = 50_000;
 const TENANT_STORAGE_KEY = "pinnacle-tenant-slug";
 
-function tenantHeader() {
+/// Canal elegido en el selector del panel ("" = el de siempre del usuario).
+export function tenantActivo(): string {
   const uid = auth.currentUser?.uid;
-  const slug = typeof window === "undefined" || !uid
-    ? null
-    : window.localStorage.getItem(`${TENANT_STORAGE_KEY}:${uid}`);
+  if (typeof window === "undefined" || !uid) return "";
+  try {
+    return window.localStorage.getItem(`${TENANT_STORAGE_KEY}:${uid}`) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/// "Este usuario en este canal": separa los caches. Solo con el uid, al
+/// cambiar de canal se veían un momento las noticias o la programación del
+/// canal anterior, porque el usuario es el mismo.
+export function contextoDeCache(): string | null {
+  const uid = auth.currentUser?.uid;
+  return uid ? `${uid}:${tenantActivo()}` : null;
+}
+
+function tenantHeader() {
+  const slug = tenantActivo();
   const headers: Record<string, string> = {};
   if (slug) headers["X-Tenant-Slug"] = slug;
   return headers;

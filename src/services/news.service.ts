@@ -1,12 +1,11 @@
-import { auth } from "../firebase";
-import { getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
+import { contextoDeCache, getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
 import type { News, NewsPayload } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
-// Separada por usuario, como la de programación: si no, al cambiar de cuenta
-// se veían unos segundos las noticias del tenant anterior.
-let noticiasCache: { userId: string; data: News[]; expiresAt: number } | null = null;
+// Separada por usuario y canal (ver contextoDeCache): si no, al cambiar de
+// cuenta o de canal se veían unos segundos las noticias del anterior.
+let noticiasCache: { contexto: string; data: News[]; expiresAt: number } | null = null;
 let noticiasRequest: Promise<News[]> | null = null;
 const DURACION_CACHE_NOTICIAS = 30_000;
 
@@ -35,11 +34,11 @@ async function parseResponse<T>(res: Response): Promise<T> {
 }
 
 export async function listarMisNoticias(): Promise<News[]> {
-  const userId = auth.currentUser?.uid;
+  const contexto = contextoDeCache();
 
   if (
-    userId &&
-    noticiasCache?.userId === userId &&
+    contexto &&
+    noticiasCache?.contexto === contexto &&
     noticiasCache.expiresAt > Date.now()
   ) {
     return noticiasCache.data;
@@ -53,8 +52,8 @@ export async function listarMisNoticias(): Promise<News[]> {
     const headers = await getAuthHeaders();
     const res = await fetch(`${API_URL}/news/mi-tenant`, { headers });
     const data = await parseResponse<News[]>(res);
-    if (userId) {
-      noticiasCache = { userId, data, expiresAt: Date.now() + DURACION_CACHE_NOTICIAS };
+    if (contexto) {
+      noticiasCache = { contexto, data, expiresAt: Date.now() + DURACION_CACHE_NOTICIAS };
     }
     return data;
   })();

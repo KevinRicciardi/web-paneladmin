@@ -1,11 +1,10 @@
-import { auth } from "../firebase";
-import { getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
+import { contextoDeCache, getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
 import type { Programa, ProgramaPayload } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 let listadoProgramacionEnCurso: Promise<Programa[]> | null = null;
-let listadoProgramacionCache: { userId: string; data: Programa[]; expiresAt: number } | null = null;
+let listadoProgramacionCache: { contexto: string; data: Programa[]; expiresAt: number } | null = null;
 const DURACION_CACHE_LISTADO = 30_000;
 
 /** Se llama al cerrar sesión o al entrar otro usuario: el listado cacheado es del anterior. */
@@ -33,12 +32,12 @@ async function parseResponse<T>(res: Response): Promise<T> {
 }
 
 export async function listarMiProgramacion(): Promise<Programa[]> {
-  const userId = auth.currentUser?.uid;
+  const contexto = contextoDeCache();
   const ahora = Date.now();
 
   if (
-    userId &&
-    listadoProgramacionCache?.userId === userId &&
+    contexto &&
+    listadoProgramacionCache?.contexto === contexto &&
     listadoProgramacionCache.expiresAt > ahora
   ) {
     return listadoProgramacionCache.data;
@@ -53,9 +52,9 @@ export async function listarMiProgramacion(): Promise<Programa[]> {
     const res = await fetch(`${API_URL}/programacion/mi-tenant`, { headers });
 
     const data = await parseResponse<Programa[]>(res);
-    if (userId) {
+    if (contexto) {
       listadoProgramacionCache = {
-        userId,
+        contexto,
         data,
         expiresAt: Date.now() + DURACION_CACHE_LISTADO,
       };

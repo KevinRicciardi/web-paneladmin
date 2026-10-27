@@ -1,4 +1,5 @@
 import { auth } from "../firebase";
+import { contextoDeCache } from "../services/authenticatedFetch";
 
 const limpiadores = new Set<() => void>();
 
@@ -7,7 +8,7 @@ export function limpiarConsultasCacheadas() {
   limpiadores.forEach((limpiar) => limpiar());
 }
 
-// Caché en memoria para una consulta a la API, separada por usuario logueado
+// Caché en memoria para una consulta a la API, separada por usuario y canal
 // (otra cuenta en la misma pestaña nunca ve datos ajenos) y por clave (por
 // ejemplo, el período de las estadísticas). Sirve para que al volver a una
 // página los datos aparezcan al instante mientras se actualizan por detrás.
@@ -17,7 +18,7 @@ export function crearConsultaCacheada<T, K extends string = string>(
 ) {
   const cache = new Map<string, { data: T; guardadoEn: number }>();
   const enCurso = new Map<string, Promise<T>>();
-  const id = (clave: K) => `${auth.currentUser?.uid ?? ""}:${clave}`;
+  const id = (clave: K) => `${contextoDeCache() ?? ""}:${clave}`;
   limpiadores.add(() => {
     cache.clear();
     enCurso.clear();
