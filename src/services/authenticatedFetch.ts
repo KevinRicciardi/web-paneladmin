@@ -3,6 +3,17 @@ import { auth } from "../firebase";
 let tokenCache: { uid: string; value: string; expiresAt: number } | null = null;
 let tokenRequest: Promise<string> | null = null;
 const TOKEN_CACHE_DURATION = 50_000;
+const TENANT_STORAGE_KEY = "pinnacle-tenant-slug";
+
+function tenantHeader() {
+  const uid = auth.currentUser?.uid;
+  const slug = typeof window === "undefined" || !uid
+    ? null
+    : window.localStorage.getItem(`${TENANT_STORAGE_KEY}:${uid}`);
+  const headers: Record<string, string> = {};
+  if (slug) headers["X-Tenant-Slug"] = slug;
+  return headers;
+}
 
 export function limpiarTokenCache() {
   tokenCache = null;
@@ -20,6 +31,7 @@ export async function getCachedAuthHeaders() {
     return {
       "Content-Type": "application/json",
       Authorization: `Bearer ${tokenCache.value}`,
+      ...tenantHeader(),
     };
   }
 
@@ -45,5 +57,6 @@ export async function getCachedAuthHeaders() {
   return {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
+    ...tenantHeader(),
   };
 }
