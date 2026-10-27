@@ -98,3 +98,18 @@ export async function actualizarMiBranding(
 
   return parseResponse<Tenant>(res);
 }
+/** PATCH /tenants/:id/slug — solo MEGA_ADMIN. Con el slug se arma la APK del tenant. */
+export async function cambiarSlugDeTenant(
+  tenantId: number,
+  slug: string,
+): Promise<{ id: number; nombre: string; slug: string }> {
+  const headers = await getAuthHeaders();
+
+  const res = await fetch(`${API_URL}/tenants/${tenantId}/slug`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ slug }),
+  });
+
+  return parseResponse(res);
+}

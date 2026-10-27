@@ -9,6 +9,7 @@ import { formatDuration, formatViewers } from "../services/kick.service";
 import { detectStreamProvider, getStreamData } from "../services/stream.service";
 import type { StreamData } from "../services/stream.service";
 import { puedeVerSeccion } from "../utils/permisos";
+import { claveCacheSesion } from "../utils/cacheSesion";
 
 function SectionHeader({ icon, children }: { icon: string; children: React.ReactNode }) {
   return (
@@ -42,9 +43,12 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
   useEffect(() => {
     let active = true;
     let streamInterval: ReturnType<typeof setInterval> | null = null;
+    // La clave se fija al montar: una respuesta tardía no se guarda bajo otra cuenta.
+    const claveProgramacion = claveCacheSesion("programacion");
+    const claveNoticias = claveCacheSesion("noticias");
 
     try {
-       const cachedProg = sessionStorage.getItem("programacion_cache");
+       const cachedProg = sessionStorage.getItem(claveProgramacion);
       if (cachedProg) setProgramas(JSON.parse(cachedProg));
     } catch (e) {
       // Silencioso
@@ -52,7 +56,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
     }
 
     try {
-      const cachedNews = sessionStorage.getItem("noticias_cache");
+      const cachedNews = sessionStorage.getItem(claveNoticias);
       if (cachedNews) setNoticias(JSON.parse(cachedNews));
     } catch (e) {
       // Silencioso
@@ -63,7 +67,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
       .then((progs) => {
         if (!active) return;
         setProgramas(progs);
-        try { sessionStorage.setItem("programacion_cache", JSON.stringify(progs)); } catch (e) {
+        try { sessionStorage.setItem(claveProgramacion, JSON.stringify(progs)); } catch (e) {
           console.debug("Cache write error:", e);
         }
       })
@@ -73,7 +77,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
       .then((newsList) => {
         if (!active) return;
         setNoticias(newsList);
-        try { sessionStorage.setItem("noticias_cache", JSON.stringify(newsList)); } catch (e) {
+        try { sessionStorage.setItem(claveNoticias, JSON.stringify(newsList)); } catch (e) {
           console.debug("Cache write error:", e);
         }
       })

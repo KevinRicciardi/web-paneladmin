@@ -34,6 +34,7 @@ import {
   eliminarPrograma,
 } from "../services/schedule.service";
 import { useScrollAlAviso } from "../utils/useScrollAlAviso";
+import { claveCacheSesion } from "../utils/cacheSesion";
 import {
   ajustarFinAlCambiarInicio,
   avisoDeHorario,
@@ -523,7 +524,7 @@ export default function Programacion() {
     }
 
     try {
-      const cached = sessionStorage.getItem("programacion_cache");
+      const cached = sessionStorage.getItem(claveCacheSesion("programacion"));
       return cached ? (JSON.parse(cached) as Programa[]) : [];
     } catch {
       return [];
@@ -535,7 +536,7 @@ export default function Programacion() {
     }
 
     try {
-      const cached = sessionStorage.getItem("programacion_cache");
+      const cached = sessionStorage.getItem(claveCacheSesion("programacion"));
       return !cached;
     } catch {
       return true;
@@ -618,9 +619,10 @@ export default function Programacion() {
 
   useEffect(() => {
     let active = true;
+    const clave = claveCacheSesion("programacion");
 
     try {
-      const cached = sessionStorage.getItem("programacion_cache");
+      const cached = sessionStorage.getItem(clave);
       if (cached) {
         const parsed = JSON.parse(cached) as Programa[];
         setProgramas(parsed);
@@ -641,7 +643,7 @@ export default function Programacion() {
 
         setProgramas(data);
         try {
-          sessionStorage.setItem("programacion_cache", JSON.stringify(data));
+          sessionStorage.setItem(clave, JSON.stringify(data));
         } catch {}
       } catch (e) {
         if (!active) return;
@@ -937,14 +939,14 @@ export default function Programacion() {
         const nuevos = [creado, ...programas];
         setProgramas(nuevos);
         try {
-          sessionStorage.setItem("programacion_cache", JSON.stringify(nuevos));
+          sessionStorage.setItem(claveCacheSesion("programacion"), JSON.stringify(nuevos));
         } catch {}
       } else {
         const actualizado = await actualizarPrograma(editandoId, payloadParaGuardar);
         const nuevos = programas.map((p) => (p.id === actualizado.id ? actualizado : p));
         setProgramas(nuevos);
         try {
-          sessionStorage.setItem("programacion_cache", JSON.stringify(nuevos));
+          sessionStorage.setItem(claveCacheSesion("programacion"), JSON.stringify(nuevos));
         } catch {}
       }
 
@@ -974,7 +976,7 @@ export default function Programacion() {
       const restantes = programas.filter((p) => p.id !== programa.id);
       setProgramas(restantes);
       try {
-        sessionStorage.setItem("programacion_cache", JSON.stringify(restantes));
+        sessionStorage.setItem(claveCacheSesion("programacion"), JSON.stringify(restantes));
       } catch {}
 
       await eliminarPrograma(programa.id);
@@ -986,7 +988,7 @@ export default function Programacion() {
         const indice = indiceOriginal < 0 ? restaurados.length : indiceOriginal;
         restaurados.splice(indice, 0, programa);
         try {
-          sessionStorage.setItem("programacion_cache", JSON.stringify(restaurados));
+          sessionStorage.setItem(claveCacheSesion("programacion"), JSON.stringify(restaurados));
         } catch {}
         return restaurados;
       });

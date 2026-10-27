@@ -21,6 +21,7 @@ import {
 } from "@mui/material";
 import NoticiaEditorForm from "../components/NoticiaEditorForm";
 import { resumenDeContenido, textoPlanoDeContenido } from "../utils/textoNoticia";
+import { claveCacheSesion } from "../utils/cacheSesion";
 import type { News, NewsStatus } from "../types";
 import {
   actualizarNoticia,
@@ -110,9 +111,11 @@ export default function Noticias() {
   }, [noticias, search]);
 
   const loadNoticias = async () => {
+    // Fija la clave antes de esperar a la API: la respuesta es de esta cuenta.
+    const clave = claveCacheSesion("noticias");
     let hasCache = false;
     try {
-      const cached = sessionStorage.getItem("noticias_cache");
+      const cached = sessionStorage.getItem(clave);
       if (cached) {
         const parsed = JSON.parse(cached) as News[];
         if (parsed.length > 0) {
@@ -130,7 +133,7 @@ export default function Noticias() {
     try {
       const data = await listarMisNoticias();
       setNoticias(data);
-      try { sessionStorage.setItem("noticias_cache", JSON.stringify(data)); } catch {}
+      try { sessionStorage.setItem(clave, JSON.stringify(data)); } catch {}
     } catch (err) {
       console.error(err);
       setError(
@@ -149,7 +152,7 @@ export default function Noticias() {
 
   useEffect(() => {
     if (loading && noticias.length === 0) return;
-    try { sessionStorage.setItem("noticias_cache", JSON.stringify(noticias)); } catch {}
+    try { sessionStorage.setItem(claveCacheSesion("noticias"), JSON.stringify(noticias)); } catch {}
   }, [noticias]);
 
   useEffect(() => {
@@ -165,7 +168,7 @@ export default function Noticias() {
       const nuevos = exists
         ? prev.map((item) => (item.id === noticia.id ? noticia : item))
         : [noticia, ...prev];
-      try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
+      try { sessionStorage.setItem(claveCacheSesion("noticias"), JSON.stringify(nuevos)); } catch {}
       return nuevos;
     });
   };
@@ -221,7 +224,7 @@ export default function Noticias() {
 
     setNoticias((prev) => {
       const nuevos = prev.filter((item) => item.id !== noticia.id);
-      try { sessionStorage.setItem("noticias_cache", JSON.stringify(nuevos)); } catch {}
+      try { sessionStorage.setItem(claveCacheSesion("noticias"), JSON.stringify(nuevos)); } catch {}
       return nuevos;
     });
 
@@ -234,7 +237,7 @@ export default function Noticias() {
         const restauradas = prev.some((item) => item.id === noticia.id)
           ? prev
           : [noticia, ...prev];
-        try { sessionStorage.setItem("noticias_cache", JSON.stringify(restauradas)); } catch {}
+        try { sessionStorage.setItem(claveCacheSesion("noticias"), JSON.stringify(restauradas)); } catch {}
         return restauradas;
       });
       setError(err instanceof Error ? err.message : "No se pudo eliminar la noticia");
