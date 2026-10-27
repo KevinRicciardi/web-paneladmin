@@ -52,9 +52,9 @@ function App() {
       }
       uidActualRef.current = currentUser.uid;
       try {
-        const { Authorization } = await getCachedAuthHeaders();
+        const headers = await getCachedAuthHeaders();
         const res = await fetch(`${API_URL}/me`, {
-          headers: { Authorization },
+          headers,
         });
         // Solo un 401/403 significa "esta sesión no sirve". Un 5xx o un corte
         // de red no: ahí se mantiene la sesión y se muestra "Reintentar".
@@ -85,6 +85,12 @@ function App() {
 
     fetchPerfilRef.current = fetchPerfil;
     unsub = onAuthStateChanged(auth, fetchPerfil);
+    const onTenantContextChanged = () => {
+      limpiarCachesDeSesion();
+      setLoading(true);
+      void fetchPerfil(auth.currentUser);
+    };
+    window.addEventListener("tenantContextChanged", onTenantContextChanged);
 
     const onTenantUpdated = async (ev: Event) => {
       try {
@@ -109,6 +115,7 @@ function App() {
     return () => {
       try { unsub(); } catch {}
       window.removeEventListener("tenantUpdated", onTenantUpdated as EventListener);
+      window.removeEventListener("tenantContextChanged", onTenantContextChanged);
     };
   }, []);
 

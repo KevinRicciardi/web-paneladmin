@@ -1,4 +1,4 @@
-﻿import { Box, Divider, Drawer, List, ListItemButton, ListItemText, Typography } from "@mui/material";
+﻿import { Box, Divider, Drawer, FormControl, List, ListItemButton, ListItemText, MenuItem, Select, Typography } from "@mui/material";
 import { signOut } from "firebase/auth";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
@@ -64,6 +64,16 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
     perfil.rol === "MEGA_ADMIN" ? "MegaAdmin" : perfil.rol === "SUPER_ADMIN" ? "SuperAdmin" : "Admin";
   const etiquetaCargo = perfil.rol === "ADMIN" && perfil.cargo ? ` ${perfil.cargo}` : "";
   const subtitulo = `${nombreUsuario} - ${etiquetaRol}${etiquetaCargo}`;
+  const tenantsDisponibles = (perfil.membresias ?? []).filter((membership) =>
+    membership.status === "ACTIVE"
+    && ["MEGA_ADMIN", "SUPER_ADMIN", "ADMIN"].includes(membership.rol),
+  );
+  const cambiarTenant = (slug: string) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    window.localStorage.setItem(`pinnacle-tenant-slug:${uid}`, slug);
+    window.dispatchEvent(new Event("tenantContextChanged"));
+  };
   const navItemsVisibles = navItemsBase.filter((item) => {
     // "Generar App" es para que el SUPER_ADMIN pida la compilación de
     // SU tenant — a un MEGA_ADMIN no le corresponde, y mostrárselo
@@ -133,6 +143,21 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
             <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "break-word" }}>
               {subtitulo}
             </Typography>
+            {tenantsDisponibles.length > 1 && (
+              <FormControl size="small" fullWidth sx={{ mt: 2 }}>
+                <Select
+                  value={perfil.tenant.slug}
+                  onChange={(event) => cambiarTenant(event.target.value)}
+                  inputProps={{ "aria-label": "Canal activo" }}
+                >
+                  {tenantsDisponibles.map((membership) => (
+                    <MenuItem key={membership.tenantId} value={membership.tenant.slug}>
+                      {membership.tenant.nombre} · {membership.rol}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
           </Box>
 
           <List sx={{ flex: 1, p: 0 }}>
