@@ -64,6 +64,13 @@ export interface Perfil {
   cargo?: string | null;
   tenantId: number;
   tenant: Tenant;
+  membresias?: Array<{
+    tenantId: number;
+    rol: string;
+    cargo?: string | null;
+    status: string;
+    tenant: Pick<Tenant, "id" | "nombre" | "slug">;
+  }>;
 }
 
 export type NewsStatus = "draft" | "published";
