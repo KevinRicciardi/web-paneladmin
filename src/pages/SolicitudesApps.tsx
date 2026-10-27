@@ -24,6 +24,11 @@ import {
   descargarAab,
   listarSolicitudes,
 } from "../services/buildRequests.service";
+import { cambiarSlugDeTenant } from "../services/tenant.service";
+
+// Mismo formato que valida la API y el script que genera la APK.
+const FORMATO_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const LARGO_MAXIMO_SLUG = 50;
 
 const TRANSICIONES: Record<BuildRequestStatus, BuildRequestStatus[]> = {
   PENDING: ["IN_PROGRESS", "WAITING_CLIENT", "CANCELLED"],
@@ -194,6 +199,15 @@ export default function SolicitudesApps() {
           setSeleccionada(null);
           void cargar();
         }}
+        onSlugCambiado={(tenantId, slug) => {
+          // Todas las solicitudes del mismo tenant muestran el slug nuevo.
+          const conSlug = (s: BuildRequest) =>
+            s.tenantId === tenantId && s.tenant ? { ...s, tenant: { ...s.tenant, slug } } : s;
+          setSolicitudes((prev) => prev.map(conSlug));
+          setSeleccionada((prev) => (prev ? conSlug(prev) : prev));
+          // Por si es el tenant del propio MEGA_ADMIN: se vuelve a pedir su perfil.
+          window.dispatchEvent(new CustomEvent("tenantUpdated"));
+        }}
       />
     </Box>
   );
@@ -203,10 +217,12 @@ function DetalleSolicitud({
   solicitud,
   onClose,
   onActualizada,
+  onSlugCambiado,
 }: {
   solicitud: BuildRequest | null;
   onClose: () => void;
   onActualizada: () => void;
+  onSlugCambiado: (tenantId: number, slug: string) => void;
 }) {
   const [internalNotes, setInternalNotes] = useState("");
   const [aplicando, setAplicando] = useState<BuildRequestStatus | null>(null);
@@ -284,6 +300,16 @@ function DetalleSolicitud({
           <Typography variant="body2" color="text.secondary">
             Solicitada por {solicitud.requestedBy?.email ?? "—"} el {formatFecha(solicitud.createdAt)}
           </Typography>
+
+          {solicitud.tenant && (
+            <EditorSlug
+              // Otra solicitud u otro slug: el editor arranca de cero.
+              key={`${solicitud.id}:${solicitud.tenant.slug}`}
+              tenantId={solicitud.tenantId}
+              slug={solicitud.tenant.slug}
+              onCambiado={(slug) => onSlugCambiado(solicitud.tenantId, slug)}
+            />
+          )}
 
           {solicitud.notes && (
             <Box>
@@ -394,6 +420,101 @@ function DetalleSolicitud({
         </DialogActions>
       </Dialog>
     </Dialog>
+  );
+}
+
+/// El slug da el nombre del archivo de la APK y su applicationId. Si ya lo
+/// usa otro tenant, la API responde 409 y el mensaje queda bajo el campo.
+function EditorSlug({
+  tenantId,
+  slug,
+  onCambiado,
+}: {
+  tenantId: number;
+  slug: string;
+  onCambiado: (slug: string) => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(slug);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+
+  const normalizado = valor.trim().toLowerCase();
+  const formatoValido = normalizado.length <= LARGO_MAXIMO_SLUG && FORMATO_SLUG.test(normalizado);
+  const sinCambios = normalizado === slug;
+
+  const guardar = async () => {
+    setGuardando(true);
+    setError("");
+
+    try {
+      const tenant = await cambiarSlugDeTenant(tenantId, normalizado);
+      setEditando(false);
+      onCambiado(tenant.slug);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cambiar el slug");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  if (!editando) {
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+        <CampoDetalle label="Slug (nombre de la APK)" value={slug} />
+        <Button size="small" variant="outlined" onClick={() => setEditando(true)}>
+          Cambiar slug
+        </Button>
+      </Box>
+    );
+  }
+
+  const errorDeFormato = normalizado && !formatoValido
+    ? `Solo letras minúsculas, números y guiones simples (hasta ${LARGO_MAXIMO_SLUG} caracteres).`
+    : "";
+
+  return (
+    <Stack spacing={1.5}>
+      <TextField
+        label="Slug (nombre de la APK)"
+        size="small"
+        value={valor}
+        autoFocus
+        disabled={guardando}
+        onChange={(e) => {
+          setValor(e.target.value);
+          setError("");
+        }}
+        error={Boolean(error || errorDeFormato)}
+        helperText={error || errorDeFormato || `La APK se va a llamar ${normalizado || "…"}.apk`}
+        fullWidth
+      />
+      <Alert severity="warning">
+        Las apps ya instaladas con el slug "{slug}" dejan de cargar este tenant, y la APK nueva
+        tiene otro applicationId: se instala como una app aparte, no como actualización.
+      </Alert>
+      <Box sx={{ display: "flex", gap: 1 }}>
+        <Button
+          size="small"
+          variant="contained"
+          disabled={guardando || !formatoValido || sinCambios}
+          onClick={guardar}
+        >
+          {guardando ? "Guardando..." : "Guardar slug"}
+        </Button>
+        <Button
+          size="small"
+          disabled={guardando}
+          onClick={() => {
+            setEditando(false);
+            setValor(slug);
+            setError("");
+          }}
+        >
+          Cancelar
+        </Button>
+      </Box>
+    </Stack>
   );
 }
 
