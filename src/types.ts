@@ -174,6 +174,8 @@ export interface EstadisticasKpis {
   descargasVariacion: number;
   usuariosActivos: number;
   usuariosAndroid: number;
+  // Opcional: una API anterior a este campo no lo manda.
+  usuariosIos?: number;
 }
 
 export interface EstadisticasBucket {
