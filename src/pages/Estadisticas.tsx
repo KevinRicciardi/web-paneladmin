@@ -214,7 +214,7 @@ export default function Estadisticas() {
             <Box
               sx={{
                 display: "grid",
-                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" },
+                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" },
                 gap: 2,
                 mb: 3,
               }}
@@ -239,6 +239,11 @@ export default function Estadisticas() {
                 icon="android"
                 label="Usuarios Android"
                 value={datos.kpis.usuariosAndroid.toLocaleString("es-AR")}
+              />
+              <KpiCard
+                icon="phone_iphone"
+                label="Usuarios iOS"
+                value={(datos.kpis.usuariosIos ?? 0).toLocaleString("es-AR")}
               />
             </Box>
 
