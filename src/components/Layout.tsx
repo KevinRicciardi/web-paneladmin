@@ -9,7 +9,6 @@ import { precargarMisSolicitudes } from "../services/buildRequests.service";
 import type { Perfil } from "../types";
 import { puedeVerSeccion } from "../utils/permisos";
 import ErrorBoundary from "./ErrorBoundary";
-
 const drawerWidth = 280;
 
 // "seccion: null" = todos los admins la ven, sin importar cargo.
