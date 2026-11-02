@@ -15,8 +15,11 @@ import {
 } from "@mui/material";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import ImageCropDialog from "../components/ImageCropDialog";
+import AyudaLinkStream from "../components/AyudaLinkStream";
 import type { Perfil } from "../types";
+import { clasificarLinkYoutube } from "../utils/linkYoutube";
 import { puedeVerSeccion } from "../utils/permisos";
+import { useErrorConScroll } from "../utils/useErrorConScroll";
 import { extractKickChannelName } from "../services/kick.service";
 import { MENSAJE_PODCAST_SOLO_YOUTUBE, detectStreamingPlatform, esLinkDeYoutube, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
 import { buildYoutubeChannelEmbedUrl, buildYoutubeVideoEmbedUrl } from "../services/youtube.service";
@@ -106,7 +109,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   const [uploadingPortada, setUploadingPortada] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+  const { error, setError, avisoRef } = useErrorConScroll();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioLoadError, setAudioLoadError] = useState("");
@@ -127,6 +130,10 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
   // Podcast solo funciona con YouTube: sin un link de YouTube no se puede
   // elegir ni guardar ese modo.
   const linkEsYoutube = esLinkDeYoutube(streamUrl);
+  const [ayudaLinkAbierta, setAyudaLinkAbierta] = useState(false);
+  // La API solo acepta el link de un CANAL de YouTube; se avisa antes de guardar
+  // si pegaron el de un video o el formato viejo /c/.
+  const tipoLinkYoutube = linkEsYoutube ? clasificarLinkYoutube(streamUrl) : null;
   const podcastSinYoutube = esPodcast && !linkEsYoutube;
   const embedUrl = streamUrl ? getStreamingEmbedUrl(streamUrl) : null;
   const plataforma = streamProvider === "youtube"
@@ -595,9 +602,21 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             </Box>
 
             {/* URL */}
-            <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 } }>
-              Link de Stream
-            </Typography>
+            <Box sx={ { display: "flex", alignItems: "center", gap: 0.5, mb: 1 } }>
+              <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary" } }>
+                Link de Stream
+              </Typography>
+              <IconButton
+                size="small"
+                aria-label="¿Qué link tengo que poner?"
+                title="¿Qué link tengo que poner?"
+                onClick={() => setAyudaLinkAbierta(true)}
+                sx={{ p: 0.25 }}
+              >
+                <span className="material-symbols-outlined" style={ { fontSize: 18 } }>info</span>
+              </IconButton>
+            </Box>
+            <AyudaLinkStream open={ayudaLinkAbierta} onClose={() => setAyudaLinkAbierta(false)} />
             <TextField
               placeholder="Poné tu link de Kick, Twitch o YouTube"
               value={streamUrl}
@@ -621,6 +640,21 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                 '& .MuiInputBase-input': { fontFamily: 'monospace', fontSize: 13 },
               }}
             />
+            {(tipoLinkYoutube === "video" || tipoLinkYoutube === "personalizado") && (
+              <Alert
+                severity="warning"
+                sx={{ mb: 1.5 }}
+                action={
+                  <Button color="inherit" size="small" onClick={() => setAyudaLinkAbierta(true)}>
+                    Ver cómo
+                  </Button>
+                }
+              >
+                {tipoLinkYoutube === "video"
+                  ? "Este parece el link de un video o de una transmisión puntual, y no va a funcionar. Pegá el link de tu canal (youtube.com/@tucanal)."
+                  : "Este formato de link (youtube.com/c/...) no se acepta. Usá el link de tu canal con el @ (youtube.com/@tucanal)."}
+              </Alert>
+            )}
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>
               Este link se comparte entre Video y Podcast. Para Video podés usar Kick, Twitch o YouTube; para Podcast tiene que ser de YouTube.
             </Typography>
@@ -732,7 +766,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
             )}
 
             {success && <Alert severity="success" sx={ { mt: 3 } }>¡Configuración guardada!</Alert>}
-            {error && <Alert severity="error" sx={ { mt: 3 } }>{error}</Alert>}
+            {error && <Alert ref={avisoRef} severity="error" sx={ { mt: 3 } }>{error}</Alert>}
           </CardContent>
         </Card>
 

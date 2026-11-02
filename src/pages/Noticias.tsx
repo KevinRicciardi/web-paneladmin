@@ -22,6 +22,7 @@ import {
 import NoticiaEditorForm from "../components/NoticiaEditorForm";
 import { resumenDeContenido, textoPlanoDeContenido } from "../utils/textoNoticia";
 import { claveCacheSesion } from "../utils/cacheSesion";
+import { useErrorConScroll } from "../utils/useErrorConScroll";
 import type { News, NewsStatus } from "../types";
 import {
   actualizarNoticia,
@@ -83,7 +84,7 @@ export default function Noticias() {
   const [noticiaAEliminar, setNoticiaAEliminar] = useState<News | null>(null);
   const [eliminando, setEliminando] = useState(false);
 
-  const [error, setError] = useState("");
+  const { error, setError, avisoRef } = useErrorConScroll();
   const [success, setSuccess] = useState("");
   const [redactorExpandido, setRedactorExpandido] = useState(false);
 
@@ -270,7 +271,7 @@ export default function Noticias() {
       {(error || success) && (
         <Stack spacing={1.5} sx={{ mb: 2 }}>
           {error && (
-            <Alert severity="error" onClose={() => setError("")}>
+            <Alert ref={avisoRef} severity="error" onClose={() => setError("")}>
               {error}
             </Alert>
           )}
