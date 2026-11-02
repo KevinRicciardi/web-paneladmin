@@ -32,6 +32,7 @@ import {
   crearPrograma,
   actualizarPrograma,
   eliminarPrograma,
+  enviarRecordatorioPrograma,
 } from "../services/schedule.service";
 import { useScrollAlAviso } from "../utils/useScrollAlAviso";
 import { claveCacheSesion } from "../utils/cacheSesion";
@@ -244,12 +245,18 @@ const ProgramaTableRow = memo(function ProgramaTableRow({
   onEliminar,
   onDuplicar,
   onAbrirDetalle,
+  onEnviarRecordatorio,
+  recordatorioEnviando,
+  recordatorioDeshabilitado,
 }: {
   programa: Programa;
   onEditar: (p: Programa) => void;
   onEliminar: (p: Programa) => void;
   onDuplicar: (p: Programa) => void;
   onAbrirDetalle: (p: Programa) => void;
+  onEnviarRecordatorio: (p: Programa) => void;
+  recordatorioEnviando: boolean;
+  recordatorioDeshabilitado: boolean;
 }) {
   return (
     <TableRow sx={{ opacity: programa.activo ? 1 : 0.5 }}>
@@ -289,6 +296,15 @@ const ProgramaTableRow = memo(function ProgramaTableRow({
         </Box>
       </TableCell>
       <TableCell align="right">
+        <Button
+          size="small"
+          color="info"
+          onClick={() => onEnviarRecordatorio(programa)}
+          disabled={!programa.activo || recordatorioDeshabilitado}
+          title={programa.activo ? "Enviar recordatorio a los usuarios de la app" : "Activa el programa para enviar un recordatorio"}
+        >
+          {recordatorioEnviando ? "Enviando..." : "Avisar"}
+        </Button>
         <Button size="small" onClick={() => onEditar(programa)}>
           Editar
         </Button>
@@ -568,6 +584,8 @@ export default function Programacion() {
   const [modoFecha, setModoFecha] = useState<"NINGUNO" | "ESPECIFICA" | "RANGO">("NINGUNO");
   const [programaAEliminar, setProgramaAEliminar] = useState<Programa | null>(null);
   const [eliminando, setEliminando] = useState(false);
+  const [recordatorioEnviandoId, setRecordatorioEnviandoId] = useState<number | null>(null);
+  const [recordatorioEstado, setRecordatorioEstado] = useState<{ tipo: "success" | "error"; mensaje: string } | null>(null);
   const [vista, setVista] = useState<"tabla" | "calendario">("tabla");
   const [mesCalendario, setMesCalendario] = useState(() => new Date());
   const [cropOpen, setCropOpen] = useState(false);
@@ -998,6 +1016,25 @@ export default function Programacion() {
     }
   };
 
+  const enviarRecordatorio = async (programa: Programa) => {
+    setRecordatorioEnviandoId(programa.id);
+    setRecordatorioEstado(null);
+    try {
+      await enviarRecordatorioPrograma(programa.id);
+      setRecordatorioEstado({
+        tipo: "success",
+        mensaje: `Recordatorio enviado: ${programa.titulo}`,
+      });
+    } catch (e) {
+      setRecordatorioEstado({
+        tipo: "error",
+        mensaje: e instanceof Error ? e.message : "No se pudo enviar el recordatorio",
+      });
+    } finally {
+      setRecordatorioEnviandoId(null);
+    }
+  };
+
   const pickerFieldSx = {
     '& .MuiOutlinedInput-root': {
       bgcolor: '#111111',
@@ -1096,6 +1133,15 @@ export default function Programacion() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Gestiona la grilla de contenidos de tu señal.
       </Typography>
+      {recordatorioEstado && (
+        <Alert
+          severity={recordatorioEstado.tipo}
+          onClose={() => setRecordatorioEstado(null)}
+          sx={{ mb: 2 }}
+        >
+          {recordatorioEstado.mensaje}
+        </Alert>
+      )}
 
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 2 }}>
@@ -1333,6 +1379,9 @@ export default function Programacion() {
                   onEliminar={borrar}
                   onDuplicar={duplicarPrograma}
                   onAbrirDetalle={setFechaModalPrograma}
+                  onEnviarRecordatorio={enviarRecordatorio}
+                  recordatorioEnviando={recordatorioEnviandoId === p.id}
+                  recordatorioDeshabilitado={recordatorioEnviandoId !== null}
                 />
               ))}
             </TableBody>

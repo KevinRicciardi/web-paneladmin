@@ -125,6 +125,17 @@ export async function eliminarPrograma(
   return data;
 }
 
+export async function enviarRecordatorioPrograma(
+  id: number,
+): Promise<{ sent: boolean; id: number }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}/programacion/mi-tenant/${id}/reminder`, {
+    method: "POST",
+    headers,
+  });
+  return parseResponse<{ sent: boolean; id: number }>(res);
+}
+
 /** Público, para la app: GET /tenants/:slug/programacion */
 export async function listarProgramacionPorSlug(
   slug: string,

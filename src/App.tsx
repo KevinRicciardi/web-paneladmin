@@ -163,7 +163,7 @@ function App() {
                   <Route path="/generar-app" element={<GenerarApp perfil={perfil} />} />
                   <Route path="/solicitudes-apps" element={<SolicitudesApps />} />
                   <Route path="/configuracion" element={<Configuracion perfil={perfil} />} />
-                  <Route path="/soporte" element={<Soporte perfil={perfil} />} />
+                  <Route path="/soporte" element={<Soporte />} />
                 </Route>
                 {/* Cualquier otra dirección (un marcador viejo, un error de
                     tipeo) vuelve al inicio en vez de mostrar una pantalla vacía. */}
