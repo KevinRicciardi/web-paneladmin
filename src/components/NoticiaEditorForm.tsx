@@ -250,7 +250,7 @@ export default function NoticiaEditorForm({
             mb: 1,
           }}
         >
-          Imagen de portada · Recomendado: 1600x900px
+          Imagen de portada · 16:9 · Recomendado: 1600x900px
         </Typography>
 
         <input
@@ -266,12 +266,14 @@ export default function NoticiaEditorForm({
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           sx={{
-            minHeight: 150,
+            minHeight: form.coverImageUrl ? undefined : 150,
+            aspectRatio: form.coverImageUrl ? "16 / 9" : undefined,
             border: "1.5px dashed",
             borderColor: form.coverImageUrl ? "primary.main" : "divider",
             borderRadius: 2,
             bgcolor: "rgba(255,255,255,0.03)",
             cursor: "pointer",
+            position: "relative",
             overflow: "hidden",
             display: "flex",
             alignItems: "center",
@@ -291,7 +293,14 @@ export default function NoticiaEditorForm({
               component="img"
               src={form.coverImageUrl}
               alt="Portada"
-              sx={{ width: "100%", height: 180, objectFit: "cover" }}
+              sx={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
             />
           ) : (
             <Box>

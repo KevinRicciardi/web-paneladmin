@@ -145,6 +145,17 @@ export async function despublicarNoticia(id: number): Promise<News> {
   return data;
 }
 
+export async function enviarRecordatorioNoticia(
+  id: number,
+): Promise<{ sent: boolean; id: number }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}/news/mi-tenant/${id}/reminder`, {
+    method: "POST",
+    headers,
+  });
+  return parseResponse<{ sent: boolean; id: number }>(res);
+}
+
 export async function eliminarNoticia(
   id: number,
 ): Promise<{ deleted: boolean; id: number }> {

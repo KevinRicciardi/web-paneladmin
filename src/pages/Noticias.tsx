@@ -28,6 +28,7 @@ import {
   crearNoticia,
   despublicarNoticia,
   eliminarNoticia,
+  enviarRecordatorioNoticia,
   listarMisNoticias,
   obtenerMiNoticia,
   publicarNoticia,
@@ -82,6 +83,7 @@ export default function Noticias() {
   const [saving, setSaving] = useState(false);
   const [noticiaAEliminar, setNoticiaAEliminar] = useState<News | null>(null);
   const [eliminando, setEliminando] = useState(false);
+  const [recordatorioEnviandoId, setRecordatorioEnviandoId] = useState<number | null>(null);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -206,6 +208,24 @@ export default function Noticias() {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const enviarRecordatorio = async (news: News) => {
+    setRecordatorioEnviandoId(news.id);
+    setError("");
+    try {
+      await enviarRecordatorioNoticia(news.id);
+      setSuccess(`Recordatorio enviado: ${news.title}`);
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo enviar el recordatorio de la noticia",
+      );
+    } finally {
+      setRecordatorioEnviandoId(null);
     }
   };
 
@@ -444,15 +464,26 @@ export default function Noticias() {
                         </Button>
 
                         {news.status === "published" ? (
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            color="warning"
-                            onClick={() => unpublishExisting(news)}
-                            disabled={saving}
-                          >
-                            Borrador
-                          </Button>
+                          <>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              color="info"
+                              onClick={() => void enviarRecordatorio(news)}
+                              disabled={saving || recordatorioEnviandoId !== null}
+                            >
+                              {recordatorioEnviandoId === news.id ? "Enviando..." : "Enviar aviso"}
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              color="warning"
+                              onClick={() => unpublishExisting(news)}
+                              disabled={saving || recordatorioEnviandoId !== null}
+                            >
+                              Borrador
+                            </Button>
+                          </>
                         ) : (
                           <Button
                             variant="contained"
