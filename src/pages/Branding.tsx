@@ -19,6 +19,7 @@ import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import ImageCropDialog, { type CropSettings } from "../components/ImageCropDialog";
 import { subirACloudinary } from "../utils/cloudinary";
 import { normalizarHex } from "../utils/colores";
+import { useErrorConScroll } from "../utils/useErrorConScroll";
 import type { News, Perfil, Programa } from "../types";
 import { listarProgramacionPorSlug } from "../services/schedule.service";
 import { listarNoticiasPublicadasPorSlug } from "../services/news.service";
@@ -368,7 +369,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+  const { error, setError, avisoRef } = useErrorConScroll();
   const [copiado, setCopiado] = useState<string | null>(null);
   const [ultimoGuardado, setUltimoGuardado] = useState(inicial);
   const [showGuardarTema, setShowGuardarTema] = useState(false);
@@ -1575,7 +1576,7 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
           </Card>
 
           {success && <Alert severity="success">¡Configuración guardada!</Alert>}
-          {error && <Alert severity="error">{error}</Alert>}
+          {error && <Alert ref={avisoRef} severity="error">{error}</Alert>}
 
           <Box sx={ { display: "flex", justifyContent: "flex-end", gap: 1.5, pt: 1, borderTop: "1px solid", borderColor: "divider" } }>
             <Button variant="outlined" onClick={handleDescartar} disabled={loading || uploadingLogo || uploadingBanner}>Descartar Cambios</Button>

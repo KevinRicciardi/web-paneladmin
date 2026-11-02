@@ -1560,7 +1560,7 @@ export default function Programacion() {
                     color: modoFecha === "ESPECIFICA" ? "#000000" : "#ffffff",
                   }}
                 >
-                  Fecha específica
+                  Un solo día
                 </Button>
                 <Button
                   size="small"
@@ -1581,12 +1581,16 @@ export default function Programacion() {
                     color: modoFecha === "RANGO" ? "#000000" : "#ffffff",
                   }}
                 >
-                  Rango de fechas
+                  Varios días
                 </Button>
               </Stack>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                «Un solo día»: el programa se emite en una única fecha. «Varios días»: se emite todos los días
+                entre la fecha de inicio y la de fin.
+              </Typography>
               {calendarioDisabled && (
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
-                  Activa "Fecha específica" en la sección "Días de la semana" para habilitar estas opciones.
+                  Para usar el calendario, elegí «Fecha específica» arriba, en la sección "Días de la semana".
                 </Typography>
               )}
 
@@ -1819,7 +1823,13 @@ export default function Programacion() {
                 checked={form.activo ?? true}
                 onChange={(e) => setForm({ ...form, activo: e.target.checked })}
               />
-              <Typography variant="body2">Activo</Typography>
+              <Box>
+                <Typography variant="body2">Activo</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                  Si está activo, el programa se ve en la app. Si lo desactivás queda guardado acá en el panel,
+                  pero la app no lo muestra.
+                </Typography>
+              </Box>
             </Box>
           </Stack>
         </DialogContent>
