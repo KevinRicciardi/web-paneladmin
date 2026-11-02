@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useErrorConScroll } from "../utils/useErrorConScroll";
 import {
   Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Dialog,
   DialogActions, DialogContent, DialogTitle, IconButton, Slider, Stack,
@@ -77,7 +78,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   const livePlayRequestedRef = useRef(false);
   const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { error, setError, avisoRef } = useErrorConScroll();
   const [success, setSuccess] = useState("");
   const [form, setForm] = useState<PodcastEpisodePayload>(emptyForm);
   const [editing, setEditing] = useState<PodcastEpisode | null>(null);
@@ -184,7 +185,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
       liveHlsRef.current?.destroy();
       liveHlsRef.current = null;
     };
-  }, [liveResolvedUrl]);
+  }, [liveResolvedUrl, setError]);
 
   const saveLiveConfig = async () => {
     setLiveSaving(true);
@@ -436,7 +437,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
 
       {(error || success || playbackError) && (
         <Stack spacing={1} sx={{ mb: 2 }}>
-          {error && <Alert severity="error" onClose={() => setError("")}>{error}</Alert>}
+          {error && <Alert ref={avisoRef} severity="error" onClose={() => setError("")}>{error}</Alert>}
           {playbackError && <Alert severity="error" onClose={() => setPlaybackError("")}>{playbackError}</Alert>}
           {success && <Alert severity="success" onClose={() => setSuccess("")}>{success}</Alert>}
         </Stack>

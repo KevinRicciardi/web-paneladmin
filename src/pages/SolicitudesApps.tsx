@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import type { BuildRequest, BuildRequestStatus } from "../types";
 import { confirmacionDeEstado } from "../utils/solicitudes";
+import { useErrorConScroll } from "../utils/useErrorConScroll";
 import {
   actualizarEstadoSolicitud,
   descargarAab,
@@ -227,14 +228,14 @@ function DetalleSolicitud({
   const [internalNotes, setInternalNotes] = useState("");
   const [aplicando, setAplicando] = useState<BuildRequestStatus | null>(null);
   const [descargando, setDescargando] = useState(false);
-  const [error, setError] = useState("");
+  const { error, setError, avisoRef } = useErrorConScroll();
   const [porConfirmar, setPorConfirmar] = useState<BuildRequestStatus | null>(null);
 
   useEffect(() => {
     setInternalNotes(solicitud?.internalNotes ?? "");
     setError("");
     setPorConfirmar(null);
-  }, [solicitud?.id]);
+  }, [solicitud?.id, setError]);
 
   if (!solicitud) return null;
 
@@ -275,7 +276,7 @@ function DetalleSolicitud({
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {error && <Alert ref={avisoRef} severity="error">{error}</Alert>}
 
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
             <Chip size="small" label={statusLabel(solicitud.status)} color={statusColor(solicitud.status)} />
