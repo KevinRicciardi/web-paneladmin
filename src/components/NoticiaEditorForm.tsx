@@ -12,6 +12,7 @@ import {
 import ImageCropDialog from "./ImageCropDialog";
 import NewsContentEditor from "./NewsContentEditor";
 import type { News, NewsStatus } from "../types";
+import { useErrorConScroll } from "../utils/useErrorConScroll";
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as
   | string
@@ -97,7 +98,7 @@ export default function NoticiaEditorForm({
   const [form, setForm] = useState<NoticiaFormState>(initial ?? EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
+  const { error, setError, avisoRef } = useErrorConScroll();
   const [success, setSuccess] = useState("");
   const [cropOpen, setCropOpen] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
@@ -222,7 +223,7 @@ export default function NoticiaEditorForm({
   return (
     <Stack spacing={2.5}>
       {error && (
-        <Alert severity="error" onClose={() => setError("")}>
+        <Alert ref={avisoRef} severity="error" onClose={() => setError("")}>
           {error}
         </Alert>
       )}
