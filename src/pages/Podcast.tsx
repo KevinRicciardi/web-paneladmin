@@ -78,7 +78,10 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   const livePlayRequestedRef = useRef(false);
   const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
   const [loading, setLoading] = useState(true);
-  const { error, setError, avisoRef } = useErrorConScroll();
+  // setError no mueve la pantalla (sirve para los fallos de reproducción, que
+  // pueden pasar solos); setErrorConScroll se usa en las acciones de guardado,
+  // subida y borrado, donde el cartel de arriba tiene que verse.
+  const { error, setError: setErrorConScroll, setErrorSinScroll: setError, avisoRef } = useErrorConScroll();
   const [success, setSuccess] = useState("");
   const [form, setForm] = useState<PodcastEpisodePayload>(emptyForm);
   const [editing, setEditing] = useState<PodcastEpisode | null>(null);
@@ -202,7 +205,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
       window.dispatchEvent(new CustomEvent("tenantUpdated", { detail: { podcastUrl: liveUrl.trim(), podcastProvider: liveProvider, podcastImagenPortada: liveCover.trim() } }));
     } catch (saveError) {
       console.error(saveError);
-      setError("No se pudo guardar la señal de Podcast. Verificá la URL e intentá nuevamente.");
+      setErrorConScroll("No se pudo guardar la señal de Podcast. Verificá la URL e intentá nuevamente.");
     } finally { setLiveSaving(false); }
   };
 
@@ -283,11 +286,11 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
       ? ["mp3", "aac", "m4a", "ogg", "wav", "flac", "opus"]
       : ["mp4", "m4v", "webm", "ogv", "mov"];
     if (!file.type.startsWith(`${expectedType}/`) && !allowedExtensions.includes(extension)) {
-      setError(`Seleccioná un archivo de ${expectedType === "audio" ? "audio" : "video"} compatible.`);
+      setErrorConScroll(`Seleccioná un archivo de ${expectedType === "audio" ? "audio" : "video"} compatible.`);
       return;
     }
     if (!CLOUD_NAME || !UPLOAD_PRESET) {
-      setError("Falta configurar el almacenamiento de archivos multimedia.");
+      setErrorConScroll("Falta configurar el almacenamiento de archivos multimedia.");
       return;
     }
     setUploadingMedia(true);
@@ -298,7 +301,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
       updateField("platformType", "direct");
     } catch (uploadError) {
       console.error(uploadError);
-      setError("No se pudo subir el archivo. Verificá el preset de Cloudinary.");
+      setErrorConScroll("No se pudo subir el archivo. Verificá el preset de Cloudinary.");
     } finally {
       setUploadingMedia(false);
     }
@@ -307,7 +310,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
   const saveEpisode = async () => {
     const hasMedia = Boolean(form.audioUrl?.trim() || form.videoUrl?.trim() || form.streamUrl?.trim());
     if (!form.title.trim() || !form.podcastName.trim() || !hasMedia) {
-      setError("Completá título, nombre del podcast y al menos una fuente de audio, video o stream.");
+      setErrorConScroll("Completá título, nombre del podcast y al menos una fuente de audio, video o stream.");
       return;
     }
     setSaving(true);
@@ -326,7 +329,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
         : [saved, ...prev]);
       setSuccess(editing ? "Episodio actualizado." : "Episodio creado.");
       closeForm();
-    } catch { setError("No se pudo guardar el episodio."); }
+    } catch { setErrorConScroll("No se pudo guardar el episodio."); }
     finally { setSaving(false); }
   };
 
@@ -395,7 +398,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
       }
       setSuccess("Episodio eliminado.");
       setEpisodeToDelete(null);
-    } catch { setError("No se pudo eliminar el episodio."); }
+    } catch { setErrorConScroll("No se pudo eliminar el episodio."); }
   };
 
   return (
