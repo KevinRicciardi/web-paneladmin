@@ -21,5 +21,7 @@ export function useErrorConScroll(inicial = "") {
 
   const avisoRef = useScrollAlAviso(erroresMostrados, "center");
 
-  return { error, setError, avisoRef };
+  // Para errores que no vienen de una acción de quien está en el formulario
+  // (por ejemplo, un audio que falla solo): se muestran sin mover la pantalla.
+  return { error, setError, setErrorSinScroll: setErrorBase, avisoRef };
 }
