@@ -11,12 +11,15 @@ import {
   Typography,
 } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
+import type { Perfil } from "../types";
+import { puedeVerSeccion } from "../utils/permisos";
 
 const SOPORTE_EMAIL = "empresa.ejemplo@gmail.com";
 
 const secciones = [
   {
     titulo: "Dashboard",
+    permiso: null,
     descripcion:
       "Resumen del canal, estado de la transmisión y accesos rápidos a las tareas principales.",
     instrucciones: [
@@ -29,6 +32,7 @@ const secciones = [
   },
   {
     titulo: "Branding",
+    permiso: "branding",
     descripcion:
       "Personaliza el nombre, logo, banners, colores y enlaces de redes. Revisa los cambios con la vista previa antes de guardarlos.",
     instrucciones: [
@@ -42,6 +46,7 @@ const secciones = [
   },
   {
     titulo: "Streaming",
+    permiso: "streaming",
     descripcion:
       "Configura el proveedor y el enlace de transmisión para que la audiencia pueda verla desde la aplicación.",
     instrucciones: [
@@ -55,6 +60,7 @@ const secciones = [
   },
   {
     titulo: "Programación",
+    permiso: "programacion",
     descripcion:
       "Crea y organiza programas por horario y días. Al activar un programa, también puedes enviar manualmente un recordatorio por notificación.",
     instrucciones: [
@@ -68,6 +74,7 @@ const secciones = [
   },
   {
     titulo: "Noticias",
+    permiso: "noticias",
     descripcion:
       "Escribe noticias como borrador y publícalas cuando estén listas. Puedes agregar una portada 16:9 y enviar un aviso manual para una noticia publicada.",
     instrucciones: [
@@ -81,6 +88,7 @@ const secciones = [
   },
   {
     titulo: "Estadísticas",
+    permiso: "estadisticas",
     descripcion:
       "Consulta las métricas disponibles y cambia el período para revisar distintos rangos de actividad.",
     instrucciones: [
@@ -93,6 +101,7 @@ const secciones = [
   },
   {
     titulo: "Generar App",
+    permiso: "generar-app",
     descripcion:
       "Envía una solicitud de compilación o publicación de la app, completa los datos y recursos requeridos y sigue su estado desde el panel.",
     instrucciones: [
@@ -107,6 +116,7 @@ const secciones = [
   },
   {
     titulo: "Administradores",
+    permiso: "administradores",
     descripcion:
       "Invita personas al panel y consulta el estado de sus invitaciones. Los permisos y acciones disponibles dependen del rol asignado.",
     instrucciones: [
@@ -121,6 +131,7 @@ const secciones = [
   },
   {
     titulo: "Solicitudes de Apps",
+    permiso: "solicitudes-apps",
     descripcion:
       "Cola de solicitudes para el equipo que gestiona compilaciones y publicaciones de los canales.",
     instrucciones: [
@@ -135,6 +146,7 @@ const secciones = [
   },
   {
     titulo: "Configuración",
+    permiso: null,
     descripcion:
       "Edita los datos principales del canal que estén habilitados, guarda los cambios y cierra tu sesión cuando termines.",
     instrucciones: [
@@ -148,7 +160,19 @@ const secciones = [
   },
 ];
 
-export default function Soporte() {
+function puedeVerAyuda(perfil: Perfil, permiso: string | null) {
+  if (permiso === null) return true;
+  if (permiso === "solicitudes-apps") return perfil.rol === "MEGA_ADMIN";
+  if (permiso === "administradores") {
+    return perfil.rol === "SUPER_ADMIN" || perfil.rol === "MEGA_ADMIN";
+  }
+  if (permiso === "generar-app") return perfil.rol === "SUPER_ADMIN";
+  return puedeVerSeccion(perfil, permiso);
+}
+
+export default function Soporte({ perfil }: { perfil: Perfil }) {
+  const seccionesVisibles = secciones.filter((seccion) => puedeVerAyuda(perfil, seccion.permiso));
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
@@ -159,7 +183,7 @@ export default function Soporte() {
       </Typography>
 
       <Stack spacing={1.5}>
-        {secciones.map((seccion) => (
+        {seccionesVisibles.map((seccion) => (
           <Accordion key={seccion.ruta} variant="outlined" disableGutters>
             <AccordionSummary
               expandIcon={<Box component="span" aria-hidden="true" sx={{ fontSize: 22 }}>⌄</Box>}
