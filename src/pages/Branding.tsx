@@ -18,13 +18,13 @@ import GeneradorTemaDialog from "../components/GeneradorTemaDialog";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import ImageCropDialog, { type CropSettings } from "../components/ImageCropDialog";
 import { subirACloudinary } from "../utils/cloudinary";
+import { cargarFuentesDeBranding } from "../utils/fuentesBranding";
 import { normalizarHex } from "../utils/colores";
 import { useErrorConScroll } from "../utils/useErrorConScroll";
 import type { News, Perfil, Programa } from "../types";
 import { listarProgramacionPorSlug } from "../services/schedule.service";
 import { listarNoticiasPublicadasPorSlug } from "../services/news.service";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+import { API_URL } from "../config/api";
 
 // Fuentes disponibles
 const FUENTES_DISPONIBLES = [
@@ -303,6 +303,7 @@ function serializarBanners(banners: string[]): string {
 }
 
 export default function Branding({ perfil }: { perfil: Perfil }) {
+  useEffect(cargarFuentesDeBranding, []);
   const t = perfil.tenant;
   const inicial = {
     nombre: t?.nombre ?? "",
@@ -417,12 +418,11 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     const payload = JSON.stringify(temas);
     const guardar = async (): Promise<boolean> => {
       try {
-        const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
-        if (!token) throw new Error("No hay una sesión autenticada.");
+        const headers = await getCachedAuthHeaders();
 
         const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers,
           body: JSON.stringify({ temasPersonalizados: payload }),
         });
 
@@ -840,13 +840,12 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setSuccess(false);
     setError("");
     try {
-      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
-      if (!token) throw new Error("No hay una sesión autenticada.");
+      const headers = await getCachedAuthHeaders();
       const bannerParaGuardar = serializarBanners(bannerUrls);
 
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers,
         body: JSON.stringify({
           nombre,
           logoUrl,

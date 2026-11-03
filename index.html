@@ -6,10 +6,16 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pinnacle - Panel de administración</title>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@48,400,0,0&display=swap" rel="stylesheet" />
+    <!-- Conexión anticipada con Google Fonts: ahorra el DNS + TLS antes de
+         bajar el CSS y las fuentes. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@48,400,0,0&display=block" rel="stylesheet" />
     <!-- Fuentes usadas por el selector de Branding -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Roboto:wght@300;400;500;700&family=Montserrat:wght@300;400;600;700&family=Playfair+Display:wght@400;500;700&family=Poppins:wght@300;400;600;700&family=Raleway:wght@300;400;600;700&family=Lato:wght@300;400;700&family=Open+Sans:wght@300;400;600;700&family=Oswald:wght@300;400;500;700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <!-- La interfaz usa Inter. Las fuentes de las marcas se cargan solo en
+         Branding (utils/fuentesBranding.ts): antes bloqueaban el primer render
+         de todas las pantallas. -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>

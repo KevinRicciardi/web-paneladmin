@@ -1,10 +1,7 @@
 import { getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
 import { crearConsultaCacheada } from "../utils/consultaCacheada";
 import type { BuildRequest, BuildRequestPublishInfoPayload } from "../types";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
-
-
+import { API_URL } from "../config/api";
 
 async function parseResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {

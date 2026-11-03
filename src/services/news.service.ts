@@ -1,7 +1,6 @@
 import { contextoDeCache, getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
 import type { News, NewsPayload } from "../types";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+import { API_URL } from "../config/api";
 
 // Separada por usuario y canal (ver contextoDeCache): si no, al cambiar de
 // cuenta o de canal se veían unos segundos las noticias del anterior.
@@ -14,7 +13,6 @@ export function limpiarCacheNoticias() {
   noticiasCache = null;
   noticiasRequest = null;
 }
-
 
 async function parseResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {

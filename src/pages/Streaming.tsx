@@ -20,27 +20,16 @@ import type { Perfil } from "../types";
 import { clasificarLinkYoutube } from "../utils/linkYoutube";
 import { puedeVerSeccion } from "../utils/permisos";
 import { useErrorConScroll } from "../utils/useErrorConScroll";
+import { subirACloudinary } from "../utils/cloudinary";
 import { extractKickChannelName } from "../services/kick.service";
 import { MENSAJE_PODCAST_SOLO_YOUTUBE, detectStreamingPlatform, esLinkDeYoutube, getAutoplayStreamingEmbedUrl, getDirectAudioUrl, getStreamingEmbedUrl, getStreamingPlatformLabel, isDirectVideoUrl } from "../services/streaming-media";
 import { buildYoutubeChannelEmbedUrl, buildYoutubeVideoEmbedUrl } from "../services/youtube.service";
-import { extractYoutubeVideoId, getSignalStatus, getStreamData, invalidateStreamData, type StreamData } from "../services/stream.service";
+import { extractYoutubeVideoId, getSignalStatus, getStreamData, INTERVALO_KICK_MS, invalidateStreamData, type StreamData } from "../services/stream.service";
+import { API_URL } from "../config/api";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
-
-async function subirACloudinary(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", UPLOAD_PRESET);
-  const res = await fetch(
-    "https://api.cloudinary.com/v1_1/" + CLOUD_NAME + "/image/upload",
-    { method: "POST", body: formData }
-  );
-  if (!res.ok) throw new Error("Error al subir imagen");
-  const data = await res.json();
-  return data.secure_url as string;
-}
+// Reproductores de terceros (Kick, YouTube, Twitch): pueden correr sus
+// scripts y abrir popups, pero no navegar la ventana del panel.
+const SANDBOX_REPRODUCTOR = "allow-scripts allow-same-origin allow-presentation allow-popups";
 
 function isHlsUrl(url: string) {
   return url.trim().toLowerCase().split(/[?#]/)[0].endsWith(".m3u8");
@@ -79,6 +68,7 @@ function StreamVideoFrame({ src, title }: { src: string; title: string }) {
         src={src}
         title={title}
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+        sandbox={SANDBOX_REPRODUCTOR}
         sx={ { position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" } }
       />
     </Box>
@@ -237,7 +227,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         setStreamStatusData(data);
 
         if ((data?.isLive || streamProvider === "youtube") && !intervalId) {
-          intervalId = setInterval(refreshProviderStreamData, streamProvider === "kick" ? 1000 : 30_000);
+          intervalId = setInterval(refreshProviderStreamData, streamProvider === "kick" ? INTERVALO_KICK_MS : 30_000);
         }
 
         if (!data?.isLive && streamProvider !== "youtube" && intervalId) {
@@ -493,13 +483,10 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         tipoTransmision,
         imagenPortada,
       };
-      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
+      const headers = await getCachedAuthHeaders();
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify(tenantPayload),
       });
       if (!res.ok) {
@@ -553,7 +540,6 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
       setLoading(false);
     }
   };
-
 
   return (
     <Box>
@@ -920,6 +906,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                       src={externalAudioSrc}
                       title={`${streamProvider} audio player`}
                       allow="autoplay; encrypted-media; picture-in-picture"
+                      sandbox={SANDBOX_REPRODUCTOR}
                       sx={{
                         position: "fixed",
                         left: "-10000px",
@@ -1023,6 +1010,7 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                         src={kickIframeSrc}
                         title="Kick audio player"
                         allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                        sandbox={SANDBOX_REPRODUCTOR}
                         sx={{ position: "fixed", left: -10000, width: 1, height: 1, opacity: 0, pointerEvents: "none", border: "none" }}
                       />
                     )}

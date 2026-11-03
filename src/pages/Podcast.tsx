@@ -10,23 +10,12 @@ import {
   actualizarPodcast, crearPodcast, eliminarPodcast, listarMisPodcasts,
 } from "../services/podcast.service";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
+import { cloudinaryConfigurado, subirACloudinary } from "../utils/cloudinary";
 import { detectStreamingPlatform, getAutoplayStreamingEmbedUrl } from "../services/streaming-media";
+import { API_URL } from "../config/api";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
-
-async function uploadPodcastMedia(file: File): Promise<string> {
-  const body = new FormData();
-  body.append("file", file);
-  body.append("upload_preset", UPLOAD_PRESET);
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
-    method: "POST",
-    body,
-  });
-  if (!response.ok) throw new Error("No se pudo subir el archivo multimedia.");
-  const data = await response.json();
-  return data.secure_url as string;
+function uploadPodcastMedia(file: File): Promise<string> {
+  return subirACloudinary(file, "multimedia");
 }
 
 const emptyForm: PodcastEpisodePayload = {
@@ -194,10 +183,10 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
     setLiveSaving(true);
     setError("");
     try {
-      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
+      const headers = await getCachedAuthHeaders();
       const response = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers,
         body: JSON.stringify({ podcastUrl: liveUrl.trim(), podcastProvider: liveProvider, podcastImagenPortada: liveCover.trim() }),
       });
       if (!response.ok) throw new Error("No se pudo guardar la señal de Podcast.");
@@ -289,7 +278,7 @@ export default function Podcast({ perfil }: { perfil: Perfil }) {
       setErrorConScroll(`Seleccioná un archivo de ${expectedType === "audio" ? "audio" : "video"} compatible.`);
       return;
     }
-    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    if (!cloudinaryConfigurado()) {
       setErrorConScroll("Falta configurar el almacenamiento de archivos multimedia.");
       return;
     }

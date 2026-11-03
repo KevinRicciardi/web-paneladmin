@@ -1,13 +1,15 @@
-import { lazy, Suspense, useState, useEffect, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Box, CircularProgress } from "@mui/material";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import type { Perfil } from "./types";
-import { getCachedAuthHeaders } from "./services/authenticatedFetch";
+import { getCachedAuthHeaders, recordarTenantDelPerfil } from "./services/authenticatedFetch";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ErrorConexion from "./components/ErrorConexion";
 import { limpiarCachesDeSesion } from "./utils/sesion";
+import { API_URL } from "./config/api";
+import { puedeVerRuta } from "./utils/permisos";
 
 const Login = lazy(() => import("./pages/Login"));
 const Layout = lazy(() => import("./components/Layout"));
@@ -24,8 +26,12 @@ const GenerarApp = lazy(() => import("./pages/GenerarApp"));
 const SolicitudesApps = lazy(() => import("./pages/SolicitudesApps"));
 const Activate = lazy(() => import("./pages/Activate"));
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const ROLES_ADMIN = ["MEGA_ADMIN", "SUPER_ADMIN", "ADMIN"];
+
+// Una sección que no está en el menú de este admin vuelve al inicio.
+function Permitida({ perfil, ruta, children }: { perfil: Perfil; ruta: string; children: ReactNode }) {
+  return puedeVerRuta(perfil, ruta) ? children : <Navigate to="/" replace />;
+}
 
 function App() {
   const [perfil, setPerfil] = useState<Perfil | null>(null);
@@ -73,6 +79,7 @@ function App() {
         } else {
           setError("");
           setFalloServidor(false);
+          recordarTenantDelPerfil(data.tenant?.slug);
           setPerfil(data);
         }
       } catch (err) {
@@ -153,15 +160,15 @@ function App() {
               <Routes>
                 <Route element={<Layout perfil={perfil} />}>
                   <Route path="/" element={<Dashboard perfil={perfil} />} />
-                  <Route path="/branding" element={<Branding perfil={perfil} />} />
-                  <Route path="/streaming" element={<Streaming perfil={perfil} />} />
+                  <Route path="/branding" element={<Permitida perfil={perfil} ruta="/branding"><Branding perfil={perfil} /></Permitida>} />
+                  <Route path="/streaming" element={<Permitida perfil={perfil} ruta="/streaming"><Streaming perfil={perfil} /></Permitida>} />
                   <Route path="/podcast" element={<Navigate to="/streaming" replace />} />
-                  <Route path="/programacion" element={<Programacion />} />
-                  <Route path="/noticias" element={<Noticias />} />
-                  <Route path="/estadisticas" element={<Estadisticas />} />
-                  <Route path="/administradores" element={<Administradores perfil={perfil} />} />
-                  <Route path="/generar-app" element={<GenerarApp perfil={perfil} />} />
-                  <Route path="/solicitudes-apps" element={<SolicitudesApps />} />
+                  <Route path="/programacion" element={<Permitida perfil={perfil} ruta="/programacion"><Programacion /></Permitida>} />
+                  <Route path="/noticias" element={<Permitida perfil={perfil} ruta="/noticias"><Noticias /></Permitida>} />
+                  <Route path="/estadisticas" element={<Permitida perfil={perfil} ruta="/estadisticas"><Estadisticas /></Permitida>} />
+                  <Route path="/administradores" element={<Permitida perfil={perfil} ruta="/administradores"><Administradores perfil={perfil} /></Permitida>} />
+                  <Route path="/generar-app" element={<Permitida perfil={perfil} ruta="/generar-app"><GenerarApp perfil={perfil} /></Permitida>} />
+                  <Route path="/solicitudes-apps" element={<Permitida perfil={perfil} ruta="/solicitudes-apps"><SolicitudesApps /></Permitida>} />
                   <Route path="/configuracion" element={<Configuracion perfil={perfil} />} />
                   <Route path="/soporte" element={<Soporte perfil={perfil} />} />
                 </Route>

@@ -13,8 +13,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { getCachedAuthHeaders } from "../services/authenticatedFetch";
 import type { Perfil, Tenant } from "../types";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+import { API_URL } from "../config/api";
 
 export default function Configuracion({ perfil }: { perfil: Perfil }) {
   const [tenant, setTenant] = useState<Tenant>(perfil.tenant);
@@ -76,7 +75,7 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
       setError("");
       setSuccess("");
 
-      const token = (await getCachedAuthHeaders()).Authorization.slice("Bearer ".length);
+      const headers = await getCachedAuthHeaders();
       const payload = {
         nombre: formData.nombre.trim(),
         slug: formData.slug.trim(),
@@ -85,7 +84,7 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
 
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers,
         body: JSON.stringify(payload),
       });
 

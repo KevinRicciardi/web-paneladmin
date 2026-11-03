@@ -2,6 +2,22 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ThemeProvider, CssBaseline, createTheme } from "@mui/material";
 import App from "./App.tsx";
+import { API_URL } from "./config/api";
+
+// El primer pedido a la API sale recién cuando Firebase recupera la sesión.
+// Abriendo ya las conexiones (DNS + TLS) a la API y a Firebase, ese pedido
+// no paga el handshake.
+for (const origen of [API_URL, "https://securetoken.googleapis.com", "https://identitytoolkit.googleapis.com"]) {
+  try {
+    const link = document.createElement("link");
+    link.rel = "preconnect";
+    link.href = new URL(origen).origin;
+    link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+  } catch {
+    // Una URL mal configurada no puede frenar el arranque del panel.
+  }
+}
 
 const theme = createTheme({
   palette: {

@@ -1,3 +1,4 @@
+import { API_URL } from "../config/api";
 /**
  * Servicio para obtener datos en tiempo real del stream de Kick
  * Documentación de API: https://api.kick.com/docs
@@ -54,7 +55,6 @@ export async function getKickStreamData(channelName: string, token?: string): Pr
 }
 
 const AUDIO_URL_PATTERN = /(\.mp3|\.aac|\.m4a|\.ogg|\.wav|\.flac|\.opus|\.m3u8)(?:[?#].*)?$/i;
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 function isAudioUrl(value: unknown): value is string {
   if (typeof value !== 'string' || value.length === 0) return false;

@@ -36,6 +36,7 @@ import {
 } from "../services/schedule.service";
 import { useScrollAlAviso } from "../utils/useScrollAlAviso";
 import { claveCacheSesion } from "../utils/cacheSesion";
+import { cloudinaryConfigurado, subirACloudinary } from "../utils/cloudinary";
 import {
   ajustarFinAlCambiarInicio,
   avisoDeHorario,
@@ -95,9 +96,6 @@ const FORM_VACIO: ProgramaPayload = {
   horaFin: "12:00",
   activo: true,
 };
-
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
 
 const OPCIONES_HORAS = Array.from({ length: 48 }, (_, index) => {
   const horas = Math.floor(index / 2)
@@ -850,7 +848,7 @@ export default function Programacion() {
   };
 
   const aplicarImagenRecortada = async (file: File) => {
-    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    if (!cloudinaryConfigurado()) {
       setError("Faltan las credenciales de Cloudinary para subir la imagen.");
       return;
     }
@@ -860,26 +858,10 @@ export default function Programacion() {
     setSubiendoImagen(true);
 
     try {
-      const body = new FormData();
-      body.append("file", file);
-      body.append("upload_preset", UPLOAD_PRESET);
+      const url = await subirACloudinary(file);
 
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-        { method: "POST", body },
-      );
-
-      if (!response.ok) {
-        throw new Error("No se pudo subir la imagen a Cloudinary");
-      }
-
-      const data = (await response.json()) as { secure_url?: string };
-      if (!data.secure_url) {
-        throw new Error("Cloudinary no devolvió la URL de la imagen");
-      }
-
-      setForm((actual) => ({ ...actual, imagenUrl: data.secure_url! }));
-      setImagenPreview(data.secure_url);
+      setForm((actual) => ({ ...actual, imagenUrl: url }));
+      setImagenPreview(url);
       URL.revokeObjectURL(previewUrl);
     } catch (e) {
       URL.revokeObjectURL(previewUrl);

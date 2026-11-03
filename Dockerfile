@@ -3,7 +3,8 @@
 # archivos estáticos. Esta etapa se descarta al final, no
 # llega a producción.
 # ===========================================================
-FROM node:24-bookworm-slim AS builder
+# Imágenes fijadas por digest (Dependabot propone las actualizaciones).
+FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS builder
 
 WORKDIR /app
 
@@ -29,7 +30,9 @@ RUN npm run build
 # Etapa 2: "runtime" — nginx sirviendo los archivos estáticos.
 # No hace falta Node acá, el build ya está listo.
 # ===========================================================
-FROM nginx:alpine AS runtime
+# nginx sin root. Sigue escuchando en el 80: Docker (20.10+) deja que un
+# proceso sin root abra puertos bajos dentro del contenedor.
+FROM nginxinc/nginx-unprivileged:alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e AS runtime
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf

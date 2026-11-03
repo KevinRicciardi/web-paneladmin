@@ -1,4 +1,5 @@
 import type { KickStreamData } from "./kick.service";
+import { API_URL } from "../config/api";
 
 export type StreamProvider = "kick" | "youtube" | "twitch" | null;
 export type StreamData = Omit<KickStreamData, "viewerCount" | "duration"> & {
@@ -12,8 +13,11 @@ export type SignalStatus = {
   conectado: boolean;
 };
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const STREAM_DATA_CACHE_TTL_MS = 5_000;
+// Cada cuánto refrescan Dashboard y Streaming un vivo de Kick. Igual al
+// cache de arriba: consultar más seguido solo re-renderizaba la pantalla
+// con el mismo dato (antes era cada 1 s).
+export const INTERVALO_KICK_MS = STREAM_DATA_CACHE_TTL_MS;
 const streamDataCache = new Map<string, { data: StreamData | null; expiresAt: number }>();
 const streamDataRequests = new Map<string, Promise<StreamData | null>>();
 const streamDataVersions = new Map<string, number>();

@@ -1,0 +1,8 @@
+# Frena un commit que tenga credenciales (.env, claves de Firebase, tokens).
+# Instalación, una vez por máquina: `pip install pre-commit` y después
+# `pre-commit install` en la raíz del repo.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks

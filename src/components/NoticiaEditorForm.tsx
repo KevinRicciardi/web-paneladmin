@@ -13,13 +13,7 @@ import ImageCropDialog from "./ImageCropDialog";
 import NewsContentEditor from "./NewsContentEditor";
 import type { News, NewsStatus } from "../types";
 import { useErrorConScroll } from "../utils/useErrorConScroll";
-
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as
-  | string
-  | undefined;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as
-  | string
-  | undefined;
+import { subirACloudinary } from "../utils/cloudinary";
 
 export type NoticiaFormState = {
   title: string;
@@ -46,31 +40,6 @@ function formatDate(value?: string | null) {
 
 function statusLabel(status: NewsStatus) {
   return status === "published" ? "Publicado" : "Borrador";
-}
-
-async function subirACloudinary(file: File): Promise<string> {
-  if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error(
-      "Faltan VITE_CLOUDINARY_CLOUD_NAME y VITE_CLOUDINARY_UPLOAD_PRESET",
-    );
-  }
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", UPLOAD_PRESET);
-
-  const res = await fetch(
-    "https://api.cloudinary.com/v1_1/" + CLOUD_NAME + "/image/upload",
-    {
-      method: "POST",
-      body: formData,
-    },
-  );
-
-  if (!res.ok) throw new Error("No se pudo subir la imagen");
-
-  const data = await res.json();
-  return data.secure_url as string;
 }
 
 type NoticiaEditorFormProps = {

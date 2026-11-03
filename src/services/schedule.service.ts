@@ -1,7 +1,6 @@
 import { contextoDeCache, getCachedAuthHeaders as getAuthHeaders } from "./authenticatedFetch";
 import type { Programa, ProgramaPayload } from "../types";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+import { API_URL } from "../config/api";
 
 let listadoProgramacionEnCurso: Promise<Programa[]> | null = null;
 let listadoProgramacionCache: { contexto: string; data: Programa[]; expiresAt: number } | null = null;
@@ -12,7 +11,6 @@ export function limpiarCacheProgramacion() {
   listadoProgramacionCache = null;
   listadoProgramacionEnCurso = null;
 }
-
 
 async function parseResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {

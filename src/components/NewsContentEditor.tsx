@@ -1,5 +1,6 @@
 import { Box, Button } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
+import { limpiarContenidoNoticia } from "../utils/limpiarNoticia";
 
 type NewsContentEditorProps = {
   value: string;
@@ -13,9 +14,12 @@ export default function NewsContentEditor({ value, onChange, onUploadImage }: Ne
   const savedRangeRef = useRef<Range | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  // Mientras se escribe, value es lo mismo que ya tiene el editor y no se
+  // toca (así no salta el cursor). Solo se limpia lo que entra de afuera:
+  // la noticia que viene de la API.
   useEffect(() => {
     if (!editorRef.current || editorRef.current.innerHTML === value) return;
-    editorRef.current.innerHTML = value;
+    editorRef.current.innerHTML = limpiarContenidoNoticia(value);
   }, [value]);
 
   const saveSelection = () => {

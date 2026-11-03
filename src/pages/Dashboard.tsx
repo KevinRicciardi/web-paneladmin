@@ -6,7 +6,7 @@ import { listarMiProgramacion } from "../services/schedule.service";
 import { listarMisNoticias } from "../services/news.service";
 import type { Programa, News } from "../types";
 import { formatDuration, formatViewers } from "../services/kick.service";
-import { detectStreamProvider, getStreamData } from "../services/stream.service";
+import { detectStreamProvider, getStreamData, INTERVALO_KICK_MS } from "../services/stream.service";
 import type { StreamData } from "../services/stream.service";
 import { puedeVerSeccion } from "../utils/permisos";
 import { claveCacheSesion } from "../utils/cacheSesion";
@@ -110,7 +110,7 @@ export default function Dashboard({ perfil }: { perfil: Perfil }) {
         if (!streamInterval) {
           streamInterval = setInterval(() => {
             void fetchStreamData();
-          }, streamProvider === "kick" ? 1000 : 30_000);
+          }, streamProvider === "kick" ? INTERVALO_KICK_MS : 30_000);
         }
       } catch (e) {
         console.error(`Error fetching ${sourceLabel} data:`, e);

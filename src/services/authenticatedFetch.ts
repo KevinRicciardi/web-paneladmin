@@ -24,8 +24,18 @@ export function contextoDeCache(): string | null {
   return uid ? `${uid}:${tenantActivo()}` : null;
 }
 
+// Canal que está mostrando el panel (lo resuelve /me). Si el admin nunca
+// tocó el selector, tenantActivo() está vacío: igual se manda este, así cada
+// pedido dice a qué canal va. Sin el header, la API usa el canal "de origen"
+// del usuario: un MEGA_ADMIN que editaba otra marca guardaba en la suya.
+let tenantDelPerfil = "";
+
+export function recordarTenantDelPerfil(slug: string | null | undefined) {
+  tenantDelPerfil = slug ?? "";
+}
+
 function tenantHeader() {
-  const slug = tenantActivo();
+  const slug = tenantActivo() || tenantDelPerfil;
   const headers: Record<string, string> = {};
   if (slug) headers["X-Tenant-Slug"] = slug;
   return headers;
@@ -34,6 +44,7 @@ function tenantHeader() {
 export function limpiarTokenCache() {
   tokenCache = null;
   tokenRequest = null;
+  tenantDelPerfil = "";
 }
 
 export async function getCachedAuthHeaders() {

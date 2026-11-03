@@ -1,20 +1,9 @@
-import { auth } from "../firebase";
+import { getCachedAuthHeaders } from "./authenticatedFetch";
 import type { Tenant } from "../types";
+import { API_URL } from "../config/api";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
-
-async function getAuthHeaders() {
-  const token = await auth.currentUser?.getIdToken();
-
-  if (!token) {
-    throw new Error("No hay usuario autenticado");
-  }
-
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
+// Mismos headers que el resto del panel (token + canal elegido).
+const getAuthHeaders = getCachedAuthHeaders;
 
 async function parseResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
