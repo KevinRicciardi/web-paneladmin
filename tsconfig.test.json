@@ -1,0 +1,12 @@
+{
+  // Tests de Vitest: mismas reglas que el panel, más los tipos de Node.
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "types": ["vite/client", "node"]
+  },
+  // src/**/*.d.ts: declaraciones de módulos sin tipos (gifenc) que usa el
+  // código que importan los tests.
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.d.ts"],
+  "exclude": []
+}

@@ -115,8 +115,7 @@ describe("getCachedAuthHeaders", () => {
 // en la suya. Todo pedido autenticado tiene que usar getCachedAuthHeaders().
 describe("pedidos autenticados del panel", () => {
   const raiz = join(process.cwd(), "src");
-  // kick.service recibe el token para un GET que no depende del canal.
-  const permitidos = ["services/authenticatedFetch.ts", "services/kick.service.ts"];
+  const permitidos = ["services/authenticatedFetch.ts"];
 
   function archivos(carpeta: string): string[] {
     return readdirSync(carpeta).flatMap((nombre) => {

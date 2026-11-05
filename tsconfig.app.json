@@ -21,5 +21,8 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Los tests corren en Node y usan sus APIs (fs, path): se chequean con
+  // tsconfig.test.json, así el código del panel no ve los tipos de Node.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }
