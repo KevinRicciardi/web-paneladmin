@@ -77,19 +77,6 @@ export function extractYoutubeVideoId(url: string): string | null {
   }
 }
 
-export function extractTwitchChannelName(url: string): string | null {
-  try {
-    const parsed = new URL(url);
-    const hostname = parsed.hostname.toLowerCase();
-    if (hostname !== "twitch.tv" && !hostname.endsWith(".twitch.tv")) return null;
-    const channel = parsed.pathname.split("/").filter(Boolean)[0];
-    if (!channel || ["directory", "videos", "search", "downloads"].includes(channel.toLowerCase())) return null;
-    return channel;
-  } catch {
-    return null;
-  }
-}
-
 async function getTwitchStreamData(tenantSlug: string): Promise<StreamData | null> {
   const response = await fetch(
     `${API_URL}/tenants/${encodeURIComponent(tenantSlug)}/stream-info`,

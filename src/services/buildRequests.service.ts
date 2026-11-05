@@ -91,13 +91,6 @@ export async function listarSolicitudes(status?: string): Promise<BuildRequest[]
   return parseResponse<BuildRequest[]>(res);
 }
 
-export async function obtenerSolicitud(id: number): Promise<BuildRequest> {
-  const headers = await getAuthHeaders();
-
-  const res = await fetch(`${API_URL}/build-requests/${id}`, { headers });
-  return parseResponse<BuildRequest>(res);
-}
-
 export async function actualizarEstadoSolicitud(
   id: number,
   payload: ActualizarEstadoPayload,

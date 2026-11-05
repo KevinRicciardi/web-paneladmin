@@ -1,5 +1,4 @@
 import { getCachedAuthHeaders } from "./authenticatedFetch";
-import type { Tenant } from "../types";
 import { API_URL } from "../config/api";
 
 // Mismos headers que el resto del panel (token + canal elegido).
@@ -22,71 +21,6 @@ async function parseResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** Campos que acepta PATCH /tenants/mi-tenant */
-export interface BrandingPayload {
-  nombre?: string;
-  logoUrl?: string;
-  bannerUrl?: string;
-  fontFamily?: string;
-  streamUrl?: string;
-  streamProvider?: string;
-  tipoTransmision?: string;
-  imagenPortada?: string;
-
-  instagramUrl?: string;
-  youtubeUrl?: string;
-  tiktokUrl?: string;
-  facebookUrl?: string;
-  twitterUrl?: string;
-  linkedinUrl?: string;
-  whatsappUrl?: string;
-  supportEmail?: string;
-
-  colorPrimario?: string;
-  colorSecundario?: string;
-  colorFondo?: string;
-  colorCabecera?: string;
-  colorTexto?: string;
-
-  colorTextoCabecera?: string; // extra
-  colorBotones?: string; // extra
-  colorCardFondo?: string; // extra
-  colorIconos?: string; // extra
-
-  temasPersonalizados?: string;
-  
-  // Nuevos campos para Branding
-  websiteUrl?: string; // Enlace del sitio web
-  socialMediasJson?: string; // JSON con redes sociales seleccionadas
-  otherContentJson?: string; // JSON array con objetos {nombre, enlace}
-}
-
-/** GET /tenants — listado (público) */
-export async function listarTenants(): Promise<Tenant[]> {
-  const res = await fetch(`${API_URL}/tenants`);
-  return parseResponse<Tenant[]>(res);
-}
-
-/** GET /tenants/:slug — un tenant por slug (público) */
-export async function obtenerTenantPorSlug(slug: string): Promise<Tenant> {
-  const res = await fetch(`${API_URL}/tenants/${slug}`);
-  return parseResponse<Tenant>(res);
-}
-
-/** PATCH /tenants/mi-tenant — guarda el branding del admin logueado */
-export async function actualizarMiBranding(
-  payload: BrandingPayload,
-): Promise<Tenant> {
-  const headers = await getAuthHeaders();
-
-  const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
-    method: "PATCH",
-    headers,
-    body: JSON.stringify(payload),
-  });
-
-  return parseResponse<Tenant>(res);
-}
 /** PATCH /tenants/:id/slug — solo MEGA_ADMIN. Con el slug se arma la APK del tenant. */
 export async function cambiarSlugDeTenant(
   tenantId: number,

@@ -51,11 +51,6 @@ export interface Tenant {
   otherContentJson?: string | null; // JSON array con objetos {nombre, enlace}
 }
 
-export interface OtherContentItem {
-  nombre: string;
-  enlace: string;
-}
-
 export interface Perfil {
   id: number;
   email: string;
@@ -97,41 +92,7 @@ export interface NewsPayload {
   status: NewsStatus;
 }
 
-export type PodcastEpisodeStatus = "draft" | "published";
-
 export type PodcastPlatformType = "direct" | "youtube" | "twitch" | "kick" | "other";
-
-export interface PodcastEpisode {
-  id: number;
-  tenantId: number;
-  title: string;
-  description: string;
-  podcastName: string;
-  coverImageUrl?: string | null;
-  audioUrl?: string | null;
-  videoUrl?: string | null;
-  streamUrl?: string | null;
-  platformType?: PodcastPlatformType | null;
-  duration?: string | null;
-  publishedAt?: string | null;
-  status: PodcastEpisodeStatus;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PodcastEpisodePayload {
-  title: string;
-  description: string;
-  podcastName: string;
-  coverImageUrl?: string;
-  audioUrl?: string;
-  videoUrl?: string;
-  streamUrl?: string;
-  platformType?: PodcastPlatformType;
-  duration?: string;
-  publishedAt?: string;
-  status: PodcastEpisodeStatus;
-}
 
 export type DiasSemana = "LUN_VIE" | "SABADOS" | "DOMINGOS" | "TODOS" | "PERSONALIZADO" | "FECHA_ESPECIFICA";
 

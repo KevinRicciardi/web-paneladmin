@@ -1,7 +1,6 @@
-import { API_URL } from "../config/api";
 /**
- * Servicio para obtener datos en tiempo real del stream de Kick
- * Documentación de API: https://api.kick.com/docs
+ * Utilidades para el stream de Kick: nombre del canal y formato de los
+ * datos del vivo.
  */
 
 export interface KickStreamData {
@@ -37,58 +36,6 @@ export function extractKickChannelName(url: string): string | null {
     // URL inválida
   }
   return null;
-}
-
-/**
- * Obtiene datos del stream de Kick desde la API pública de Kick
- */
-export async function getKickStreamData(channelName: string, token?: string): Promise<KickStreamData | null> {
-  if (!channelName) return null;
-
-  try {
-    const audioUrl = await getKickAudioUrl(channelName, token);
-    return { isLive: Boolean(audioUrl), viewerCount: 0, duration: 0, title: "", thumbnail: "" };
-  } catch (error) {
-    console.error("Error fetching Kick stream data:", error);
-    return null;
-  }
-}
-
-const AUDIO_URL_PATTERN = /(\.mp3|\.aac|\.m4a|\.ogg|\.wav|\.flac|\.opus|\.m3u8)(?:[?#].*)?$/i;
-
-function isAudioUrl(value: unknown): value is string {
-  if (typeof value !== 'string' || value.length === 0) return false;
-  const trimmed = value.trim();
-  if (AUDIO_URL_PATTERN.test(trimmed)) return true;
-
-  try {
-    const parsed = new URL(trimmed);
-    const pathname = parsed.pathname.toLowerCase();
-    return pathname.endsWith('/hls') || pathname.endsWith('/stream') || pathname.endsWith('/playback');
-  } catch {
-    return false;
-  }
-}
-
-export async function getKickAudioUrl(channelName: string, token?: string): Promise<string | null> {
-  if (!channelName) return null;
-
-  const response = await fetch(
-    `${API_URL}/streams/kick-audio?channel=${encodeURIComponent(channelName)}`,
-    {
-      headers: { Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      cache: "no-store",
-    },
-  );
-  let data: { audioUrl?: unknown; code?: string; message?: string } = {};
-  try { data = await response.json() as typeof data; } catch { /* Respuesta sin JSON. */ }
-  if (!response.ok) {
-    const error = new Error(data.message || "No se pudo obtener la señal de Kick.");
-    (error as Error & { status?: number; code?: string }).status = response.status;
-    (error as Error & { status?: number; code?: string }).code = data.code;
-    throw error;
-  }
-  return typeof data.audioUrl === "string" && isAudioUrl(data.audioUrl) ? data.audioUrl : null;
 }
 
 /**
