@@ -4,6 +4,7 @@ import { signOut } from "firebase/auth";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
 import { precargarAdministradores } from "../services/administradores.service";
+import { elegirCanal } from "../services/authenticatedFetch";
 import { precargarEstadisticas } from "../services/analytics.service";
 import { precargarMisSolicitudes } from "../services/buildRequests.service";
 import type { Perfil } from "../types";
@@ -81,9 +82,8 @@ export default function Layout({ perfil }: { perfil: Perfil }) {
     && ["MEGA_ADMIN", "SUPER_ADMIN", "ADMIN"].includes(membership.rol),
   );
   const cambiarTenant = (slug: string) => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    window.localStorage.setItem(`pinnacle-tenant-slug:${uid}`, slug);
+    if (!auth.currentUser) return;
+    elegirCanal(slug);
     window.dispatchEvent(new Event("tenantContextChanged"));
   };
   const navItemsVisibles = navItemsBase.filter((item) => {

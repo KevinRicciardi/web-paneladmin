@@ -11,7 +11,8 @@ import {
 } from "@mui/material";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
-import { getCachedAuthHeaders } from "../services/authenticatedFetch";
+import { getCachedAuthHeaders, renombrarCanal } from "../services/authenticatedFetch";
+import { cambiarSlugDeTenant } from "../services/tenant.service";
 import type { Perfil, Tenant } from "../types";
 import { API_URL } from "../config/api";
 
@@ -27,6 +28,7 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const puedeCambiarSlug = perfil.rol === "MEGA_ADMIN";
 
   useEffect(() => {
     setTenant(perfil.tenant);
@@ -70,29 +72,45 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
   };
 
   const handleSave = async () => {
+    const slugNuevo = formData.slug.trim().toLowerCase();
+    const cambiaSlug = puedeCambiarSlug && slugNuevo !== tenant.slug;
+    let slugCambiado = false;
+
     try {
       setGuardando(true);
       setError("");
       setSuccess("");
 
-      const headers = await getCachedAuthHeaders();
-      const payload = {
-        nombre: formData.nombre.trim(),
-        slug: formData.slug.trim(),
-        streamUrl: formData.streamUrl.trim() || null,
-      };
+      // El slug no se guarda por /tenants/mi-tenant: la API lo ignoraba y
+      // la pantalla decía "actualizado" aunque no hubiera cambiado. Va por
+      // el endpoint propio (solo MEGA_ADMIN), y primero: si el formato no
+      // sirve, no se guarda nada.
+      if (cambiaSlug) {
+        const conSlug = await cambiarSlugDeTenant(tenant.id, slugNuevo);
+        renombrarCanal(tenant.slug, conSlug.slug);
+        slugCambiado = true;
+      }
 
+      // Solo el nombre: el link del stream es de la pantalla Streaming (y
+      // mandarlo exigía permiso de streaming a quien solo cambia el nombre).
       const res = await fetch(`${API_URL}/tenants/mi-tenant`, {
         method: "PATCH",
-        headers,
-        body: JSON.stringify(payload),
+        headers: await getCachedAuthHeaders(),
+        body: JSON.stringify({ nombre: formData.nombre.trim() }),
       });
 
       if (!res.ok) {
-        throw new Error("No se pudo guardar la información.");
+        let message = "No se pudo guardar el nombre.";
+        try {
+          const data = await res.json();
+          if (typeof data?.message === "string" && data.message.trim()) message = data.message;
+        } catch {
+          // La API puede responder sin un cuerpo JSON.
+        }
+        throw new Error(message);
       }
 
-      const updatedTenant = await res.json();
+      const updatedTenant: Tenant = await res.json();
       setTenant(updatedTenant);
       setFormData({
         nombre: updatedTenant.nombre,
@@ -101,16 +119,20 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
       });
       setSuccess("Perfil actualizado correctamente.");
       setIsEditing(false);
-      window.dispatchEvent(new CustomEvent("tenantUpdated", {
-        detail: {
-          nombre: updatedTenant.nombre,
-          slug: updatedTenant.slug,
-          streamUrl: updatedTenant.streamUrl ?? null,
-        },
-      }));
+      // Con el slug nuevo se vuelve a pedir el perfil entero: el selector de
+      // canales también tiene que mostrarlo.
+      window.dispatchEvent(new CustomEvent("tenantUpdated", slugCambiado
+        ? undefined
+        : { detail: { nombre: updatedTenant.nombre } }));
     } catch (err) {
       console.error(err);
-      setError("No se pudo guardar. Revisá los datos e intentá nuevamente.");
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "No se pudo guardar. Revisá los datos e intentá nuevamente.",
+      );
+      // El slug ya cambió aunque el nombre no: el panel vuelve a leer el canal.
+      if (slugCambiado) window.dispatchEvent(new CustomEvent("tenantUpdated"));
     } finally {
       setGuardando(false);
     }
@@ -142,8 +164,13 @@ export default function Configuracion({ perfil }: { perfil: Perfil }) {
               label="Slug"
               value={formData.slug}
               fullWidth
-              disabled={!isEditing}
+              disabled={!isEditing || !puedeCambiarSlug}
               onChange={(e) => handleChange("slug", e.target.value)}
+              helperText={
+                puedeCambiarSlug
+                  ? "Con el slug se arma la app del canal: si lo cambiás, las apps ya instaladas dejan de encontrarlo."
+                  : "Solo un MEGA_ADMIN puede cambiar el slug."
+              }
             />
           </Stack>
         </CardContent>

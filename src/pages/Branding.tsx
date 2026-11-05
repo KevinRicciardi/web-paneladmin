@@ -1,5 +1,11 @@
 import { memo, useRef, useState, useEffect } from "react";
 import { enlacesDelTenant, parsearTemas } from "../utils/temas";
+import {
+  ordenDeEnlaces,
+  type BrandingLinkKey,
+  type CustomLinkKey,
+  type SocialMediaKey,
+} from "../utils/redesSociales";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faFacebookF,
@@ -83,9 +89,6 @@ const CAMPOS: { key: keyof Colores; label: string; description?: string }[] = [
   { key: "borde",      label: "Color de Bordes" },
 ];
 
-type SocialMediaKey = "instagramUrl" | "youtubeUrl" | "tiktokUrl" | "facebookUrl" | "twitterUrl" | "linkedinUrl";
-type CustomLinkKey = `custom:${string}`;
-type BrandingLinkKey = SocialMediaKey | "websiteUrl" | CustomLinkKey;
 type OtherContentItem = { id: string; nombre: string; enlace: string };
 
 const SOCIAL_MEDIA_FIELDS: { key: SocialMediaKey; label: string }[] = [
@@ -114,39 +117,6 @@ const PREVIEW_SOCIAL_COLORS: Record<SocialMediaKey, string> = {
   twitterUrl: "#FFFFFF",
   linkedinUrl: "#0A66C2",
 };
-
-function normalizarOrdenRedes(
-  valor?: string | null,
-  incluirSitioWeb = false,
-  redesIniciales: SocialMediaKey[] = SOCIAL_MEDIA_FIELDS.map(({ key }) => key),
-): BrandingLinkKey[] {
-  const ordenPorDefecto: BrandingLinkKey[] = [
-    ...redesIniciales,
-    ...(incluirSitioWeb ? ["websiteUrl" as const] : []),
-  ];
-  if (!valor) return ordenPorDefecto;
-
-  try {
-    const parsed = JSON.parse(valor);
-    if (!Array.isArray(parsed)) return ordenPorDefecto;
-
-    const validas = [...new Set(parsed)].filter((key): key is BrandingLinkKey =>
-      key === "websiteUrl"
-      || (typeof key === "string" && key.startsWith("custom:"))
-      || SOCIAL_MEDIA_FIELDS.some((field) => field.key === key)
-    );
-    const redesPrincipales = SOCIAL_MEDIA_FIELDS.map(({ key }) => key);
-    const ordenCompleto = [
-      ...validas,
-      ...redesPrincipales.filter((key) => !validas.includes(key)),
-    ];
-    return incluirSitioWeb && !ordenCompleto.includes("websiteUrl")
-      ? [...ordenCompleto, "websiteUrl"]
-      : ordenCompleto;
-  } catch {
-    return ordenPorDefecto;
-  }
-}
 
 const EditorColor = memo(function EditorColor({
   value,
@@ -394,14 +364,9 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
   
   // Nuevos estados para Branding
   const [websiteUrl, setWebsiteUrl] = useState(t?.websiteUrl ?? "");
-  const [selectedSocialMedias, setSelectedSocialMedias] = useState<BrandingLinkKey[]>(() => {
-    const contenidoPersonalizado = cargarContenidoPersonalizado(t?.otherContentJson);
-    const orden = normalizarOrdenRedes(t?.socialMediasJson, Boolean(t?.websiteUrl));
-    const personalizadosEnOrden = contenidoPersonalizado
-      .map((item) => item.id as CustomLinkKey)
-      .filter((key) => !orden.includes(key));
-    return [...orden, ...personalizadosEnOrden];
-  });
+  const [selectedSocialMedias, setSelectedSocialMedias] = useState<BrandingLinkKey[]>(() =>
+    ordenDeEnlaces(t ?? {}, idsDeContenido(cargarContenidoPersonalizado(t?.otherContentJson))),
+  );
   const [socialMediaArrastrada, setSocialMediaArrastrada] = useState<BrandingLinkKey | null>(null);
   const [socialMediaDestino, setSocialMediaDestino] = useState<BrandingLinkKey | null>(null);
   const [socialMediaPosicion, setSocialMediaPosicion] = useState({ x: 0, y: 0 });
@@ -776,12 +741,12 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setLinkedinUrl(ultimoGuardado.linkedinUrl);
     setFontFamily(ultimoGuardado.fontFamily);
     setColores(ultimoGuardado.colores);
-    setWebsiteUrl((ultimoGuardado as any).websiteUrl ?? "");
-    setSelectedSocialMedias(normalizarOrdenRedes(
-      (ultimoGuardado as any).socialMediasJson,
-      Boolean((ultimoGuardado as any).websiteUrl)
-    ));
-    setOtherContentList(cargarContenidoPersonalizado((ultimoGuardado as any).otherContentJson));
+    setWebsiteUrl(ultimoGuardado.websiteUrl ?? "");
+    // Mismo orden que al entrar a la pantalla (antes acá se perdía el
+    // contenido personalizado de la lista).
+    const contenidoGuardado = cargarContenidoPersonalizado(ultimoGuardado.otherContentJson);
+    setSelectedSocialMedias(ordenDeEnlaces(ultimoGuardado, idsDeContenido(contenidoGuardado)));
+    setOtherContentList(contenidoGuardado);
     setSuccess(false);
     setError("");
   };
@@ -999,6 +964,13 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
     setSuccess(false);
   };
 
+  // Una red quitada ya no vuelve sola al recargar: se vuelve a sumar desde acá.
+  const redesParaAgregar = SOCIAL_MEDIA_FIELDS.filter(({ key }) => !selectedSocialMedias.includes(key));
+  const agregarRedSocial = (key: SocialMediaKey) => {
+    setSelectedSocialMedias((actual) => (actual.includes(key) ? actual : [...actual, key]));
+    setSuccess(false);
+  };
+
   const brandingLinkLabel = (key: BrandingLinkKey) =>
     key === "websiteUrl"
       ? "Página Web"
@@ -1204,6 +1176,26 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
                   );
                 })}
               </Box>
+              {redesParaAgregar.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                    Agregar red social
+                  </Typography>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    {redesParaAgregar.map(({ key, label }) => (
+                      <Button
+                        key={key}
+                        size="small"
+                        variant="outlined"
+                        onClick={() => agregarRedSocial(key)}
+                        startIcon={<span className="material-symbols-outlined">add</span>}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </Box>
+                </Box>
+              )}
             </CardContent>
           </Card>
 
@@ -2155,6 +2147,10 @@ export default function Branding({ perfil }: { perfil: Perfil }) {
       </Dialog>
     </Box>
   );
+}
+
+function idsDeContenido(contenido: OtherContentItem[]): CustomLinkKey[] {
+  return contenido.map((item) => item.id as CustomLinkKey);
 }
 
 function cargarContenidoPersonalizado(valor?: string | null): OtherContentItem[] {

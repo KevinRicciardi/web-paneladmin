@@ -26,6 +26,7 @@ import {
   listarSolicitudes,
 } from "../services/buildRequests.service";
 import { cambiarSlugDeTenant } from "../services/tenant.service";
+import { renombrarCanal } from "../services/authenticatedFetch";
 
 // Mismo formato que valida la API y el script que genera la APK.
 const FORMATO_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -450,6 +451,9 @@ function EditorSlug({
 
     try {
       const tenant = await cambiarSlugDeTenant(tenantId, normalizado);
+      // Si es el canal que muestra el panel, los pedidos siguientes van al
+      // slug nuevo (con el viejo, la API ya no lo encuentra).
+      renombrarCanal(slug, tenant.slug);
       setEditando(false);
       onCambiado(tenant.slug);
     } catch (err) {

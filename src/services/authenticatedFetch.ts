@@ -5,15 +5,74 @@ let tokenRequest: Promise<string> | null = null;
 const TOKEN_CACHE_DURATION = 50_000;
 const TENANT_STORAGE_KEY = "pinnacle-tenant-slug";
 
-/// Canal elegido en el selector del panel ("" = el de siempre del usuario).
-export function tenantActivo(): string {
+function claveDelSelector(): string | null {
   const uid = auth.currentUser?.uid;
-  if (typeof window === "undefined" || !uid) return "";
+  if (typeof window === "undefined" || !uid) return null;
+  return `${TENANT_STORAGE_KEY}:${uid}`;
+}
+
+/// Canal elegido en el selector del panel ("" = el de siempre del usuario).
+/// Está en localStorage, que comparten TODAS las pestañas: solo sirve para
+/// saber qué canal pedirle a /me al abrir el panel o al cambiar de canal.
+function tenantElegidoEnSelector(): string {
+  const clave = claveDelSelector();
+  if (!clave) return "";
   try {
-    return window.localStorage.getItem(`${TENANT_STORAGE_KEY}:${uid}`) ?? "";
+    return window.localStorage.getItem(clave) ?? "";
   } catch {
     return "";
   }
+}
+
+/// Guarda el canal elegido en el selector. "" vuelve al de siempre.
+export function elegirCanal(slug: string) {
+  const clave = claveDelSelector();
+  if (!clave) return;
+  try {
+    if (slug) window.localStorage.setItem(clave, slug);
+    else window.localStorage.removeItem(clave);
+  } catch {
+    // Sin localStorage: el canal elegido dura lo que la pestaña.
+  }
+}
+
+// Canal que muestra ESTA pestaña (lo resuelve /me). Va en cada pedido: los
+// formularios se llenan con los datos de este canal, así que lo que se guarda
+// tiene que ir a este mismo canal. Antes se leía el selector de localStorage
+// en cada pedido: con dos pestañas abiertas, elegir otro canal en una hacía
+// que la otra guardara la marca que tenía en pantalla (nombre, logo, colores)
+// encima del canal recién elegido, y quedaban dos marcas con el mismo nombre.
+// Sin el header, la API usa el canal "de origen" del usuario.
+let tenantDelPerfil = "";
+
+export function recordarTenantDelPerfil(slug: string | null | undefined) {
+  tenantDelPerfil = slug ?? "";
+}
+
+// Mientras /me no respondió (al abrir el panel, o al cambiar de canal, que
+// borra el de antes con limpiarTokenCache) se pide el elegido en el selector.
+function canalDeLosPedidos(): string {
+  return tenantDelPerfil || tenantElegidoEnSelector();
+}
+
+/// Un MEGA_ADMIN le cambió el slug a un canal. Si es el que muestra el panel,
+/// los pedidos siguientes van al slug nuevo: con el viejo la API responde
+/// "Tenant no encontrado" y ya no se guardaba nada en ninguna pantalla.
+export function renombrarCanal(anterior: string, nuevo: string) {
+  if (!anterior || !nuevo || anterior === nuevo) return;
+  if (tenantDelPerfil === anterior) tenantDelPerfil = nuevo;
+  if (tenantElegidoEnSelector() === anterior) elegirCanal(nuevo);
+}
+
+/// El canal elegido ya no existe (le cambiaron el slug desde otra sesión, o
+/// lo borraron): se olvida para volver al de siempre. Sin esto el panel
+/// quedaba pidiendo un slug inexistente y no se podía entrar ni volviendo a
+/// iniciar sesión. Devuelve si había uno elegido.
+export function olvidarCanalElegido(): boolean {
+  const habia = Boolean(canalDeLosPedidos());
+  tenantDelPerfil = "";
+  elegirCanal("");
+  return habia;
 }
 
 /// "Este usuario en este canal": separa los caches. Solo con el uid, al
@@ -21,21 +80,11 @@ export function tenantActivo(): string {
 /// canal anterior, porque el usuario es el mismo.
 export function contextoDeCache(): string | null {
   const uid = auth.currentUser?.uid;
-  return uid ? `${uid}:${tenantActivo()}` : null;
-}
-
-// Canal que está mostrando el panel (lo resuelve /me). Si el admin nunca
-// tocó el selector, tenantActivo() está vacío: igual se manda este, así cada
-// pedido dice a qué canal va. Sin el header, la API usa el canal "de origen"
-// del usuario: un MEGA_ADMIN que editaba otra marca guardaba en la suya.
-let tenantDelPerfil = "";
-
-export function recordarTenantDelPerfil(slug: string | null | undefined) {
-  tenantDelPerfil = slug ?? "";
+  return uid ? `${uid}:${canalDeLosPedidos()}` : null;
 }
 
 function tenantHeader() {
-  const slug = tenantActivo() || tenantDelPerfil;
+  const slug = canalDeLosPedidos();
   const headers: Record<string, string> = {};
   if (slug) headers["X-Tenant-Slug"] = slug;
   return headers;

@@ -6,7 +6,15 @@ vi.mock("../firebase", () => ({
   auth: { currentUser: { uid: "uid-1", getIdToken: async () => "token-1" } },
 }));
 
-import { getCachedAuthHeaders, limpiarTokenCache, recordarTenantDelPerfil } from "./authenticatedFetch";
+import {
+  contextoDeCache,
+  elegirCanal,
+  getCachedAuthHeaders,
+  limpiarTokenCache,
+  olvidarCanalElegido,
+  recordarTenantDelPerfil,
+  renombrarCanal,
+} from "./authenticatedFetch";
 
 describe("getCachedAuthHeaders", () => {
   beforeEach(() => limpiarTokenCache());
@@ -27,6 +35,78 @@ describe("getCachedAuthHeaders", () => {
     const headers = await getCachedAuthHeaders();
 
     expect(headers).not.toHaveProperty("X-Tenant-Slug");
+  });
+
+  describe("con el selector de canal (localStorage, compartido entre pestañas)", () => {
+    const selector = new Map<string, string>();
+    const elegirEnOtraPestana = (slug: string) => selector.set("pinnacle-tenant-slug:uid-1", slug);
+
+    beforeEach(() => {
+      selector.clear();
+      vi.stubGlobal("window", {
+        localStorage: {
+          getItem: (clave: string) => selector.get(clave) ?? null,
+          setItem: (clave: string, valor: string) => selector.set(clave, valor),
+          removeItem: (clave: string) => selector.delete(clave),
+        },
+      });
+      return () => vi.unstubAllGlobals();
+    });
+
+    // Regresión: un MEGA_ADMIN le cambiaba el slug al canal que tenía
+    // elegido y desde ahí todo guardado respondía "Tenant no encontrado".
+    it("si le cambian el slug al canal elegido, los pedidos van al slug nuevo", async () => {
+      elegirCanal("radio-vieja");
+      recordarTenantDelPerfil("radio-vieja");
+
+      renombrarCanal("radio-vieja", "radio-nueva");
+
+      expect(await getCachedAuthHeaders()).toMatchObject({ "X-Tenant-Slug": "radio-nueva" });
+      expect(selector.get("pinnacle-tenant-slug:uid-1")).toBe("radio-nueva");
+    });
+
+    it("renombrar otro canal no cambia el que muestra el panel", async () => {
+      elegirCanal("marcos");
+      recordarTenantDelPerfil("marcos");
+
+      renombrarCanal("radio-xyz", "radio-abc");
+
+      expect(await getCachedAuthHeaders()).toMatchObject({ "X-Tenant-Slug": "marcos" });
+      expect(selector.get("pinnacle-tenant-slug:uid-1")).toBe("marcos");
+    });
+
+    it("olvidar el canal elegido vuelve al de siempre (sin header)", async () => {
+      elegirCanal("ya-no-existe");
+      recordarTenantDelPerfil("ya-no-existe");
+
+      expect(olvidarCanalElegido()).toBe(true);
+      expect(await getCachedAuthHeaders()).not.toHaveProperty("X-Tenant-Slug");
+      // Sin nada elegido no hay nada que olvidar: App no reintenta en bucle.
+      expect(olvidarCanalElegido()).toBe(false);
+    });
+
+    // Regresión: la pestaña que mostraba "marcos" guardaba su branding
+    // (nombre incluido) en el canal que otra pestaña acababa de elegir.
+    it("guarda en el canal que muestra esta pestaña aunque otra pestaña elija otro", async () => {
+      recordarTenantDelPerfil("marcos");
+      elegirEnOtraPestana("radio-xyz");
+
+      const headers = await getCachedAuthHeaders();
+
+      expect(headers).toMatchObject({ "X-Tenant-Slug": "marcos" });
+      expect(contextoDeCache()).toBe("uid-1:marcos");
+    });
+
+    it("al cambiar de canal, /me pide el elegido en el selector", async () => {
+      recordarTenantDelPerfil("marcos");
+      // Es lo que hace App al cambiar de canal (limpiarCachesDeSesion).
+      limpiarTokenCache();
+      elegirEnOtraPestana("radio-xyz");
+
+      const headers = await getCachedAuthHeaders();
+
+      expect(headers).toMatchObject({ "X-Tenant-Slug": "radio-xyz" });
+    });
   });
 });
 

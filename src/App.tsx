@@ -4,7 +4,11 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Box, CircularProgress } from "@mui/material";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import type { Perfil } from "./types";
-import { getCachedAuthHeaders, recordarTenantDelPerfil } from "./services/authenticatedFetch";
+import {
+  getCachedAuthHeaders,
+  olvidarCanalElegido,
+  recordarTenantDelPerfil,
+} from "./services/authenticatedFetch";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ErrorConexion from "./components/ErrorConexion";
 import { limpiarCachesDeSesion } from "./utils/sesion";
@@ -58,10 +62,16 @@ function App() {
       }
       uidActualRef.current = currentUser.uid;
       try {
-        const headers = await getCachedAuthHeaders();
-        const res = await fetch(`${API_URL}/me`, {
-          headers,
+        let res = await fetch(`${API_URL}/me`, {
+          headers: await getCachedAuthHeaders(),
         });
+        // El canal elegido ya no existe (le cambiaron el slug o lo borraron):
+        // se vuelve al canal de siempre en vez de quedar trabado en el error.
+        if (res.status === 404 && olvidarCanalElegido()) {
+          res = await fetch(`${API_URL}/me`, {
+            headers: await getCachedAuthHeaders(),
+          });
+        }
         // Solo un 401/403 significa "esta sesión no sirve". Un 5xx o un corte
         // de red no: ahí se mantiene la sesión y se muestra "Reintentar".
         if (res.status === 401 || res.status === 403) {
@@ -107,7 +117,15 @@ function App() {
           // así la UI no se sobrescribe si el backend no persiste el cambio.
           setPerfil((prev) => {
             if (!prev) return prev;
-            return { ...prev, tenant: { ...prev.tenant, ...ce.detail } } as Perfil;
+            // El selector de canales lee el nombre de las membresías: sin
+            // esto seguía mostrando el nombre viejo hasta recargar.
+            const nombre = typeof ce.detail.nombre === "string" ? ce.detail.nombre : undefined;
+            const membresias = nombre === undefined
+              ? prev.membresias
+              : prev.membresias?.map((item) => item.tenantId === prev.tenant.id
+                ? { ...item, tenant: { ...item.tenant, nombre } }
+                : item);
+            return { ...prev, membresias, tenant: { ...prev.tenant, ...ce.detail } } as Perfil;
           });
           return;
         }
@@ -158,7 +176,11 @@ function App() {
               <Login error={error} />
             ) : (
               <Routes>
-                <Route element={<Layout perfil={perfil} />}>
+                {/* key: si cambia el canal que se muestra, las pantallas se
+                    arman de nuevo. Los formularios toman sus valores al
+                    abrirse; sin esto podían quedar con los datos del canal
+                    anterior y guardarlos en el nuevo. */}
+                <Route element={<Layout key={perfil.tenant?.id} perfil={perfil} />}>
                   <Route path="/" element={<Dashboard perfil={perfil} />} />
                   <Route path="/branding" element={<Permitida perfil={perfil} ruta="/branding"><Branding perfil={perfil} /></Permitida>} />
                   <Route path="/streaming" element={<Permitida perfil={perfil} ruta="/streaming"><Streaming perfil={perfil} /></Permitida>} />
