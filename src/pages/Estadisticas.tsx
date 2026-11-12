@@ -13,6 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { Estadisticas as EstadisticasData, PeriodoEstadisticas } from "../types";
+import { textoDeDescargas } from "../utils/descargas";
 import {
   estadisticasEnCache,
   obtenerEstadisticas,
@@ -221,13 +222,13 @@ export default function Estadisticas() {
             >
               <KpiCard
                 icon="download"
-                label="Descargas"
+                label="Descargas (Play Store)"
                 value={datos.kpis.descargas.toLocaleString("es-AR")}
-                hint={
-                  datos.kpis.descargas > 0 || datos.kpis.descargasVariacion !== 0
-                    ? `${datos.kpis.descargasVariacion >= 0 ? "+" : ""}${datos.kpis.descargasVariacion}% vs. período anterior`
-                    : "Sin descargas en el período anterior"
-                }
+                hint={textoDeDescargas({
+                  descargas: datos.kpis.descargas,
+                  variacion: datos.kpis.descargasVariacion,
+                  otrasInstalaciones: datos.kpis.otrasInstalaciones,
+                })}
               />
               <KpiCard
                 icon="group"
@@ -255,7 +256,7 @@ export default function Estadisticas() {
                 </Box>
 
                 {barras.length === 0 ? (
-                  <EstadoVacio icono="bar_chart" texto="Todavía no hay descargas registradas en este período." />
+                  <EstadoVacio icono="bar_chart" texto="Todavía no hay descargas de Google Play registradas en este período." />
                 ) : (
                   <Box
                     sx={{

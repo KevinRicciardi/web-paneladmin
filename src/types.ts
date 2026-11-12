@@ -131,8 +131,12 @@ export interface ProgramaPayload {
 export type PeriodoEstadisticas = "7d" | "30d" | "90d";
 
 export interface EstadisticasKpis {
+  // Solo las instalaciones que bajó Google Play.
   descargas: number;
   descargasVariacion: number;
+  // Instalaciones por otro medio (APK directo, pruebas, anteriores sin dato).
+  // Opcional: una API anterior a este campo no lo manda.
+  otrasInstalaciones?: number;
   usuariosActivos: number;
   usuariosAndroid: number;
   // Opcional: una API anterior a este campo no lo manda.
