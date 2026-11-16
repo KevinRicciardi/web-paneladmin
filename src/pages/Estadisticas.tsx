@@ -227,8 +227,14 @@ export default function Estadisticas() {
                 hint={textoDeDescargas({
                   descargas: datos.kpis.descargas,
                   variacion: datos.kpis.descargasVariacion,
-                  otrasInstalaciones: datos.kpis.otrasInstalaciones,
+                  // Las de fuera de Play Store tienen su propia tarjeta.
                 })}
+              />
+              <KpiCard
+                icon="install_mobile"
+                label="Otras instalaciones"
+                value={(datos.kpis.otrasInstalaciones ?? 0).toLocaleString("es-AR")}
+                hint="Fuera de Play Store: APK directo, pruebas del equipo o versiones viejas de la app"
               />
               <KpiCard
                 icon="group"
@@ -241,11 +247,7 @@ export default function Estadisticas() {
                 label="Usuarios Android"
                 value={datos.kpis.usuariosAndroid.toLocaleString("es-AR")}
               />
-              <KpiCard
-                icon="phone_iphone"
-                label="Usuarios iOS"
-                value={(datos.kpis.usuariosIos ?? 0).toLocaleString("es-AR")}
-              />
+              {/* "Usuarios iOS" se sacó mientras no haya app para iPhone; la API sigue mandando usuariosIos. */}
             </Box>
 
             {/* Descargas en el tiempo */}
@@ -255,7 +257,7 @@ export default function Estadisticas() {
                   <SectionHeader icon="trending_up">Descargas en el tiempo</SectionHeader>
                 </Box>
 
-                {barras.length === 0 ? (
+                {barras.every((b) => b.valor === 0) ? (
                   <EstadoVacio icono="bar_chart" texto="Todavía no hay descargas de Google Play registradas en este período." />
                 ) : (
                   <Box
@@ -272,15 +274,31 @@ export default function Estadisticas() {
                         key={`${barra.etiqueta}-${index}`}
                         sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}
                       >
-                        <Box sx={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
+                        <Box
+                          sx={{
+                            flex: 1,
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "flex-end",
+                            alignItems: "center",
+                            width: "100%",
+                          }}
+                        >
+                          {barra.valor > 0 && (
+                            <Typography variant="caption" sx={{ fontWeight: 800, mb: 0.5 }}>
+                              {barra.valor.toLocaleString("es-AR")}
+                            </Typography>
+                          )}
                           <Box
                             sx={{
                               width: "100%",
+                              maxWidth: 56,
                               borderRadius: "6px 6px 0 0",
-                              bgcolor: "primary.main",
-                              opacity: 0.85,
-                              height: `${(barra.valor / maxBarra) * 100}%`,
-                              minHeight: 4,
+                              bgcolor: barra.valor > 0 ? "primary.main" : "divider",
+                              opacity: barra.valor > 0 ? 0.85 : 1,
+                              // El espacio de arriba queda para el número.
+                              height: barra.valor > 0 ? `${(barra.valor / maxBarra) * 85}%` : 3,
+                              minHeight: barra.valor > 0 ? 6 : 3,
                               transition: "height 200ms ease",
                             }}
                           />
