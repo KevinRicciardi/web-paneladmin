@@ -28,6 +28,18 @@ const theme = createTheme({
     button: { textTransform: 'none' },
   },
   components: {
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: "#000",
+          backgroundImage: "none",
+          color: "#f4f4f5",
+          border: "1px solid #27272a",
+          borderRadius: 24,
+          boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
+        },
+      },
+    },
     MuiCard: {
       styleOverrides: {
         root: {
