@@ -56,7 +56,24 @@ function ErrorSnackbar({ error, onClose }: { error: string; onClose: () => void 
   );
 }
 
-function validarAssets(publishInfo: BuildRequestPublishInfoPayload): string {
+// Mismo criterio que la API: un link https:// a una página pública.
+function esLinkWebValido(valor: string): boolean {
+  try {
+    const url = new URL(valor.trim());
+    return url.protocol === "https:" && url.hostname.includes(".");
+  } catch {
+    return false;
+  }
+}
+
+function validarPublicacion(publishInfo: BuildRequestPublishInfoPayload): string {
+  if (!esLinkWebValido(publishInfo.privacyPolicyUrl)) {
+    return "La política de privacidad tiene que ser el link de una página web que empiece con https:// (por ejemplo https://tusitio.com/privacidad). No se puede subir un PDF: publicalo en tu web o en Google Drive y pegá acá el link.";
+  }
+  const sitioWeb = publishInfo.websiteUrl?.trim() ?? "";
+  if (sitioWeb && !esLinkWebValido(sitioWeb)) {
+    return "El sitio web tiene que ser un link que empiece con https:// (por ejemplo https://tusitio.com), o dejalo vacío.";
+  }
   if (!publishInfo.iconUrl) return "Falta el ícono de la app";
   if (!publishInfo.featureGraphicUrl) return "Falta la imagen destacada";
   if (publishInfo.screenshotUrls.length < MIN_SCREENSHOTS) {
@@ -314,7 +331,7 @@ function ReenvioSolicitud({
   const [error, setError] = useState("");
 
   const reenviar = async () => {
-    const errorAssets = validarAssets(publishInfo);
+    const errorAssets = validarPublicacion(publishInfo);
     if (errorAssets) {
       setError(errorAssets);
       return;
@@ -367,7 +384,7 @@ function NuevaSolicitud({ onCreada }: { onCreada: () => void }) {
   const [error, setError] = useState("");
 
   const enviar = async () => {
-    const errorAssets = validarAssets(publishInfo);
+    const errorAssets = validarPublicacion(publishInfo);
     if (errorAssets) {
       setError(errorAssets);
       return;
@@ -443,8 +460,16 @@ function FormularioPublishInfo({
         <TextField label="Nombre del desarrollador/empresa" value={value.developerName} onChange={(e) => setField("developerName", e.target.value)} fullWidth required />
         <TextField label="Correo de contacto" type="email" value={value.contactEmail} onChange={(e) => setField("contactEmail", e.target.value)} fullWidth required />
         <TextField label="Correo de soporte" type="email" value={value.supportEmail} onChange={(e) => setField("supportEmail", e.target.value)} fullWidth required />
-        <TextField label="Sitio web (opcional)" value={value.websiteUrl} onChange={(e) => setField("websiteUrl", e.target.value)} fullWidth />
-        <TextField label="Política de privacidad" value={value.privacyPolicyUrl} onChange={(e) => setField("privacyPolicyUrl", e.target.value)} fullWidth required />
+        <TextField label="Sitio web (opcional)" placeholder="https://tusitio.com" value={value.websiteUrl} onChange={(e) => setField("websiteUrl", e.target.value)} fullWidth />
+        <TextField
+          label="Link de la política de privacidad"
+          placeholder="https://tusitio.com/privacidad"
+          helperText="Google Play lo exige: el link a una página web con la política de privacidad de la app. Si la tenés en PDF, subila a tu web o a Google Drive (compartida con cualquiera que tenga el link) y pegá ese link."
+          value={value.privacyPolicyUrl}
+          onChange={(e) => setField("privacyPolicyUrl", e.target.value)}
+          fullWidth
+          required
+        />
         <TextField label="Categoría" value={value.category} onChange={(e) => setField("category", e.target.value)} fullWidth required />
         <TextField label="Público objetivo (opcional)" placeholder="Ej: Todos, +18" value={value.targetAudience} onChange={(e) => setField("targetAudience", e.target.value)} fullWidth />
       </Box>
