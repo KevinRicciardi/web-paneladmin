@@ -1242,10 +1242,10 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
         maxWidth="lg"
         fullWidth
         aria-label="Vista previa ampliada del stream"
-        slotProps={ {
+        slotProps={{
           backdrop: { sx: { bgcolor: "rgba(0, 0, 0, 0.88)" } },
-          paper: { sx: { bgcolor: "transparent", boxShadow: "none", overflow: "visible" } },
-        } }
+          paper: { sx: { overflow: "visible" } },
+        }}
       >
         <DialogContent sx={ { p: { xs: 1, sm: 2 }, position: "relative", overflow: "visible" } }>
           {previewEmbedUrl && (

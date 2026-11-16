@@ -49,6 +49,7 @@ type NoticiaEditorFormProps = {
   onGuardar: (status: NewsStatus, form: NoticiaFormState) => Promise<News>;
   onGuardado?: (noticia: News) => void;
   onCancelar?: () => void;
+  puedeGuardar?: boolean;
 };
 
 // Formulario del "Redactor" — autocontenido, se usa dos veces:
@@ -61,10 +62,13 @@ export default function NoticiaEditorForm({
   onGuardar,
   onGuardado,
   onCancelar,
+  puedeGuardar = true,
 }: NoticiaEditorFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<NoticiaFormState>(initial ?? EMPTY_FORM);
+  const initialRef = useRef<NoticiaFormState>(initial ?? EMPTY_FORM);
+  const camposModificadosRef = useRef(new Set<keyof NoticiaFormState>());
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const { error, setError, avisoRef } = useErrorConScroll();
@@ -79,7 +83,27 @@ export default function NoticiaEditorForm({
     return () => window.clearTimeout(timer);
   }, [success]);
 
+  useEffect(() => {
+    if (!initial) return;
+
+    const anterior = initialRef.current;
+    initialRef.current = initial;
+    if (
+      anterior.title === initial.title &&
+      anterior.coverImageUrl === initial.coverImageUrl &&
+      anterior.content === initial.content
+    ) return;
+
+    // Completa el detalle remoto sin pisar campos que el usuario ya editó.
+    setForm((actual) => ({
+      title: camposModificadosRef.current.has("title") ? actual.title : initial.title,
+      coverImageUrl: camposModificadosRef.current.has("coverImageUrl") ? actual.coverImageUrl : initial.coverImageUrl,
+      content: camposModificadosRef.current.has("content") ? actual.content : initial.content,
+    }));
+  }, [initial]);
+
   const setField = (field: keyof NoticiaFormState, value: string) => {
+    camposModificadosRef.current.add(field);
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -344,7 +368,7 @@ export default function NoticiaEditorForm({
         <Button
           variant="outlined"
           fullWidth
-          disabled={saving || uploading}
+          disabled={saving || uploading || !puedeGuardar}
           onClick={() => guardar("draft")}
         >
           {saving ? "Guardando..." : "Guardar borrador"}
@@ -353,7 +377,7 @@ export default function NoticiaEditorForm({
         <Button
           variant="contained"
           fullWidth
-          disabled={saving || uploading}
+          disabled={saving || uploading || !puedeGuardar}
           onClick={() => guardar("published")}
         >
           {saving ? "Publicando..." : "Publicar ahora"}

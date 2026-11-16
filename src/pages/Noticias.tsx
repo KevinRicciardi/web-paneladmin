@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Backdrop,
@@ -77,6 +77,9 @@ function statusColor(status: NewsStatus) {
 export default function Noticias() {
   const [noticias, setNoticias] = useState<News[]>([]);
   const [editando, setEditando] = useState<News | null>(null);
+  const solicitudEditorRef = useRef(0);
+  const [detalleCompleto, setDetalleCompleto] = useState(false);
+  const [errorEditor, setErrorEditor] = useState("");
 
   const [search, setSearch] = useState("");
 
@@ -91,12 +94,33 @@ export default function Noticias() {
   const [redactorExpandido, setRedactorExpandido] = useState(false);
 
   const abrirEditor = async (news: News) => {
+    const solicitud = ++solicitudEditorRef.current;
+    setEditando(news);
+    setErrorEditor("");
+    setDetalleCompleto(typeof news.content === "string");
+
+    if (typeof news.content === "string") {
+      return;
+    }
+
     try {
       const detail = await obtenerMiNoticia(news.id);
-      setEditando(detail);
+      if (solicitud === solicitudEditorRef.current) {
+        setEditando(detail);
+        setDetalleCompleto(true);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo abrir la noticia");
+      if (solicitud === solicitudEditorRef.current) {
+        setErrorEditor(err instanceof Error ? err.message : "No se pudo cargar el contenido de la noticia");
+      }
     }
+  };
+
+  const cerrarEditor = () => {
+    solicitudEditorRef.current += 1;
+    setEditando(null);
+    setDetalleCompleto(false);
+    setErrorEditor("");
   };
 
   const filteredNews = useMemo(() => {
@@ -121,9 +145,11 @@ export default function Noticias() {
       const cached = sessionStorage.getItem(clave);
       if (cached) {
         const parsed = JSON.parse(cached) as News[];
-        if (parsed.length > 0) {
+        if (parsed.length > 0 && parsed.every((noticia) => typeof noticia.content === "string")) {
           setNoticias(parsed);
           hasCache = true;
+        } else if (parsed.length > 0) {
+          sessionStorage.removeItem(clave);
         }
       }
     } catch {
@@ -536,6 +562,10 @@ export default function Noticias() {
                 width: "min(900px, calc(100vw - 32px))",
                 maxHeight: "94vh",
                 overflow: "auto",
+                bgcolor: "#000",
+                borderColor: "#27272a",
+                borderRadius: 3,
+                boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
               }),
             }}
           >
@@ -586,19 +616,34 @@ export default function Noticias() {
           se "pisa" con lo que se esté editando. */}
       <Dialog
         open={Boolean(editando)}
-        onClose={() => setEditando(null)}
+        onClose={cerrarEditor}
         fullWidth
         maxWidth="md"
-        slotProps={{ paper: { sx: { bgcolor: "#161616", borderColor: "divider" } } }}
       >
         <DialogTitle sx={{ fontWeight: 900 }}>
           Editar noticia
         </DialogTitle>
         <DialogContent>
+          {errorEditor && (
+            <Alert
+              severity="error"
+              action={
+                editando && (
+                  <Button color="inherit" size="small" onClick={() => void abrirEditor(editando)}>
+                    Reintentar
+                  </Button>
+                )
+              }
+              sx={{ mb: 2 }}
+            >
+              {errorEditor}
+            </Alert>
+          )}
           {editando && (
             <NoticiaEditorForm
               key={editando.id}
               modo="editar"
+              puedeGuardar={detalleCompleto}
               initial={{
                 title: editando.title,
                 coverImageUrl: editando.coverImageUrl ?? "",
@@ -619,9 +664,9 @@ export default function Noticias() {
                 setSuccess(
                   noticia.status === "published" ? "Noticia publicada." : "Borrador guardado.",
                 );
-                setEditando(null);
+                cerrarEditor();
               }}
-              onCancelar={() => setEditando(null)}
+              onCancelar={cerrarEditor}
             />
           )}
         </DialogContent>

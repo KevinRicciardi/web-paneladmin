@@ -90,7 +90,7 @@ export default function ImageCropDialog({
   onClose,
   onConfirm,
 }: CropDialogProps) {
-  const modalBackground = "#3b3b3b";
+  const modalBackground = "#000";
   const [cropBox, setCropBox] = useState(buildDefaultCrop(type));
   const [cropPan, setCropPan] = useState({ x: 0, y: 0 });
   const [cropZoom, setCropZoom] = useState(1);
