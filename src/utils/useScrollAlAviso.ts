@@ -16,9 +16,15 @@ export function useScrollAlAviso<T extends HTMLElement = HTMLDivElement>(
   const ref = useRef<T>(null);
 
   useEffect(() => {
-    if (vez > 0) {
-      ref.current?.scrollIntoView({ behavior: "smooth", block });
-    }
+    if (vez <= 0) return;
+
+    const desplazar = () => ref.current?.scrollIntoView({ behavior: "smooth", block });
+    desplazar();
+    // Al cerrarse una ventana de confirmación, MUI le devuelve el foco al botón
+    // que la abrió (abajo de todo) y eso vuelve a bajar la pantalla, pisando el
+    // desplazamiento. Se repite cuando ya terminó esa animación.
+    const otraVez = window.setTimeout(desplazar, 350);
+    return () => window.clearTimeout(otraVez);
     // block es fijo para cada pantalla: solo cuenta el contador de avisos.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vez]);

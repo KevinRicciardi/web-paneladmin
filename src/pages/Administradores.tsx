@@ -34,6 +34,7 @@ import {
   quitarAccesoAdministrador,
   reenviarInvitacion,
 } from "../services/administradores.service";
+import { useErrorConScroll } from "../utils/useErrorConScroll";
 
 function formatFecha(value: string) {
   return new Intl.DateTimeFormat("es-AR", {
@@ -115,7 +116,7 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
   const [email, setEmail] = useState("");
   const [cargoInvitado, setCargoInvitado] = useState("");
   const [invitando, setInvitando] = useState(false);
-  const [errorModal, setErrorModal] = useState("");
+  const { error: errorModal, setError: setErrorModal, avisoRef: avisoModalRef } = useErrorConScroll();
 
   const [accionandoId, setAccionandoId] = useState<number | null>(null);
   const [guardandoCambios, setGuardandoCambios] = useState(false);
@@ -584,7 +585,7 @@ export default function Administradores({ perfil }: { perfil: Perfil }) {
         <DialogTitle>Invitar administrador</DialogTitle>
         <DialogContent>
           <Stack spacing={2.5} sx={{ mt: 1 }}>
-            {errorModal && <Alert severity="error">{errorModal}</Alert>}
+            {errorModal && <Alert ref={avisoModalRef} severity="error">{errorModal}</Alert>}
 
             <TextField
               label="Correo electrónico"
