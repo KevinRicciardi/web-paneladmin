@@ -109,12 +109,31 @@ export async function actualizarEstadoSolicitud(
 /// Etapa 4: el .aab vive en disco del servidor, detrás del mismo auth
 /// de MEGA_ADMIN — no hay link público, hay que pedirlo con el token y
 /// bajarlo como blob para poder disparar la descarga en el navegador.
-export async function descargarAab(id: number, nombreSugerido: string): Promise<void> {
+export async function obtenerSolicitud(id: number): Promise<BuildRequest> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}/build-requests/${id}`, { headers });
+  return parseResponse<BuildRequest>(res);
+}
+
+export async function descargarCompilacion(
+  id: number,
+  tipo: "aab" | "apk",
+  nombreSugerido: string,
+): Promise<void> {
   const headers = await getAuthHeaders();
 
-  const res = await fetch(`${API_URL}/build-requests/${id}/download`, { headers });
+  const ruta = tipo === "apk" ? "download-apk" : "download";
+  const res = await fetch(`${API_URL}/build-requests/${id}/${ruta}`, { headers });
   if (!res.ok) {
-    throw new Error("No se pudo descargar el .aab");
+    // La API explica el motivo (por ejemplo, que el archivo no está en este servidor).
+    let mensaje = `No se pudo descargar el .${tipo}`;
+    try {
+      const data = await res.json();
+      if (typeof data?.message === "string") mensaje = data.message;
+    } catch {
+      // Sin JSON queda el mensaje genérico.
+    }
+    throw new Error(mensaje);
   }
 
   const blob = await res.blob();

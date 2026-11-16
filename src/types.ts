@@ -270,6 +270,8 @@ export interface BuildRequest {
   /// Presente cuando el worker ya compiló y subió el .aab a Supabase
   /// Storage — con esto el panel muestra el botón de descarga.
   artifactPath?: string | null;
+  /// Si además del .aab hay un .apk para instalar directo (solo MEGA_ADMIN).
+  apkDisponible?: boolean;
   publishInfo?: BuildRequestPublishInfo | null;
   createdAt: string;
   updatedAt: string;

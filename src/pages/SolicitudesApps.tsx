@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -22,9 +22,13 @@ import { confirmacionDeEstado } from "../utils/solicitudes";
 import { useErrorConScroll } from "../utils/useErrorConScroll";
 import {
   actualizarEstadoSolicitud,
-  descargarAab,
+  descargarCompilacion,
   listarSolicitudes,
+  obtenerSolicitud,
 } from "../services/buildRequests.service";
+
+// Mientras compila, la ventana pregunta cada tanto si el worker ya terminó.
+const INTERVALO_REFRESCO_MS = 10_000;
 import { cambiarSlugDeTenant } from "../services/tenant.service";
 import { renombrarCanal } from "../services/authenticatedFetch";
 
@@ -36,7 +40,8 @@ const TRANSICIONES: Record<BuildRequestStatus, BuildRequestStatus[]> = {
   PENDING: ["IN_PROGRESS", "WAITING_CLIENT", "CANCELLED"],
   IN_PROGRESS: ["WAITING_CLIENT", "BUILDING", "CANCELLED", "FAILED"],
   WAITING_CLIENT: ["CANCELLED"],
-  BUILDING: ["COMPLETED", "FAILED", "CANCELLED"],
+  // "Completada" la pone el worker cuando sube el .aab, no se marca a mano.
+  BUILDING: ["FAILED", "CANCELLED"],
   COMPLETED: ["PUBLISHED"],
   FAILED: [],
   PUBLISHED: [],
@@ -92,6 +97,12 @@ export default function SolicitudesApps() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [seleccionada, setSeleccionada] = useState<BuildRequest | null>(null);
+
+  // Estable entre renders: la ventana la usa para su consulta periódica.
+  const alRefrescar = useCallback((nueva: BuildRequest) => {
+    setSeleccionada(nueva);
+    setSolicitudes((prev) => prev.map((s) => (s.id === nueva.id ? { ...s, ...nueva } : s)));
+  }, []);
 
   const cargar = async () => {
     setLoading(true);
@@ -201,6 +212,7 @@ export default function SolicitudesApps() {
           setSeleccionada(null);
           void cargar();
         }}
+        onRefrescada={alRefrescar}
         onSlugCambiado={(tenantId, slug) => {
           // Todas las solicitudes del mismo tenant muestran el slug nuevo.
           const conSlug = (s: BuildRequest) =>
@@ -219,16 +231,18 @@ function DetalleSolicitud({
   solicitud,
   onClose,
   onActualizada,
+  onRefrescada,
   onSlugCambiado,
 }: {
   solicitud: BuildRequest | null;
   onClose: () => void;
   onActualizada: () => void;
+  onRefrescada: (solicitud: BuildRequest) => void;
   onSlugCambiado: (tenantId: number, slug: string) => void;
 }) {
   const [internalNotes, setInternalNotes] = useState("");
   const [aplicando, setAplicando] = useState<BuildRequestStatus | null>(null);
-  const [descargando, setDescargando] = useState(false);
+  const [descargando, setDescargando] = useState<"aab" | "apk" | null>(null);
   const { error, setError, avisoRef } = useErrorConScroll();
   const [porConfirmar, setPorConfirmar] = useState<BuildRequestStatus | null>(null);
 
@@ -237,6 +251,28 @@ function DetalleSolicitud({
     setError("");
     setPorConfirmar(null);
   }, [solicitud?.id, setError]);
+
+  // El worker cambia el estado por su cuenta (Completada o Fallida): mientras
+  // compila, la ventana se actualiza sola en vez de quedar con botones viejos.
+  const solicitudId = solicitud?.id;
+  const compilando = solicitud?.status === "BUILDING";
+  useEffect(() => {
+    if (!solicitudId || !compilando) return;
+    let activo = true;
+    const intervalo = window.setInterval(() => {
+      obtenerSolicitud(solicitudId)
+        .then((nueva) => {
+          if (activo && nueva.status !== "BUILDING") onRefrescada(nueva);
+        })
+        .catch(() => {
+          // Si falla una consulta, se reintenta en la siguiente vuelta.
+        });
+    }, INTERVALO_REFRESCO_MS);
+    return () => {
+      activo = false;
+      window.clearInterval(intervalo);
+    };
+  }, [solicitudId, compilando, onRefrescada]);
 
   if (!solicitud) return null;
 
@@ -250,23 +286,38 @@ function DetalleSolicitud({
       await actualizarEstadoSolicitud(solicitud.id, { status, internalNotes: internalNotes || undefined });
       onActualizada();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo actualizar el estado");
+      const mensaje = err instanceof Error ? err.message : "";
+      if (mensaje.startsWith("No se puede pasar de")) {
+        // Cambió mientras estaba abierta (por ejemplo, el worker la terminó):
+        // se trae el estado real y se explica, en vez del mensaje técnico.
+        try {
+          const nueva = await obtenerSolicitud(solicitud.id);
+          onRefrescada(nueva);
+          setError(
+            `Esta solicitud cambió mientras la tenías abierta: ahora está en "${statusLabel(nueva.status)}". Ya se actualizó la ventana.`,
+          );
+        } catch {
+          setError("Esta solicitud cambió mientras la tenías abierta. Cerrá la ventana y volvé a abrirla.");
+        }
+      } else {
+        setError(mensaje || "No se pudo actualizar el estado");
+      }
     } finally {
       setAplicando(null);
     }
   };
 
-  const handleDescargar = async () => {
-    setDescargando(true);
+  const handleDescargar = async (tipo: "aab" | "apk") => {
+    setDescargando(tipo);
     setError("");
 
     try {
-      const nombre = `${solicitud.tenant?.slug ?? solicitud.tenantId}-${solicitud.id}.aab`;
-      await descargarAab(solicitud.id, nombre);
+      const nombre = `${solicitud.tenant?.slug ?? solicitud.tenantId}-${solicitud.id}.${tipo}`;
+      await descargarCompilacion(solicitud.id, tipo, nombre);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo descargar el .aab");
+      setError(err instanceof Error ? err.message : `No se pudo descargar el .${tipo}`);
     } finally {
-      setDescargando(false);
+      setDescargando(null);
     }
   };
 
@@ -285,8 +336,9 @@ function DetalleSolicitud({
               <Button
                 size="small"
                 variant="contained"
-                disabled={descargando}
-                onClick={handleDescargar}
+                disabled={descargando !== null}
+                onClick={() => handleDescargar("aab")}
+                title="Para subir a Google Play"
                 sx={{
                   bgcolor: "#fff",
                   color: "#000",
@@ -294,7 +346,20 @@ function DetalleSolicitud({
                   "&:hover": { bgcolor: "#e0e0e0" },
                 }}
               >
-                {descargando ? "Descargando..." : "Descargar .aab"}
+                {descargando === "aab" ? "Descargando..." : "Descargar .aab"}
+              </Button>
+            )}
+            {solicitud.artifactPath && solicitud.apkDisponible && (
+              <Button
+                size="small"
+                variant="outlined"
+                color="inherit"
+                disabled={descargando !== null}
+                onClick={() => handleDescargar("apk")}
+                title="Para instalar directo en un teléfono Android"
+                sx={{ fontWeight: 700 }}
+              >
+                {descargando === "apk" ? "Descargando..." : "Descargar .apk"}
               </Button>
             )}
           </Box>
