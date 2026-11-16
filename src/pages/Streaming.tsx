@@ -641,9 +641,25 @@ export default function Streaming({ perfil }: { perfil: Perfil }) {
                   : "Este formato de link (youtube.com/c/...) no se acepta. Usá el link de tu canal con el @ (youtube.com/@tucanal)."}
               </Alert>
             )}
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: linkEsYoutube ? 1 : 3 }}>
               Este link se comparte entre Video y Podcast. Para Video podés usar Kick, Twitch o YouTube; para Podcast tiene que ser de YouTube.
             </Typography>
+            {linkEsYoutube && (
+              <Box
+                component="button"
+                type="button"
+                onClick={() => setAyudaLinkAbierta(true)}
+                sx={{
+                  display: "inline-flex", alignItems: "center", gap: 0.5, mb: 3, p: 0,
+                  border: 0, background: "none", cursor: "pointer", font: "inherit",
+                  fontSize: 13, fontWeight: 700, color: "primary.main",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                <span className="material-symbols-outlined" style={ { fontSize: 18 } }>info</span>
+                Streaming de YouTube: ¿qué link va?
+              </Box>
+            )}
 
             {/* Tipo de transmisión */}
             <Typography sx={ { fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "text.secondary", mb: 1 } }>
